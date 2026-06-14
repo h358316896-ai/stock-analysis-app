@@ -15,27 +15,15 @@ DB_PATH = os.path.join(BASE_DIR, "app.db")
 # ==========================================================
 _SECRET = None
 
+def init_token_secret(secret_key: str):
+    """Set the token signing secret explicitly (call once at app startup)."""
+    global _SECRET
+    _SECRET = (secret_key or secrets.token_hex(32)).encode()
+
 def _get_secret():
     global _SECRET
     if _SECRET is None:
-        # Try dotenv first, then env var, then generate persistent random
-        try:
-            from dotenv import load_dotenv
-            load_dotenv()
-        except ImportError:
-            pass
-        key = os.getenv("FLASK_SECRET_KEY")
-        if not key:
-            # Generate a random key and save it to a file for persistence
-            _key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
-            if os.path.exists(_key_file):
-                with open(_key_file, "r") as f:
-                    key = f.read().strip()
-            if not key:
-                key = secrets.token_hex(32)
-                with open(_key_file, "w") as f:
-                    f.write(key)
-        _SECRET = key.encode()
+        _SECRET = secrets.token_hex(32).encode()
     return _SECRET
 
 def create_token(user_id: int) -> str:

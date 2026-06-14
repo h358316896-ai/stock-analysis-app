@@ -32,6 +32,8 @@ from quant_engine import (
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY") or os.urandom(24).hex()
+# Sync token auth secret with Flask session secret
+auth_db.init_token_secret(app.secret_key)
 # ProxyFix: trust X-Forwarded-Proto from Railway/Render reverse proxy
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
