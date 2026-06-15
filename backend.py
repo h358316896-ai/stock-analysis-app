@@ -1801,16 +1801,22 @@ def concept_heatmap():
 # ==========================================================
 @app.route("/api/market/dragon-tiger")
 def dragon_tiger():
-    """获取每日龙虎榜数据"""
-    url = f"https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:4&fields=f2,f3,f4,f12,f14,f62,f184,f66,f72,f75,f78,f81,f84,f87,f204,f205,f206"
+    """获取每日龙虎榜数据 — datacenter API"""
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DAILYBILLBOARD_DETAILSNEW&columns=TRADE_DATE,SECURITY_CODE,SECURITY_NAME_ABBR,CLOSE_PRICE,CHANGE_RATE,TURNOVERRATE,BILLBOARD_NET_AMT,BILLBOARD_BUY_AMT,BILLBOARD_SELL_AMT,EXPLANATION,CHANGE_TYPE&pageNumber=1&pageSize=50&sortTypes=-1&sortColumns=TRADE_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("dragon_tiger", url, ttl=1800)
     stocks = []
-    if data and data.get("data") and data["data"].get("diff"):
-        for item in data["data"]["diff"]:
+    if data and data.get("result") and data["result"].get("data"):
+        for item in data["result"]["data"]:
             stocks.append({
-                "code": item.get("f12", ""), "name": item.get("f14", ""),
-                "change_pct": item.get("f3", 0), "price": item.get("f2", 0),
-                "net_buy": item.get("f62", 0),
+                "code": item.get("SECURITY_CODE", ""),
+                "name": item.get("SECURITY_NAME_ABBR", ""),
+                "change_pct": item.get("CHANGE_RATE", 0),
+                "price": item.get("CLOSE_PRICE", 0),
+                "net_buy": item.get("BILLBOARD_NET_AMT", 0),
+                "buy_amt": item.get("BILLBOARD_BUY_AMT", 0),
+                "sell_amt": item.get("BILLBOARD_SELL_AMT", 0),
+                "turnover": item.get("TURNOVERRATE", 0),
+                "reason": (item.get("EXPLANATION", "") or "")[:60],
             })
     return jsonify({"stocks": stocks, "date": datetime.now().strftime("%Y-%m-%d")})
 
@@ -2069,11 +2075,9 @@ def stock_kline_full():
 def top_movers():
     """获取涨跌幅排行榜"""
     try:
-        # A股涨幅榜
-        url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
-        url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
-        up_data = _cached_eastmoney("gainers", url_up) or {}
-        down_data = _cached_eastmoney("losers", url_down) or {}
+        # 一次取50只股票按涨跌幅降序，前15=涨幅榜，后15=跌幅榜
+        url_all = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
+        all_data = _cached_eastmoney("all_movers", url_all, ttl=300) or {}
 
         def parse_mover(item):
             return {
@@ -2085,8 +2089,11 @@ def top_movers():
                 "pe": item.get("f9"),
             }
 
-        gainers = [parse_mover(i) for i in up_data.get("data", {}).get("diff", [])[:15]]
-        losers = [parse_mover(i) for i in down_data.get("data", {}).get("diff", [])[:15]]
+        all_stocks = [parse_mover(i) for i in all_data.get("data", {}).get("diff", [])]
+        all_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
+        gainers = all_stocks[:15]
+        losers = all_stocks[-15:] if len(all_stocks) >= 15 else []
+        losers.sort(key=lambda x: x["change_pct"])  # 跌幅从大到小
         return jsonify({"gainers": gainers, "losers": losers,
                         "updated": datetime.now().strftime("%H:%M:%S")})
     except Exception as e:
