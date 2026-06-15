@@ -8,7 +8,9 @@ import json
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "app.db")
+# 优先使用持久化卷挂载路径 /data（Railway Volume），否则用本地目录
+DATA_DIR = "/data" if os.path.isdir("/data") else BASE_DIR
+DB_PATH = os.path.join(DATA_DIR, "app.db")
 
 # ==========================================================
 # Token 认证（跨域Cookie替代方案）

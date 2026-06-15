@@ -503,7 +503,9 @@ def _fetch_tencent_raw(url):
 
 
 # Persistent file cache for market data (survives weekends / non-trading hours)
-_MARKET_CACHE_FILE = os.path.join(BASE_DIR, "market_cache.json")
+# 优先使用 Railway 持久化卷 /data，否则本地目录
+_PERSIST_DIR = "/data" if os.path.isdir("/data") else BASE_DIR
+_MARKET_CACHE_FILE = os.path.join(_PERSIST_DIR, "market_cache.json")
 
 def _load_market_cache():
     try:
@@ -2708,7 +2710,7 @@ def stock_money_flow():
             pass
 
     # ---- Persistent file-based cache: accumulate data over time ----
-    _cache_file = os.path.join(BASE_DIR, "money_flow_cache.json")
+    _cache_file = os.path.join(_PERSIST_DIR, "money_flow_cache.json")
     _file_cache = {}
     try:
         if os.path.exists(_cache_file):
