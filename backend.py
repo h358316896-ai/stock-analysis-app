@@ -2263,20 +2263,19 @@ def limit_up_review():
     if data and data.get("data") and data["data"].get("diff"):
         for item in data["data"]["diff"]:
             pct = item.get("f3", 0)
-                # Determine consecutive boards based on change pattern
-                name = item.get("f14","")
-                code = item.get("f12","")
-                stocks.append({
-                    "code": code, "name": name,
-                    "price": item.get("f2",0),
-                    "change_pct": pct,
-                    "volume_ratio": item.get("f10",0),
-                    "turnover": item.get("f8",0),
-                    "pe": item.get("f9"),
-                    "mkt_cap": item.get("f20",0),
-                    "main_net": item.get("f62",0),
-                    "reason": "推测:" + _guess_limit_reason(name),
-                })
+            name = item.get("f14","")
+            code = item.get("f12","")
+            stocks.append({
+                "code": code, "name": name,
+                "price": item.get("f2",0),
+                "change_pct": pct,
+                "volume_ratio": item.get("f10",0),
+                "turnover": item.get("f8",0),
+                "pe": item.get("f9"),
+                "mkt_cap": item.get("f20",0),
+                "main_net": item.get("f62",0),
+                "reason": "推测:" + _guess_limit_reason(name),
+            })
     # Sort by change_pct desc
     stocks.sort(key=lambda x: x["change_pct"], reverse=True)
     return jsonify({"stocks": stocks[:20], "total": len(stocks)})
