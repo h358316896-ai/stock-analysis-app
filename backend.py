@@ -2257,7 +2257,7 @@ def institutional_research():
 @app.route("/api/market/limit-up-review")
 def limit_up_review():
     """涨停板复盘：连板统计 + 涨停原因"""
-    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f8,f9,f10,f12,f14,f20,f62,f184"
+    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f8,f9,f10,f12,f14,f20,f62,f184"
     data = _cached_eastmoney("limit_review", url, ttl=600)
     stocks = []
     if data and data.get("data") and data["data"].get("diff"):
@@ -2279,7 +2279,7 @@ def limit_up_review():
                 })
     # Sort by change_pct desc
     stocks.sort(key=lambda x: x["change_pct"], reverse=True)
-    return jsonify({"stocks": stocks[:20], "total": len(stocks)})
+    return jsonify({"stocks": stocks[:50], "total": len(stocks)})
 
 # ---- 业绩报 ----
 @app.route("/api/market/earnings")
