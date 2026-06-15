@@ -2076,11 +2076,8 @@ def top_movers():
     """获取涨跌幅排行榜"""
     try:
         # 一次取50只股票按涨跌幅降序，前15=涨幅榜，后15=跌幅榜
-        url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
-        # 跌幅榜：用 po=0 升序排列，取前15只（最负的）
-        url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
-        up_data = _cached_eastmoney("gainers", url_up) or {}
-        down_data = _cached_eastmoney("losers_fix", url_down, ttl=120) or {}
+        url_all = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
+        all_data = _cached_eastmoney("all_movers", url_all, ttl=300) or {}
 
         def parse_mover(item):
             return {
@@ -2092,8 +2089,15 @@ def top_movers():
                 "pe": item.get("f9"),
             }
 
-        gainers = [parse_mover(i) for i in up_data.get("data", {}).get("diff", [])[:15]]
-        losers = [parse_mover(i) for i in down_data.get("data", {}).get("diff", [])[:15]]
+        all_stocks = [parse_mover(i) for i in all_data.get("data", {}).get("diff", [])]
+        all_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
+        gainers = all_stocks[:15]
+        # 优先取负值，不够再从剩余补充
+        neg = [s for s in all_stocks if s["change_pct"] < 0]
+        neg.sort(key=lambda x: x["change_pct"])
+        pos_tail = [s for s in all_stocks if s["change_pct"] >= 0]
+        pos_tail.sort(key=lambda x: x["change_pct"])
+        losers = (neg + pos_tail)[:15]
         return jsonify({"gainers": gainers, "losers": losers,
                         "updated": datetime.now().strftime("%H:%M:%S")})
     except Exception as e:
