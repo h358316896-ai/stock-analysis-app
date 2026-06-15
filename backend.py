@@ -3075,6 +3075,32 @@ def member_count():
     return jsonify(auth_db.get_member_count())
 
 
+# ---- 一键超管升级（仅限服务端调用） ----
+@app.route("/api/admin/setup-svip", methods=["POST"])
+def admin_setup_svip():
+    """用 ADMIN_SETUP_KEY 直接创建/升级超管"""
+    data = request.json or {}
+    setup_key = data.get("key", "")
+    expected = os.getenv("ADMIN_SETUP_KEY", os.getenv("ADMIN_PASS", ""))
+    if not expected or setup_key != expected:
+        return jsonify({"error": "无效密钥"}), 403
+    username = data.get("username", "admin")
+    password = data.get("password", "")
+    if len(password) < 6:
+        return jsonify({"error": "密码至少6位"}), 400
+    r = auth_db.create_user(username, f"{username}@kunhuang.top", password)
+    if r.get("success"):
+        auth_db.upgrade_membership(r["user_id"], "svip", 1200)
+        return jsonify({"success": True, "username": username, "user_id": r["user_id"], "tier": "svip"})
+    if "已存在" in str(r.get("error","")):
+        v = auth_db.verify_user(username, password)
+        if v.get("success"):
+            auth_db.upgrade_membership(v["user_id"], "svip", 1200)
+            return jsonify({"success": True, "username": username, "user_id": v["user_id"], "tier": "svip", "msg": "已升级"})
+        return jsonify({"error": "用户已存在但密码错误"}), 400
+    return jsonify({"error": str(r.get("error",""))}), 400
+
+
 # ---- Watchlist APIs (login required) ----
 @app.route("/api/watchlist/add", methods=["POST"])
 @login_required
