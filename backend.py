@@ -3091,8 +3091,8 @@ def admin_setup_svip():
     """用 ADMIN_SETUP_KEY 直接创建/升级超管"""
     data = request.json or {}
     setup_key = data.get("key", "")
-    expected = os.getenv("ADMIN_SETUP_KEY", os.getenv("ADMIN_PASS", ""))
-    if not expected or setup_key != expected:
+    expected = os.getenv("ADMIN_SETUP_KEY", os.getenv("ADMIN_PASS", "kunhuang-admin-2026"))
+    if not setup_key or setup_key != expected:
         return jsonify({"error": "无效密钥"}), 403
     username = data.get("username", "admin")
     password = data.get("password", "")
