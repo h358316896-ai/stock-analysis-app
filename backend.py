@@ -2092,9 +2092,11 @@ def top_movers():
             }
 
         all_stocks = [parse_mover(i) for i in all_data.get("data", {}).get("diff", [])]
+        # push2 返回空时用腾讯 API 回退
+        if not all_stocks:
+            all_stocks = _fetch_movers_tencent_fallback()
         all_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
         gainers = all_stocks[:15]
-        # 优先取负值，不够再从剩余补充
         neg = [s for s in all_stocks if s["change_pct"] < 0]
         neg.sort(key=lambda x: x["change_pct"])
         pos_tail = [s for s in all_stocks if s["change_pct"] >= 0]
@@ -2104,6 +2106,49 @@ def top_movers():
                         "updated": datetime.now().strftime("%H:%M:%S")})
     except Exception as e:
         return jsonify({"error": str(e), "gainers": [], "losers": []})
+
+
+def _fetch_movers_tencent_fallback():
+    """腾讯 API 回退：批量查询100只热门A股，返回涨跌幅排名"""
+    # 热门A股代码（沪深300 + 创业板龙头）
+    HOT_STOCKS = [
+        "600519","000858","601398","601939","601288","601857","600941","300750",
+        "600036","601166","600900","600030","601318","000333","002415","300059",
+        "600276","601012","600887","000651","002594","601088","600809","000568",
+        "000725","002475","300124","600585","000002","601668","600050","601728",
+        "600690","000063","002230","300274","300308","601138","601899","600111",
+        "002460","601225","600019","600547","300502","002049","000977","600745",
+        "000100","002371","688981","688256","688111","688036","688008","688009",
+        "688012","688185","600703","603019","000831","002156","603986","300033",
+        "601615","000876","002714","300529","603799","002841","000860","600588",
+        "002410","600183","603501","688396","002916","601865","002459","688598",
+        "300450","002129","601689","002050","603290","688072","300661","601799",
+        "002920","300496","603160","688099","002241","300896","600754","000661",
+    ]
+    stocks = []
+    url = "https://qt.gtimg.cn/q=" + ",".join(["sh"+c if c.startswith(("6","5","1")) else "sz"+c for c in HOT_STOCKS])
+    try:
+        text = _fetch_tencent_raw(url)
+        if text:
+            for m in re.finditer(r'v_([^=]+)="([^"]*)"', text):
+                fields = m.group(2).split("~")
+                if len(fields) < 35:
+                    continue
+                price = float(fields[3]) if fields[3] else 0.0
+                prev = float(fields[4]) if fields[4] else price
+                chg_pct = (price - prev) / prev * 100 if prev else 0.0
+                pe = float(fields[39]) if len(fields) > 39 and fields[39] else 0.0
+                mkt_cap = float(fields[44]) if len(fields) > 44 and fields[44] else 0.0
+                name = fields[1] if fields[1] else m.group(1)
+                if price > 0:
+                    stocks.append({
+                        "code": m.group(1), "name": name, "price": round(price,2),
+                        "change_pct": round(chg_pct,2), "market_cap": mkt_cap,
+                        "pe": round(pe,2) if pe > 0 else None,
+                    })
+    except Exception:
+        pass
+    return stocks
 
 
 # ---- 市值排行榜 ----
