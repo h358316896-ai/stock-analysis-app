@@ -2220,7 +2220,11 @@ def limit_up_down():
 
     up_list = [parse_limit(i) for i in up_data.get("data",{}).get("diff",[])[:20]] if up_data else []
     down_list = [parse_limit(i) for i in down_data.get("data",{}).get("diff",[])[:20]] if down_data else []
-    # Count total limit-ups
+    # push2 返回空时用腾讯API回退
+    if not up_list and not down_list:
+        fb = _fetch_movers_tencent_fallback()
+        up_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] >= 9.5][:20]
+        down_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] <= -5][:20]
     url_count = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f12"
     count_data = _cached_eastmoney("limit_count", url_count, ttl=300)
     total = count_data.get("data",{}).get("total",0) if count_data else 0
@@ -2335,7 +2339,18 @@ def limit_up_review():
                     "main_net": item.get("f62",0),
                     "reason": "推测:" + _guess_limit_reason(name),
                 })
-    # Sort by change_pct desc
+    # push2 返回空时用腾讯 API 回退
+    if not stocks:
+        fb = _fetch_movers_tencent_fallback()
+        for s in fb:
+            if s["change_pct"] >= 9.5:
+                stocks.append({
+                    "code": s["code"], "name": s["name"],
+                    "price": s["price"], "change_pct": s["change_pct"],
+                    "volume_ratio": 0, "turnover": 0,
+                    "pe": s.get("pe"), "mkt_cap": s.get("market_cap", 0),
+                    "main_net": 0, "reason": "",
+                })
     stocks.sort(key=lambda x: x["change_pct"], reverse=True)
     return jsonify({"stocks": stocks[:50], "total": len(stocks)})
 
