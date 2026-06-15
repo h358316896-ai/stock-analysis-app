@@ -2076,7 +2076,7 @@ def top_movers():
     """获取涨跌幅排行榜"""
     try:
         # 一次取50只股票按涨跌幅降序，前15=涨幅榜，后15=跌幅榜
-        url_all = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
+        url_all = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9"
         all_data = _cached_eastmoney("all_movers", url_all, ttl=300) or {}
 
         def parse_mover(item):
@@ -2092,8 +2092,10 @@ def top_movers():
         all_stocks = [parse_mover(i) for i in all_data.get("data", {}).get("diff", [])]
         all_stocks.sort(key=lambda x: x["change_pct"], reverse=True)
         gainers = all_stocks[:15]
-        losers = all_stocks[-15:] if len(all_stocks) >= 15 else []
-        losers.sort(key=lambda x: x["change_pct"])  # 跌幅从大到小
+        # 从底部取负值股票作为跌幅榜
+        neg_stocks = [s for s in all_stocks if s["change_pct"] < 0]
+        neg_stocks.sort(key=lambda x: x["change_pct"])  # 最负的在前
+        losers = neg_stocks[:15]
         return jsonify({"gainers": gainers, "losers": losers,
                         "updated": datetime.now().strftime("%H:%M:%S")})
     except Exception as e:
