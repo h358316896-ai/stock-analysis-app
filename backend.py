@@ -3786,4 +3786,23 @@ if __name__ == "__main__":
     print(f"[AI Workshop] Claude:     {'configured' if CLAUDE_API_KEY else 'MISSING'}")
     print(f"[AI Workshop] XunhuPay:   {'configured' if XH_APPID else 'MISSING -- 支付功能不可用'}")
     print(f"[AI Workshop] HK stocks: {len(HK_STOCK_NAMES)} loaded from local DB")
+
+    # Auto-create super admin account (set ADMIN_PASS env var to activate)
+    try:
+        admin_user = os.getenv("ADMIN_USER", "admin")
+        admin_pass = os.getenv("ADMIN_PASS", "")
+        if admin_pass and len(admin_pass) >= 6:
+            result = auth_db.create_user(admin_user, f"{admin_user}@kunhuang.top", admin_pass)
+            if result.get("success"):
+                uid = result.get("user_id")
+                auth_db.upgrade_membership(uid, "svip", 1200)
+                print(f"[AI Workshop] Super admin created: {admin_user}")
+            elif "已存在" in str(result.get("error","")):
+                v = auth_db.verify_user(admin_user, admin_pass)
+                if v.get("success"):
+                    auth_db.upgrade_membership(v["user_id"], "svip", 1200)
+                    print(f"[AI Workshop] Super admin upgraded: {admin_user}")
+    except Exception as e:
+        print(f"[AI Workshop] Admin setup: {e}")
+
     app.run(host="0.0.0.0", port=port, debug=False)
