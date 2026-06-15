@@ -141,6 +141,7 @@
     <style>.tab-nav::-webkit-scrollbar{display:none}</style>
     <button class="active" data-panel="heatmap">🔥 热力图</button>
     <button data-panel="movers">📈 涨跌幅</button>
+    <button data-panel="caprank">💰 市值排行</button>
     <button data-panel="news">📰 资讯</button>
     <button data-panel="calendar">📅 日历</button>
     <button data-panel="screener">🔍 筛选</button>
@@ -197,6 +198,20 @@
           </table>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Panel: Market Cap Ranking -->
+  <div class="panel" id="panel-caprank">
+    <div class="glass" style="padding:16px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h4 style="font-size:13px;font-weight:600;color:var(--text-primary)">💰 总市值排行 Top 30</h4>
+        <span id="capRankTime" style="font-size:10px;color:var(--text-tertiary)"></span>
+      </div>
+      <table class="movers-table">
+        <thead><tr><th>排名</th><th>名称</th><th>价格</th><th>涨跌幅</th><th>市值(亿)</th><th>PE</th></tr></thead>
+        <tbody id="capRankBody"></tbody>
+      </table>
     </div>
   </div>
 
@@ -548,6 +563,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('panel-' + b.dataset.panel).classList.add('active');
       if (b.dataset.panel === 'heatmap') loadSectors();
       if (b.dataset.panel === 'movers') loadMovers();
+	      if (b.dataset.panel === 'caprank') loadCapRank();
       if (b.dataset.panel === 'news') loadNews();
       if (b.dataset.panel === 'calendar') loadCalendar();
       if (b.dataset.panel === 'bigdata') loadBigData();
@@ -648,6 +664,8 @@ async function submitAuth() {
     var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var d = await r.json();
     if (d.error) return showErr(d.error);
+    // Store token for cross-origin auth
+    if (d.token) { localStorage.setItem('stockai_token', d.token); }
     // Set login state immediately
     state.isLogin = true;
     state.user = { username: u };
@@ -681,7 +699,7 @@ async function submitAuth() {
   } catch(x) { showErr('网络错误'); }
 }
 function showErr(m) { const el = document.getElementById('authError'); el.textContent = m; el.classList.add('show'); }
-function logout() { fetch('/api/auth/logout', { method: 'POST' }).then(() => { state.isLogin = false; state.user = null; onLoginChange(); location.reload(); }); }
+function logout() { localStorage.removeItem('stockai_token'); fetch('/api/auth/logout', { method: 'POST' }).then(() => { state.isLogin = false; state.user = null; onLoginChange(); location.reload(); }); }
 function toggleDropdown() { /* simplified */ }
 function showForgotPassword() { showToast('请联系客服重置密码: support@stockai.com', 'info'); }
 
@@ -891,6 +909,27 @@ async function loadMovers() {
     };
     render(d.gainers, 'gainersBody');
     render(d.losers, 'losersBody');
+  } catch(e) { console.warn(e); }
+}
+
+async function loadCapRank() {
+  try {
+    var r = await fetch('/api/market/cap-ranking'); var d = await r.json();
+    var el = document.getElementById('capRankBody');
+    var timeEl = document.getElementById('capRankTime');
+    if (timeEl) timeEl.textContent = '更新于 ' + (d.updated || '');
+    if (!d.stocks || !d.stocks.length) { el.innerHTML = '<tr><td colspan="6" style="color:var(--text-tertiary);text-align:center;padding:20px">暂无市值数据</td></tr>'; return; }
+    el.innerHTML = d.stocks.map(function(s, i){
+      var up = s.change_pct >= 0, clr = up ? 'text-green' : 'text-red';
+      var mktCapYi = (s.market_cap || 0) / 1e8;
+      return '<tr style="cursor:pointer" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +
+        '<td style="color:var(--accent);font-weight:700">' + (i+1) + '</td>' +
+        '<td><b style="color:var(--text-primary)">' + s.name + '</b><br><span style="font-size:10px;color:var(--text-tertiary)">' + s.code + '</span></td>' +
+        '<td>' + (s.price || 0).toFixed(2) + '</td>' +
+        '<td class="' + clr + '">' + (up?'+':'') + (s.change_pct || 0).toFixed(2) + '%</td>' +
+        '<td>' + (mktCapYi >= 10000 ? (mktCapYi/10000).toFixed(2) + '万' : mktCapYi.toFixed(0)) + '亿</td>' +
+        '<td>' + (s.pe || '--') + '</td></tr>';
+    }).join('');
   } catch(e) { console.warn(e); }
 }
 
@@ -2265,7 +2304,7 @@ async function toggleWatchlist() {
   const { code, name, market } = state.stock;
   try {
     const inList = document.getElementById('watchlistBtn').classList.contains('active');
-    const r = await fetch(inList ? `/api/watchlist/${encodeURIComponent(code)}?market=${market}` : '/api/watchlist', {
+    const r = await fetch(inList ? `/api/watchlist/${encodeURIComponent(code)}?market=${market}` : '/api/watchlist/add', {
       method: inList ? 'DELETE' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: inList ? undefined : JSON.stringify({ code, name, market })

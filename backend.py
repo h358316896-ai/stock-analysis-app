@@ -522,21 +522,53 @@ def _save_market_cache(data):
         pass
 
 def _cached_eastmoney(key, url, ttl=1800):
-    """Fetch from Eastmoney + cache. On failure, return stale cache. Cache TTL in seconds."""
+    """Fetch from Eastmoney + cache. On failure, return stale cache. Cache TTL in seconds.
+
+    Supports both push2 API format (data.data.diff) and datacenter API format (data.result.data).
+    Does NOT cache empty results to prevent overwriting good data during off-hours.
+    """
     cache = _load_market_cache()
     now_ts = time.time()
 
+    # Check stale cache first - use if still valid and live fetch fails
+    entry = cache.get(key)
+    stale_data = None
+    if entry and (now_ts - entry["ts"]) < ttl * 5:  # keep stale cache for 5x TTL
+        stale_data = entry["data"]
+
     # Try live data
     data = fetch_eastmoney(url)
-    if data and data.get("data") and data["data"].get("diff"):
+    valid = False
+    has_content = False
+    if data:
+        # push2.eastmoney.com format: {"data": {"diff": [...]}}
+        if data.get("data") and data["data"].get("diff") is not None:
+            valid = True
+            diff = data["data"]["diff"]
+            has_content = isinstance(diff, list) and len(diff) > 0
+        # datacenter(-web).eastmoney.com format: {"success": true, "result": {"data": [...]}}
+        elif data.get("success") and data.get("result") is not None:
+            valid = True
+            result_data = data["result"].get("data")
+            has_content = isinstance(result_data, list) and len(result_data) > 0
+        # Fallback: any result.data structure
+        elif data.get("result") and data["result"].get("data") is not None:
+            valid = True
+            result_data = data["result"]["data"]
+            has_content = isinstance(result_data, list) and len(result_data) > 0
+
+    if valid and has_content:
         cache[key] = {"ts": now_ts, "data": data}
         _save_market_cache(cache)
         return data
 
-    # Return stale cache if available
-    entry = cache.get(key)
-    if entry:
-        return entry["data"]
+    # If live data failed or empty, return stale cache
+    if stale_data:
+        return stale_data
+
+    # Return live data even if empty (first-time requests)
+    if valid:
+        return data
     return None
 
 # Simple in-memory cache with TTL
@@ -556,6 +588,8 @@ _CACHE_TTL_LONG = 300      # 5 minutes for global indices / sectors
 def fetch_cn_quote(code):
     # Tencent Finance real-time quote API
     # Format: https://qt.gtimg.cn/q=sh600519 (returns GBK-encoded JS string)
+    # CN fields: 1=name, 3=price, 4=prev_close, 5=open, 6=vol(手), 31=change, 32=pct,
+    #            33=high, 34=low, 37=amount(万元), 38=turnover_rate, 39=pe, 44=market_cap(亿元), 46=pb
     prefix = "sh" if code.startswith(("6", "5", "1")) else "sz"
     url = f"https://qt.gtimg.cn/q={prefix}{code}"
     try:
@@ -572,18 +606,36 @@ def fetch_cn_quote(code):
         price      = float(fields[3]) if fields[3] else 0.0
         prev_close = float(fields[4]) if fields[4] else price
         open_price = float(fields[5]) if fields[5] else price
-        volume     = int(fields[6]) * 100 if fields[6] else 0   # 手 → 股
+        volume     = int(float(fields[6])) * 100 if fields[6] else 0   # 手 → 股
         high       = float(fields[33]) if len(fields) > 33 and fields[33] else price
         low        = float(fields[34]) if len(fields) > 34 and fields[34] else price
-        chg        = price - prev_close
-        chg_pct    = (chg / prev_close * 100) if prev_close else 0.0
+        chg        = float(fields[31]) if len(fields) > 31 and fields[31] else (price - prev_close)
+        chg_pct    = float(fields[32]) if len(fields) > 32 and fields[32] else ((chg / prev_close * 100) if prev_close else 0.0)
+        # Parse amount from fields[35]="price/vol/amount" or use fields[37] (万元)
+        amount = 0
+        if len(fields) > 35 and fields[35]:
+            parts = fields[35].split("/")
+            if len(parts) >= 3 and parts[2]:
+                try: amount = float(parts[2])
+                except: pass
+        if amount == 0 and len(fields) > 37 and fields[37]:
+            try: amount = float(fields[37]) * 10000  # 万元 → 元
+            except: pass
+        pe = float(fields[39]) if len(fields) > 39 and fields[39] else 0.0
+        market_cap = float(fields[44]) if len(fields) > 44 and fields[44] else 0.0  # 亿元
+        pb = float(fields[46]) if len(fields) > 46 and fields[46] else 0.0
+        turnover = float(fields[38]) if len(fields) > 38 and fields[38] else 0.0  # 换手率%
         name = fields[1] if len(fields) > 1 and fields[1] else STOCK_NAMES.get(code, code)
         return {
             "code": code, "name": name,
             "price": round(price, 2), "change_pct": round(chg_pct, 2),
             "change": round(chg, 2),
             "open": round(open_price, 2), "high": round(high, 2), "low": round(low, 2),
-            "volume": volume, "amount": 0,
+            "volume": volume, "amount": amount,
+            "pe": round(pe, 2) if pe > 0 else None,
+            "market_cap": round(market_cap, 2) if market_cap > 0 else None,
+            "pb": round(pb, 2) if pb > 0 else None,
+            "turnover": round(turnover, 2) if turnover > 0 else None,
             "time": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
     except Exception as e:
@@ -1779,7 +1831,7 @@ def stock_financials():
 
     try:
         if market == "cn":
-            # Eastmoney financial data
+            # Eastmoney financial data (with Tencent API fallback)
             prefix = "1" if code.startswith("6") else "0"
             secid = f"{prefix}.{code}"
             url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f9,f20,f23,f37,f38,f39,f40,f41,f43,f44,f45,f46,f55,f57,f58,f115,f162,f167,f170,f173"
@@ -1799,6 +1851,16 @@ def stock_financials():
                     "gross_margin": d.get("f38"), # 毛利率
                     "net_margin": d.get("f39"),  # 净利率
                 }
+            # Fallback: use Tencent quote data for PE, PB, market_cap
+            if result.get("pe") is None or result.get("total_mv") is None:
+                q = fetch_cn_quote(code)
+                if q and "error" not in q:
+                    if result.get("pe") is None and q.get("pe"):
+                        result["pe"] = q["pe"]
+                    if result.get("total_mv") is None and q.get("market_cap"):
+                        result["total_mv"] = q["market_cap"]  # already in 亿元
+                    if result.get("pb") is None and q.get("pb"):
+                        result["pb"] = q["pb"]
         elif market == "us":
             try:
                 import yfinance as yf
@@ -2031,6 +2093,30 @@ def top_movers():
         return jsonify({"error": str(e), "gainers": [], "losers": []})
 
 
+# ---- 市值排行榜 ----
+@app.route("/api/market/cap-ranking")
+def cap_ranking():
+    """获取总市值排行榜"""
+    try:
+        # Sort by market cap (f20) descending for all A stocks
+        url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&fltt=2&invt=2&fid=f20&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9,f115"
+        data = _cached_eastmoney("cap_ranking", url, ttl=600)
+        stocks = []
+        if data and data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"][:30]:
+                stocks.append({
+                    "code": item.get("f12", ""),
+                    "name": item.get("f14", ""),
+                    "price": item.get("f2", 0),
+                    "change_pct": item.get("f3", 0),
+                    "market_cap": item.get("f20", 0),  # 总市值(元)
+                    "pe": item.get("f9"),
+                })
+        return jsonify({"stocks": stocks, "updated": datetime.now().strftime("%H:%M:%S")})
+    except Exception as e:
+        return jsonify({"error": str(e), "stocks": []})
+
+
 # ==========================================================
 # 大数据功能集
 # ==========================================================
@@ -2110,7 +2196,7 @@ def stock_shareholders():
     if not code: return jsonify({"error":"no code"}), 400
     prefix = "1" if code.startswith("6") else "0"
     secid = f"{prefix}.{code}"
-    url = f"https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_F10_EQUITY_STRUCTURE&columns=END_DATE,HOLDER_NUM,HOLDER_NUM_CHANGE,HOLDER_NUM_RATIO,AVG_HOLD_NUM&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=20&sortTypes=-1&sortColumns=END_DATE"
+    url = f"https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_HOLDERNUMLATEST&columns=SECURITY_CODE,SECURITY_NAME_ABBR,END_DATE,HOLDER_NUM,HOLDER_NUM_CHANGE,HOLDER_NUM_RATIO,AVG_HOLD_NUM&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=20&sortTypes=-1&sortColumns=END_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("shareholders_"+code, url, ttl=86400)
     result = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2130,16 +2216,16 @@ def block_trades():
     """获取个股大宗交易明细"""
     code = request.args.get("code","").strip()
     if not code: return jsonify({"error":"no code"}), 400
-    url = f"https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_BLOCKTRADE_DET&columns=TRADE_DATE,SECURITY_CODE,SECURITY_NAME,TRADE_PRICE,TRADE_VOL,TRADE_AMT,PREMIUM_RATIO,BUYER_NAME,SELLER_NAME&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=TRADE_DATE"
+    url = f"https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DATA_BLOCKTRADE&columns=TRADE_DATE,SECURITY_CODE,SECURITY_NAME_ABBR,DEAL_PRICE,DEAL_VOLUME,DEAL_AMT,PREMIUM_RATIO,BUYER_NAME,SELLER_NAME&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=TRADE_DATE&source=WEB&client=WEB"
     data = fetch_eastmoney(url, 10)
     trades = []
     if data and data.get("result") and data["result"].get("data"):
         for item in data["result"]["data"]:
             trades.append({
                 "date": str(item.get("TRADE_DATE",""))[:10],
-                "price": item.get("TRADE_PRICE",0),
-                "volume": item.get("TRADE_VOL",0),
-                "amount": item.get("TRADE_AMT",0),
+                "price": item.get("DEAL_PRICE",0),
+                "volume": item.get("DEAL_VOLUME",0),
+                "amount": item.get("DEAL_AMT",0),
                 "premium": item.get("PREMIUM_RATIO",0),
                 "buyer": item.get("BUYER_NAME",""),
                 "seller": item.get("SELLER_NAME",""),
@@ -2151,7 +2237,7 @@ def block_trades():
 @app.route("/api/market/institutional-research")
 def institutional_research():
     """获取机构调研记录"""
-    url = "https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_ORG_SURVEY&columns=SECURITY_CODE,SECURITY_NAME_ABBR,SURVEY_DATE,ORG_NUM,MAIN_BUSINESS,RESEARCH_TYPE&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=SURVEY_DATE"
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_ORG_SURVEYNEW&columns=SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,RECEIVE_START_DATE,SUM,RECEIVE_WAY_EXPLAIN,RECEPTIONIST&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=NOTICE_DATE&source=WEB&client=WEB"
     data = fetch_eastmoney(url, 10)
     records = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2159,10 +2245,10 @@ def institutional_research():
             records.append({
                 "code": item.get("SECURITY_CODE",""),
                 "name": item.get("SECURITY_NAME_ABBR",""),
-                "date": str(item.get("SURVEY_DATE",""))[:10],
-                "org_count": item.get("ORG_NUM",0),
-                "biz": (item.get("MAIN_BUSINESS","") or "")[:80],
-                "type": item.get("RESEARCH_TYPE",""),
+                "date": str(item.get("NOTICE_DATE",""))[:10],
+                "org_count": item.get("SUM",0),
+                "biz": (item.get("RECEIVE_PLACE","") or "")[:80],
+                "type": item.get("RECEIVE_WAY_EXPLAIN",""),
             })
     return jsonify({"records": records})
 
@@ -2201,7 +2287,7 @@ def limit_up_review():
 def earnings_report():
     """获取最新业绩报告"""
     # Try Eastmoney API first
-    url = "https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD&columns=SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,REPORT_DATE_NAME,BASIC_EPS,WEIGHTAVG_ROE,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,SJLTZ,SJLHZ&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=NOTICE_DATE"
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD&columns=SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,REPORT_DATE_NAME,BASIC_EPS,WEIGHTAVG_ROE,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,SJLTZ,SJLHZ&pageNumber=1&pageSize=30&sortTypes=-1&sortColumns=NOTICE_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("earnings", url, ttl=7200)
     items = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2225,7 +2311,7 @@ def stock_earnings():
     """查询个股业绩报"""
     code = request.args.get("code","").strip()
     if not code: return jsonify({"reports": []})
-    url = f"https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD&columns=SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,REPORT_DATE_NAME,BASIC_EPS,WEIGHTAVG_ROE,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,SJLTZ,SJLHZ&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=10&sortTypes=-1&sortColumns=NOTICE_DATE"
+    url = f"https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_LICO_FN_CPD&columns=SECURITY_CODE,SECURITY_NAME_ABBR,NOTICE_DATE,REPORT_DATE_NAME,BASIC_EPS,WEIGHTAVG_ROE,TOTAL_OPERATE_INCOME,PARENT_NETPROFIT,SJLTZ,SJLHZ&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=10&sortTypes=-1&sortColumns=NOTICE_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("earnings_"+code, url, ttl=86400)
     items = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2286,7 +2372,7 @@ def _guess_limit_reason(name):
 @app.route("/api/market/lockup-schedule")
 def lockup_schedule():
     """近期解禁股票列表"""
-    url = "https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_LIFT_STOCKHOLDER&columns=SECURITY_CODE,SECURITY_NAME_ABBR,LIFT_DATE,LIFT_SHARES,LIFT_MARKET_CAP,LIFT_RATIO&pageNumber=1&pageSize=20&sortTypes=1&sortColumns=LIFT_DATE"
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_LIFT_STAGE&columns=SECURITY_CODE,SECURITY_NAME_ABBR,FREE_DATE,ABLE_FREE_SHARES,LIFT_MARKET_CAP,FREE_RATIO&pageNumber=1&pageSize=20&sortTypes=1&sortColumns=FREE_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("lockup", url, ttl=3600)
     items = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2294,10 +2380,10 @@ def lockup_schedule():
             items.append({
                 "code": item.get("SECURITY_CODE",""),
                 "name": item.get("SECURITY_NAME_ABBR",""),
-                "date": str(item.get("LIFT_DATE",""))[:10],
-                "shares": item.get("LIFT_SHARES", 0),
+                "date": str(item.get("FREE_DATE",""))[:10],
+                "shares": item.get("ABLE_FREE_SHARES", 0),
                 "market_cap": item.get("LIFT_MARKET_CAP", 0),
-                "ratio": item.get("LIFT_RATIO", 0),
+                "ratio": item.get("FREE_RATIO", 0),
             })
     return jsonify({"items": items})
 
@@ -2306,7 +2392,7 @@ def lockup_schedule():
 @app.route("/api/market/ipo-calendar")
 def ipo_calendar():
     """新股申购日历"""
-    url = "https://datacenter.eastmoney.com/api/data/v1/get?reportName=RPT_NEWSTOCK_IPO&columns=SECURITY_CODE,SECURITY_NAME_ABBR,IPO_DATE,ISSUE_PRICE,ISSUE_PE,INDUSTRY_PE,CONTINUOUS_LIMIT_NUM,FIRST_OPEN_PRICE&pageNumber=1&pageSize=15&sortTypes=-1&sortColumns=IPO_DATE"
+    url = "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPTA_APP_IPOAPPLY&columns=SECURITY_CODE,SECURITY_NAME_ABBR,LISTING_DATE,ISSUE_PRICE,AFTER_ISSUE_PE,INDUSTRY_PE_NEW,CONTINUOUS_1WORD_NUM,OPEN_PRICE&pageNumber=1&pageSize=15&sortTypes=-1&sortColumns=LISTING_DATE&source=WEB&client=WEB"
     data = _cached_eastmoney("ipo_cal", url, ttl=3600)
     items = []
     if data and data.get("result") and data["result"].get("data"):
@@ -2314,12 +2400,12 @@ def ipo_calendar():
             items.append({
                 "code": item.get("SECURITY_CODE",""),
                 "name": item.get("SECURITY_NAME_ABBR",""),
-                "date": str(item.get("IPO_DATE",""))[:10],
+                "date": str(item.get("LISTING_DATE",""))[:10],
                 "price": item.get("ISSUE_PRICE", 0),
-                "issue_pe": item.get("ISSUE_PE", 0),
-                "industry_pe": item.get("INDUSTRY_PE", 0),
-                "limit_days": item.get("CONTINUOUS_LIMIT_NUM", 0),
-                "open_price": item.get("FIRST_OPEN_PRICE", 0),
+                "issue_pe": item.get("AFTER_ISSUE_PE", 0),
+                "industry_pe": item.get("INDUSTRY_PE_NEW", 0),
+                "limit_days": item.get("CONTINUOUS_1WORD_NUM", 0),
+                "open_price": item.get("OPEN_PRICE", 0),
             })
     return jsonify({"items": items})
 
