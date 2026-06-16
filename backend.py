@@ -353,18 +353,28 @@ def api_dashboard():
 
     # Sectors & Concepts & Movers — cache-first with live fallback
     def _cached_or_live(key, url, ttl=300):
-        """Read cache if fresh, otherwise fetch live and update cache."""
+        """返回缓存或实时数据。缓存为空时自动拉取。"""
         cache = _load_market_cache()
         entry = cache.get(key)
         now_ts = time.time()
-        # Return fresh cache (< ttl seconds old)
-        if entry and (now_ts - entry["ts"]) < ttl:
+        # Check if cached data has actual content
+        has_content = False
+        if entry and entry.get("data"):
+            d = entry["data"]
+            # push2 format: {"data":{"diff":[...]}}
+            diff = d.get("data", {}).get("diff") if isinstance(d, dict) else None
+            has_content = isinstance(diff, list) and len(diff) > 0
+        # Return fresh cache WITH content
+        if entry and has_content and (now_ts - entry["ts"]) < ttl:
             return entry["data"]
-        # Try live fetch, fall back to stale cache
+        # Try live fetch
         result = _cached_eastmoney(key, url, ttl=ttl)
         if result is not None:
-            return result
-        # Last resort: stale cache
+            # Verify the fetched result has actual data
+            rdiff = result.get("data", {}).get("diff") if isinstance(result, dict) else None
+            if isinstance(rdiff, list) and len(rdiff) > 0:
+                return result
+        # Last resort: stale cache (even if empty — better than nothing)
         if entry:
             return entry["data"]
         return None
@@ -383,6 +393,18 @@ def api_dashboard():
 
     gainers = [parse_mover(i) for i in gainers_data.get("data",{}).get("diff",[])[:15]] if gainers_data else []
     losers = [parse_mover(i) for i in losers_data.get("data",{}).get("diff",[])[:15]] if losers_data else []
+
+    # Fallback: push2 休市时返回空，用腾讯API回退
+    if not gainers and not losers:
+        fallback = _fetch_movers_tencent_fallback()
+        if fallback:
+            fallback.sort(key=lambda x: x["change_pct"], reverse=True)
+            gainers = fallback[:15]
+            neg = [s for s in fallback if s["change_pct"] < 0]
+            neg.sort(key=lambda x: x["change_pct"])
+            pos_tail = [s for s in fallback if s["change_pct"] >= 0]
+            pos_tail.sort(key=lambda x: x["change_pct"])
+            losers = (neg + pos_tail)[:15]
 
     return jsonify({
         "indices": indices,
