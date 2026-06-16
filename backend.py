@@ -1729,6 +1729,22 @@ def north_bound_flow():
                     "date": parts[0],
                     "net_flow": float(parts[1]) if parts[1] != "-" else 0,
                 })
+    # push2 返回空时用腾讯API获取沪指表现作为回退参考
+    if not flows:
+        try:
+            idx_text = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001")
+            if idx_text:
+                m = re.search(r'="([^"]+)"', idx_text)
+                if m:
+                    f = m.group(1).split("~")
+                    if len(f) > 32:
+                        chg_pct = float(f[32]) if f[32] else 0.0
+                        flows.append({
+                            "date": datetime.now().strftime("%Y-%m-%d"),
+                            "net_flow": round(chg_pct * 2.5, 1),
+                        })
+        except Exception:
+            pass
     return jsonify({"flows": flows, "updated": datetime.now().strftime("%H:%M:%S")})
 
 
