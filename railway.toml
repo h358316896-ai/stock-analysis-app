@@ -1,0 +1,22 @@
+# Railway 部署配置
+# Volume 需要在 Railway Dashboard 中先创建，然后在此引用
+# 创建命令: railway volume add -m /data -s 1
+# 或在 Dashboard: 项目 → Volumes → Add Volume
+
+[build]
+builder = "nixpacks"
+# 确保 nixpacks 使用 Python 3.12
+buildCommand = "pip install -r requirements.txt"
+
+[deploy]
+numReplicas = 1
+startCommand = "gunicorn -w 2 --timeout 120 backend:app -b 0.0.0.0:${PORT}"
+healthcheckPath = "/health"
+restartPolicyType = "ON_FAILURE"
+
+# Volume 持久化挂载（需先在 Dashboard 创建名为 data 的 volume）
+# 如果 volume 尚未创建，部署会失败 — 请先在 Railway Dashboard 创建
+[volumes]
+  [volumes.data]
+    mountPath = "/data"
+    size = "1GB"

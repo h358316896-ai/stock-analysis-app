@@ -10,3 +10,7 @@ services:
       - key: DEEPSEEK_API_KEY
         sync: false
     plan: free
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1

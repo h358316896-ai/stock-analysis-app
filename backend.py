@@ -314,7 +314,17 @@ def home():
 # -----------------------------------------------------------
 @app.route("/health")
 def health():
-    return {"status": "ok"}, 200
+    info = auth_db.get_persistence_info()
+    return {
+        "status": "ok",
+        "persistence": {
+            "tier": info["tier"],
+            "volume_mounted": info["volume_available"],
+            "db_size_kb": info["db_size_kb"],
+            "users": info["user_count"],
+            "backups": info["backup_count"],
+        }
+    }, 200
 
 # -----------------------------------------------------------
 # Unified dashboard endpoint - combines indices + sectors + movers in ONE call
@@ -3008,6 +3018,56 @@ def admin_quick_upgrade():
         return jsonify({"error": "用户不存在"}), 404
     result = auth_db.upgrade_membership(row["id"], tier, months)
     return jsonify({"success": True, "user_id": row["id"], "tier": tier, **result})
+
+
+# ---- 数据持久化管理（管理员） ----
+@app.route("/api/admin/persistence")
+def admin_persistence():
+    """查看持久化状态"""
+    info = auth_db.get_persistence_info()
+    # List backup files
+    backups = []
+    if info["backup_count"] > 0:
+        backup_dir = os.path.join(auth_db.DATA_DIR, "backups")
+        if os.path.isdir(backup_dir):
+            for f in sorted(os.listdir(backup_dir), reverse=True):
+                if f.startswith("app_") and f.endswith(".db"):
+                    fpath = os.path.join(backup_dir, f)
+                    backups.append({
+                        "name": f,
+                        "size_kb": round(os.path.getsize(fpath) / 1024, 1),
+                        "time": f.replace("app_", "").replace(".db", ""),
+                    })
+    return jsonify({
+        **info,
+        "backup_list": backups[:10],
+        "tier_labels": {
+            "volume": "✅ Railway Volume 持久化 — 数据安全",
+            "tmp": "⚠️ /tmp/stockai — 重启不丢，Redeploy会丢",
+            "local": "❌ 代码目录 — Redeploy必丢！请挂载 Volume",
+        }.get(info["tier"], "未知"),
+    })
+
+@app.route("/api/admin/backup", methods=["POST"])
+def admin_backup():
+    """手动触发数据库备份"""
+    path = auth_db.backup_db()
+    if path:
+        size_kb = round(os.path.getsize(path) / 1024, 1)
+        return jsonify({"success": True, "path": path, "size_kb": size_kb})
+    return jsonify({"error": "备份失败 — 数据库可能不存在"}), 500
+
+@app.route("/api/admin/restore", methods=["POST"])
+def admin_restore():
+    """从最新备份恢复数据库（需要确认）"""
+    data = request.json or {}
+    if not data.get("confirm") == "YES_RESTORE":
+        return jsonify({"error": "需要 confirm='YES_RESTORE' 确认操作"}), 400
+    ok = auth_db.restore_latest_backup()
+    if ok:
+        return jsonify({"success": True, "message": "已从最新备份恢复"})
+    return jsonify({"error": "恢复失败 — 没有可用备份"}), 404
+
 
 # ---- Payment APIs (虎皮椒 微信+支付宝) ----
 @app.route("/api/payment/create", methods=["POST"])
