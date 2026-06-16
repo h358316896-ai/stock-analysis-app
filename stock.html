@@ -516,20 +516,36 @@
 <script>
 // ============================================================
 // CDN MODE: 仅在非本地访问时代理 API 到 Railway
+// + 统一注入 credentials 和 token 认证头
 // ============================================================
 (function(){
   var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('172.16.');
+  window.API_BASE = '';
   if (!isLocal) {
     window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
-    var orig = window.fetch;
-    window.fetch = function(url, opts) {
-      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
-      return orig.call(this, url, opts);
-    };
-    console.log('[CDN] API proxy active → ' + window.API_BASE);
-  } else {
-    console.log('[LOCAL] Direct API calls — no proxy');
   }
+  var orig = window.fetch;
+  window.fetch = function(url, opts) {
+    opts = opts || {};
+    // URL代理
+    if (typeof url === 'string' && url.indexOf('/api/') === 0 && window.API_BASE) {
+      url = window.API_BASE + url;
+    }
+    // 跨域 Cookie
+    opts.credentials = 'include';
+    // Token 认证兜底
+    var token = localStorage.getItem('stockai_token');
+    if (token) {
+      opts.headers = opts.headers || {};
+      if (opts.headers instanceof Headers) {
+        if (!opts.headers.has('Authorization')) opts.headers.set('Authorization', 'Bearer ' + token);
+      } else if (!opts.headers['Authorization']) {
+        opts.headers['Authorization'] = 'Bearer ' + token;
+      }
+    }
+    return orig.call(this, url, opts);
+  };
+  console.log('[FETCH] proxy=' + (window.API_BASE || 'none') + ' credentials=include token=' + (!!localStorage.getItem('stockai_token')));
 })();
 
 // ============================================================
@@ -849,9 +865,9 @@ async function loadAllMarketData() {
     renderHeatmap('sectorHeatmap', d.sectors||[]);
     renderHeatmap('conceptHeatmap', d.concepts||[]);
 
-    // Movers
-    renderMoversTable('gainersBody', d.gainers||[]);
-    renderMoversTable('losersBody', d.losers||[]);
+    // Movers — only update if dashboard returned data
+    if ((d.gainers||[]).length) renderMoversTable('gainersBody', d.gainers);
+    if ((d.losers||[]).length) renderMoversTable('losersBody', d.losers);
 
     // Defer global indices
     setTimeout(function(){
@@ -1073,7 +1089,7 @@ async function loadRetailPanel() {
   loadLockup();
   loadIPO();
   loadTechScreen('golden_cross');
-  if (state.stock) loadRetailStockData();
+  loadRetailStockData(); // Always load — defaults to 600519 if no stock searched
 }
 
 // 涨停复盘

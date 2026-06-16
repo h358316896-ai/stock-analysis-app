@@ -351,17 +351,28 @@ def api_dashboard():
     except Exception:
         pass
 
-    # Sectors & Concepts & Movers — cache-first for speed
-    def _quick_cached(key, url, ttl=3600):
-        """Return cached data instantly. Never call live API."""
+    # Sectors & Concepts & Movers — cache-first with live fallback
+    def _cached_or_live(key, url, ttl=300):
+        """Read cache if fresh, otherwise fetch live and update cache."""
         cache = _load_market_cache()
         entry = cache.get(key)
-        return entry["data"] if entry else None
+        now_ts = time.time()
+        # Return fresh cache (< ttl seconds old)
+        if entry and (now_ts - entry["ts"]) < ttl:
+            return entry["data"]
+        # Try live fetch, fall back to stale cache
+        result = _cached_eastmoney(key, url, ttl=ttl)
+        if result is not None:
+            return result
+        # Last resort: stale cache
+        if entry:
+            return entry["data"]
+        return None
 
-    sectors_data = _quick_cached("sectors", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2&fields=f2,f3,f4,f12,f14")
-    concepts_data = _quick_cached("concepts", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:3&fields=f2,f3,f4,f12,f14")
-    gainers_data = _quick_cached("gainers", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9")
-    losers_data = _quick_cached("losers", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9")
+    sectors_data = _cached_or_live("sectors", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2&fields=f2,f3,f4,f12,f14")
+    concepts_data = _cached_or_live("concepts", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:3&fields=f2,f3,f4,f12,f14")
+    gainers_data = _cached_or_live("gainers", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9")
+    losers_data = _cached_or_live("losers", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9")
 
     def parse_sectors(data):
         if not data or not data.get("data") or not data["data"].get("diff"): return []
