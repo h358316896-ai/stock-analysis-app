@@ -1227,11 +1227,11 @@ async function loadChipConcentration(code) {
   try {
     var r = await fetch('/api/stock/shareholders?code='+code); var d = await r.json();
     var el = document.getElementById('chipPanel');
-    if (!d.shareholders || d.shareholders.length < 2) { el.innerHTML='<span style="color:var(--text-tertiary)">暂无筹码数据</span>'; return; }
-    var latest = d.shareholders[0], prev = d.shareholders[d.shareholders.length-1];
+    if (!d.shareholders || !d.shareholders.length) { el.innerHTML='<span style="color:var(--text-tertiary)">暂无筹码数据，请先搜索股票</span>'; return; }
+    var latest = d.shareholders[0], prev = d.shareholders.length > 1 ? d.shareholders[d.shareholders.length-1] : latest;
     var change = (latest.holders||0)-(prev.holders||0);
-    var trend = change<0 ? '集中' : '分散';
-    var clr = change<0 ? '#22c55e' : '#ef4444';
+    var trend = change<0 ? '集中' : (change>0 ? '分散' : '持平');
+    var clr = change<0 ? '#22c55e' : (change>0 ? '#ef4444' : 'var(--text-secondary)');
     el.innerHTML =
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">'+
       '<div><span style="color:var(--text-tertiary)">最新股东</span><br><b>'+((latest.holders||0)/1e4).toFixed(1)+'万户</b></div>'+
