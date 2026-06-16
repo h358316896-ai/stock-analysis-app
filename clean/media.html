@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#060608">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="StockAI 自媒体助手 — 基于 DeepSeek 与 Claude 的 AI 内容创作。创作文章、视频脚本、配音稿，优化适配微信公众号、小红书、抖音。">
+<meta property="og:title" content="StockAI 自媒体助手 — AI 内容工作室">
+<meta property="og:description" content="多引擎驱动的 AI 内容创作。生成、改写、优化全平台内容。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kunhuang.top/media">
+<meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.json">
+<title>自媒体AI助手 — StockAI</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+/* ========== MEDIA PAGE SPECIFIC ========== */
+/* Green accent override */
+:root {
+  --accent: #22c55e;
+  --accent-glow: rgba(34,197,94,0.15);
+}
+
+.logo-icon { background:var(--accent); width:30px; height:30px; font-size:15px; box-shadow:0 0 20px var(--accent-glow); }
+.logo-text span { color:var(--accent); }
+.top-bar { height:56px; }
+.logo-text { font-size:17px; }
+.btn-sign { background:var(--accent); color:#000; box-shadow:none; }
+.btn-sign:hover { opacity:0.85; background:var(--accent); }
+
+.container { max-width:900px; }
+
+/* Hero */
+.hero { text-align:center; padding:48px 0 32px; }
+.hero .tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent); margin-bottom:12px; }
+.hero h1 { font-size:36px; font-weight:800; letter-spacing:-0.02em; margin-bottom:12px; }
+.hero h1 span { color:var(--accent); }
+.hero p { color:var(--text-secondary); font-size:16px; max-width:500px; margin:0 auto; }
+
+/* Tabs */
+.tabs { display:flex; gap:4px; margin-bottom:20px; background:var(--bg-card); border-radius:var(--radius-md); padding:3px; border:1px solid var(--border-subtle); }
+.tabs button { flex:1; padding:10px 14px; border-radius:var(--radius-sm); border:none; background:transparent; color:var(--text-secondary); font-size:12px; font-weight:500; cursor:pointer; font-family:var(--font); transition:var(--transition); white-space:nowrap; }
+.tabs button.active { background:var(--bg-elevated); color:var(--text-primary); font-weight:600; }
+.tabs button:hover:not(.active) { color:var(--text-primary); }
+
+/* Cards */
+.card { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:24px; margin-bottom:16px; }
+.card h3 { font-size:15px; font-weight:600; margin-bottom:16px; color:var(--accent); text-transform:uppercase; letter-spacing:0.04em; }
+.card label { display:block; font-size:11px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:6px; font-weight:500; }
+.card input, .card textarea, .card select {
+  width:100%; padding:10px 14px; border:1px solid var(--border-default); border-radius:var(--radius-sm);
+  background:var(--bg-secondary); color:var(--text-primary); font-size:14px; font-family:var(--font);
+  margin-bottom:14px; outline:none; transition:var(--transition);
+}
+.card input:focus, .card textarea:focus, .card select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(34,197,94,0.1); }
+.card textarea { min-height:120px; resize:vertical; }
+
+.row { display:flex; gap:12px; }
+.row > * { flex:1; }
+
+/* Engine selector */
+.engine-row { display:flex; gap:8px; margin-bottom:14px; }
+.engine-btn { flex:1; padding:12px; border:1px solid var(--border-default); border-radius:var(--radius-sm); text-align:center; cursor:pointer; background:var(--bg-secondary); transition:var(--transition); }
+.engine-btn.active { border-color:var(--accent); background:rgba(34,197,94,0.08); }
+.engine-btn .en { font-size:14px; font-weight:600; }
+.engine-btn .ed { font-size:11px; color:var(--text-tertiary); margin-top:2px; }
+
+/* Buttons */
+.btn { padding:10px 24px; border-radius:var(--radius-sm); border:none; font-size:14px; font-weight:600; cursor:pointer; font-family:var(--font); transition:var(--transition); }
+.btn-primary { background:var(--accent); color:#000; }
+.btn-primary:hover { opacity:0.85; }
+.btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-sm { padding:6px 14px; font-size:12px; }
+.btn-ghost { background:transparent; color:var(--text-secondary); border:1px solid var(--border-strong); }
+.btn-ghost:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Result */
+.result-box { background:var(--bg-secondary); border:1px solid var(--border-default); border-radius:var(--radius-md); padding:20px; margin-top:16px; white-space:pre-wrap; line-height:1.8; font-size:14px; max-height:500px; overflow-y:auto; display:none; }
+.result-box.show { display:block; }
+.result-actions { display:flex; gap:8px; margin-top:12px; }
+
+/* Hot Topics */
+.hot-list { list-style:none; }
+.hot-list li { display:flex; align-items:center; padding:12px 14px; border-bottom:1px solid var(--border-subtle); cursor:pointer; border-radius:var(--radius-sm); transition:var(--transition); }
+.hot-list li:hover { background:var(--bg-card-hover); }
+.hot-rank { width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; margin-right:14px; color:white; flex-shrink:0; }
+.r1 { background:#ef4444; } .r2 { background:#f97316; } .r3 { background:#eab308; } .r-def { background:var(--border-strong); color:var(--text-tertiary); }
+.hot-info { flex:1; }
+.hot-name { font-size:14px; font-weight:500; }
+.hot-desc { font-size:12px; color:var(--text-tertiary); margin-top:2px; }
+.hot-heat { font-size:12px; color:var(--accent); font-weight:600; }
+.hot-tag { display:inline-block; padding:2px 8px; border-radius:3px; font-size:10px; font-weight:600; margin-right:6px; background:rgba(34,197,94,0.1); color:var(--accent); }
+
+/* Template Cards */
+.tpl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-bottom:16px; }
+.tpl-card { background:var(--bg-secondary); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:16px; cursor:pointer; transition:var(--transition); }
+.tpl-card:hover { border-color:var(--accent); background:rgba(34,197,94,0.03); }
+.tpl-card .tpl-title { font-size:13px; font-weight:600; margin-bottom:4px; }
+.tpl-card .tpl-desc { font-size:11px; color:var(--text-tertiary); }
+
+/* History */
+.history-item { padding:12px 0; border-bottom:1px solid var(--border-subtle); cursor:pointer; transition:var(--transition); }
+.history-item:hover { color:var(--accent); }
+.history-item .hi-type { font-size:11px; color:var(--text-tertiary); text-transform:uppercase; }
+.history-item .hi-preview { font-size:13px; margin-top:2px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 28px; }
+  .hero p { font-size: 14px; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabs button { flex: 0 0 auto; font-size: 11px; padding: 8px 10px; }
+  .row { flex-direction: column; }
+  .tpl-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 480px) {
+  .hero { padding: 32px 0 20px; }
+  .hero h1 { font-size: 22px; }
+  .card { padding: 16px; }
+  .result-box { max-height: 300px; font-size: 13px; }
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="logo-area">
+    <div class="logo-icon">M</div>
+    <div class="logo-text">Stock<span>AI</span> / 自媒体</div>
+  </div>
+  <div class="top-nav">
+    <a href="/">首页</a><a href="/stock">行情</a><a href="/media" class="active">自媒体</a><a href="/services">服务</a>
+  </div>
+  <a href="/stock" class="btn-sign">体验行情 →</a>
+</div>
+
+<div class="container">
+  <div class="hero">
+    <div class="tag">AI 内容工作室</div>
+    <h1>AI驱动的内容创作，<span>专业高效</span></h1>
+    <p>生成、改写、优化全平台内容。由 DeepSeek & Claude 双引擎驱动。</p>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="mainTabs">
+    <button class="active" data-panel="write">✏️ 内容生成</button>
+    <button data-panel="imitate">🔥 风格模仿</button>
+    <button data-panel="script">🎬 视频脚本</button>
+    <button data-panel="voice">🎙️ 配音稿</button>
+    <button data-panel="hot">📊 热点趋势</button>
+    <button data-panel="templates">📋 模板</button>
+    <button data-panel="history">📜 历史</button>
+  </div>
+
+  <!-- Panel: Write -->
+  <div class="panel active" id="panel-write">
+    <div class="card">
+      <h3>内容生成器</h3>
+      <div class="engine-row">
+        <div class="engine-btn active" data-engine="deepseek" onclick="setEngine('deepseek', this)"><div class="en">DeepSeek</div><div class="ed">擅长中文</div></div>
+        <div class="engine-btn" data-engine="claude" onclick="setEngine('claude', this)" title="即将推出"><div class="en">Claude <span style="font-size:9px;color:var(--yellow);font-weight:600">即将推出</span></div><div class="ed">擅长英文</div></div>
+      </div>
+      <label>主题 / 关键词</label>
+      <input type="text" id="topicInput" placeholder="如：AI工具评测、副业策略、科技趋势...">
+      <div class="row">
+        <div><label>风格</label><select id="styleSelect"><option value="professional">专业</option><option value="casual" selected>口语化</option><option value="trending">热点 / 吸引</option><option value="tutorial">步骤教程</option><option value="story">故事叙述</option></select></div>
+        <div><label>平台</label><select id="platformSelect"><option value="general">通用</option><option value="wechat">微信公众号</option><option value="xiaohongshu">小红书</option><option value="douyin">抖音 / TikTok</option><option value="twitter">Twitter / X</option><option value="linkedin">LinkedIn</option></select></div>
+      </div>
+      <label>额外要求</label>
+      <textarea id="reqInput" placeholder="字数、目标受众、语气、需要涵盖的具体要点..."></textarea>
+      <button class="btn btn-primary" onclick="generateContent()">生成内容 →</button>
+      <div class="result-box" id="resultWrite">
+        <div id="resultWriteContent"></div>
+        <div class="result-actions"><button class="btn btn-sm btn-ghost" onclick="copyResult('resultWriteContent', this)">复制</button><button class="btn btn-sm btn-ghost" onclick="regenerate()">重新生成</button></div>
+      </div>
+      <div class="spinner-wrap" id="loadingWrite"><div class="spinner"></div>生成中...</div>
+    </div>
+  </div>
+
+  <!-- Panel: Imitate -->
+  <div class="panel" id="panel-imitate">
+    <div class="card">
+      <h3>风格模仿引擎</h3>
+      <label>粘贴参考内容，AI将分析并模仿其风格</label>
+      <textarea id="imitateSource" placeholder="在此粘贴参考内容... AI将分析其结构、语气和钩子，然后为你的主题创建新版本。"></textarea>
+      <label>你的主题</label>
+      <input type="text" id="imitateTopic" placeholder="如：每周帮我省下10小时的5个AI工具">
+      <button class="btn btn-primary" onclick="imitateContent()">生成风格版 →</button>
+      <div class="result-box" id="resultImitate">
+        <div id="resultImitateContent"></div>
+        <div class="result-actions"><button class="btn btn-sm btn-ghost" onclick="copyResult('resultImitateContent', this)">复制</button></div>
+      </div>
+      <div class="spinner-wrap" id="loadingImitate"><div class="spinner"></div>分析风格中...</div>
+    </div>
+  </div>
+
+  <!-- Panel: Script -->
+  <div class="panel" id="panel-script">
+    <div class="card">
+      <h3>视频脚本生成器</h3>
+      <div class="row">
+        <div><label>视频类型</label><select id="scriptType"><option value="short">短视频（30-60秒）</option><option value="medium">中等（1-3分钟）</option><option value="long">长视频（5-10分钟）</option></select></div>
+        <div><label>平台</label><select id="scriptPlatform"><option value="douyin">抖音 / TikTok</option><option value="youtube" selected>YouTube</option><option value="bilibili">B站</option></select></div>
+      </div>
+      <label>主题</label>
+      <input type="text" id="scriptTopic" placeholder="如：我是如何用AI搭建交易机器人的">
+      <label>关键要点（每行一个）</label>
+      <textarea id="scriptPoints" placeholder="介绍问题...&#10;逐步展示解决方案...&#10;展示结果...&#10;行动号召..."></textarea>
+      <button class="btn btn-primary" onclick="generateScript()">生成脚本 →</button>
+      <div class="result-box" id="resultScript">
+        <div id="resultScriptContent"></div>
+        <div class="result-actions"><button class="btn btn-sm btn-ghost" onclick="copyResult('resultScriptContent', this)">复制</button><button class="btn btn-sm btn-ghost" onclick="exportScript()">导出</button></div>
+      </div>
+      <div class="spinner-wrap" id="loadingScript"><div class="spinner"></div>撰写脚本中...</div>
+    </div>
+  </div>
+
+  <!-- Panel: Voice -->
+  <div class="panel" id="panel-voice">
+    <div class="card">
+      <h3>配音脚本</h3>
+      <label>内容（粘贴视频脚本或文本）</label>
+      <textarea id="voiceContent" placeholder="粘贴需要转换为旁白稿的文本..."></textarea>
+      <div class="row">
+        <div><label>语气</label><select id="voiceTone"><option value="professional">专业</option><option value="casual" selected>轻松 / 友好</option><option value="dramatic">戏剧化</option><option value="calm">平静 / 冥想</option></select></div>
+        <div><label>语速</label><select id="voicePacing"><option value="fast">快速（120字/分）</option><option value="normal" selected>正常（90字/分）</option><option value="slow">慢速（60字/分）</option></select></div>
+      </div>
+      <button class="btn btn-primary" onclick="generateVoice()">生成配音脚本 →</button>
+      <div class="result-box" id="resultVoice">
+        <div id="resultVoiceContent"></div>
+        <div class="result-actions"><button class="btn btn-sm btn-ghost" onclick="copyResult('resultVoiceContent', this)">复制</button></div>
+      </div>
+      <div class="spinner-wrap" id="loadingVoice"><div class="spinner"></div>优化中...</div>
+    </div>
+  </div>
+
+  <!-- Panel: Hot Topics -->
+  <div class="panel" id="panel-hot">
+    <div class="card">
+      <h3>热点趋势雷达</h3>
+      <div class="hot-list" id="hotList">
+        <li><span style="color:var(--text-tertiary)">正在加载热点...</span></li>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: Templates -->
+  <div class="panel" id="panel-templates">
+    <div class="card">
+      <h3>快速模板</h3>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:16px">点击模板即可用优化提示词预填生成器。</p>
+      <div class="tpl-grid" id="tplGrid">
+        <div class="tpl-card" onclick="useTemplate('tech-review')"><div class="tpl-title">📱 科技产品评测</div><div class="tpl-desc">结构化评测，含优缺点和结论</div></div>
+        <div class="tpl-card" onclick="useTemplate('how-to')"><div class="tpl-title">📖 操作指南</div><div class="tpl-desc">编号步骤教程</div></div>
+        <div class="tpl-card" onclick="useTemplate('list')"><div class="tpl-title">📋 清单体</div><div class="tpl-desc">前10名风格，带吸引钩子</div></div>
+        <div class="tpl-card" onclick="useTemplate('news')"><div class="tpl-title">📰 新闻评论</div><div class="tpl-desc">突发新闻分析与观点文章</div></div>
+        <div class="tpl-card" onclick="useTemplate('story')"><div class="tpl-title">💬 个人故事</div><div class="tpl-desc">叙事驱动，带情感曲线</div></div>
+        <div class="tpl-card" onclick="useTemplate('comparison')"><div class="tpl-title">⚖ 对比评测</div><div class="tpl-desc">A vs B对比，有明确胜者</div></div>
+        <div class="tpl-card" onclick="useTemplate('tool-rec')"><div class="tpl-title">🛠 工具推荐</div><div class="tpl-desc">精选工具列表，含使用场景</div></div>
+        <div class="tpl-card" onclick="useTemplate('trend')"><div class="tpl-title">🔮 趋势预测</div><div class="tpl-desc">未来趋势分析与预测</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Panel: History -->
+  <div class="panel" id="panel-history">
+    <div class="card">
+      <h3>最近生成</h3>
+      <div id="historyList">
+        <p style="color:var(--text-tertiary);font-size:13px;text-align:center;padding:20px;cursor:pointer" onclick="switchToWrite()">生成历史保存在浏览器中。<br>点击开始创作吧！</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// CDN API proxy — 仅非本地时启用
+(function(){
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('172.16.');
+  if (!isLocal) {
+    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    var orig = window.fetch;
+    window.fetch = function(url, opts) {
+      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
+      return orig.call(this, url, opts);
+    };
+  }
+})();
+
+// State
+let engine = 'claude';
+const history = JSON.parse(localStorage.getItem('mediaHistory') || '[]');
+
+// Init
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#mainTabs button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#mainTabs button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      document.getElementById('panel-' + b.dataset.panel).classList.add('active');
+      if (b.dataset.panel === 'hot') loadHotTopics();
+      if (b.dataset.panel === 'history') renderHistory();
+    });
+  });
+});
+
+function setEngine(e, el) {
+  engine = e;
+  document.querySelectorAll('.engine-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function toggleLoading(id, show) {
+  document.getElementById(id).classList.toggle('show', show);
+  document.getElementById('result' + id.replace('loading', '')).classList.remove('show');
+}
+
+async function callAI(systemPrompt, userPrompt) {
+  try {
+    const r = await fetch('/api/media/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: userPrompt, engine })
+    });
+    const d = await r.json();
+    if (d.error) { alert(d.error); return null; }
+    return d.result;
+  } catch(e) { alert('网络错误：' + e.message); return null; }
+}
+
+function addToHistory(type, topic, result) {
+  history.unshift({ type, topic, preview: result.slice(0, 150), full: result, time: new Date().toISOString() });
+  if (history.length > 50) history.pop();
+  localStorage.setItem('mediaHistory', JSON.stringify(history));
+}
+
+function renderHistory() {
+  if (!history.length) { document.getElementById('historyList').innerHTML = '<p style="color:var(--text-tertiary);font-size:13px;text-align:center;padding:20px;cursor:pointer" onclick="switchToWrite()">暂无历史，点击开始创作吧！</p>'; return; }
+  document.getElementById('historyList').innerHTML = history.map(h => `
+    <div class="history-item" onclick="document.getElementById('resultWriteContent').textContent=\`${h.full.replace(/`/g,'\\`')}\`;document.getElementById('resultWrite').classList.add('show')">
+      <div class="hi-type">${h.type}</div>
+      <div class="hi-preview">${h.preview}...</div>
+    </div>`).join('');
+}
+
+function copyResult(id, btn) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '已复制！';
+    setTimeout(() => btn.textContent = '复制', 2000);
+  });
+}
+
+// Content Generation
+async function generateContent() {
+  const topic = document.getElementById('topicInput').value.trim();
+  const style = document.getElementById('styleSelect').value;
+  const platform = document.getElementById('platformSelect').value;
+  const reqs = document.getElementById('reqInput').value.trim();
+  if (!topic) { alert('请输入主题'); return; }
+  toggleLoading('loadingWrite', true);
+  const prompt = `Write a ${style} content piece about: ${topic}. Platform: ${platform}. ${reqs ? 'Additional requirements: ' + reqs : ''} Write in Chinese if the topic is Chinese-focused, otherwise use English. Include an attention-grabbing hook, body content, and a call-to-action.`;
+  const result = await callAI('You are a professional content creator. Write engaging, platform-optimized content.', prompt);
+  toggleLoading('loadingWrite', false);
+  if (result) {
+    document.getElementById('resultWriteContent').textContent = result;
+    document.getElementById('resultWrite').classList.add('show');
+    addToHistory('内容：' + topic.slice(0, 40), topic, result);
+  }
+}
+
+async function imitateContent() {
+  const source = document.getElementById('imitateSource').value.trim();
+  const topic = document.getElementById('imitateTopic').value.trim();
+  if (!source || !topic) { alert('请提供参考内容和你的主题'); return; }
+  toggleLoading('loadingImitate', true);
+  const prompt = `Analyze the following reference content's style, structure, hook technique, and tone. Then create a NEW piece on this topic: "${topic}" using the SAME style and techniques.\n\nReference content:\n${source}\n\nNew content about "${topic}":`;
+  const result = await callAI('You are a professional content strategist. Analyze and replicate successful content styles.', prompt);
+  toggleLoading('loadingImitate', false);
+  if (result) {
+    document.getElementById('resultImitateContent').textContent = result;
+    document.getElementById('resultImitate').classList.add('show');
+    addToHistory('模仿：' + topic.slice(0, 40), topic, result);
+  }
+}
+
+async function generateScript() {
+  const type = document.getElementById('scriptType').value;
+  const platform = document.getElementById('scriptPlatform').value;
+  const topic = document.getElementById('scriptTopic').value.trim();
+  const points = document.getElementById('scriptPoints').value.trim();
+  if (!topic) { alert('请输入主题'); return; }
+  toggleLoading('loadingScript', true);
+  const prompt = `Create a ${type} video script for ${platform} about: ${topic}. ${points ? 'Key points to cover:\n' + points : ''} Format with: [HOOK] opening, timestamps, visual descriptions in [brackets], narration text, and [CTA] ending. Write in Chinese.`;
+  const result = await callAI('You are a professional video script writer.', prompt);
+  toggleLoading('loadingScript', false);
+  if (result) {
+    document.getElementById('resultScriptContent').textContent = result;
+    document.getElementById('resultScript').classList.add('show');
+    addToHistory('脚本：' + topic.slice(0, 40), topic, result);
+  }
+}
+
+function exportScript() {
+  const text = document.getElementById('resultScriptContent').textContent;
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'script.txt'; a.click();
+}
+
+async function generateVoice() {
+  const content = document.getElementById('voiceContent').value.trim();
+  const tone = document.getElementById('voiceTone').value;
+  const pacing = document.getElementById('voicePacing').value;
+  if (!content) { alert('请粘贴你的内容'); return; }
+  toggleLoading('loadingVoice', true);
+  const prompt = `Convert this content into a voice-over narration script. Tone: ${tone}. Pacing: ${pacing}. Add: [PAUSE] markers, emphasis on key words with *asterisks*, estimated duration per section, and pronunciation guides for technical terms. Keep the original meaning intact.\n\nContent:\n${content}`;
+  const result = await callAI('You are a professional voice-over script writer.', prompt);
+  toggleLoading('loadingVoice', false);
+  if (result) {
+    document.getElementById('resultVoiceContent').textContent = result;
+    document.getElementById('resultVoice').classList.add('show');
+    addToHistory('配音：' + content.slice(0, 40), content.slice(0, 60), result);
+  }
+}
+
+async function loadHotTopics() {
+  try {
+    const r = await fetch('/api/media/hot-topics');
+    const d = await r.json();
+    if (!d.topics) return;
+    document.getElementById('hotList').innerHTML = d.topics.map((t, i) => {
+      const rc = i === 0 ? 'r1' : i === 1 ? 'r2' : i === 2 ? 'r3' : 'r-def';
+      return `<li onclick="switchToWriteTopic('${t.tag}')">
+        <div class="hot-rank ${rc}">${i+1}</div>
+        <div class="hot-info"><div class="hot-name"><span class="hot-tag">🔥 ${t.hot}</span>${t.tag}</div><div class="hot-desc">${t.desc}</div></div>
+      </li>`;
+    }).join('');
+  } catch(e) {}
+}
+
+function useTemplate(type) {
+  const presets = {
+    'tech-review': { topic: '[产品名称]评测：值得买吗？', style: 'professional', platform: 'general', reqs: '包括：开箱/第一印象、核心功能、优缺点对比表、适合人群、最终评分' },
+    'how-to': { topic: '如何在[时间]内[达成目标]', style: 'tutorial', platform: 'general', reqs: '分步编号格式。每步加粗标题。包括：前置准备、每步预计时间、常见错误避免' },
+    'list': { topic: '推荐[数量]个[工具/技巧/资源]给[目标人群]', style: 'trending', platform: 'xiaohongshu', reqs: '带表情符号的编号列表。每项：名称 + 一句话描述 + 为什么重要。结尾有强烈收尾语' },
+    'news': { topic: '突发：[新闻事件] —— 对你的影响', style: 'professional', platform: 'linkedin', reqs: '包括：发生了什么、为什么重要、专家观点、可操作的建议' },
+    'story': { topic: '我尝试了[某事][时长]，结果出乎意料', style: 'story', platform: 'general', reqs: '个人叙事。包括：为什么开始、挣扎/历程、关键转折点、结果、学到什么' },
+    'comparison': { topic: '[产品A] vs [产品B]：哪个更好？', style: 'professional', platform: 'general', reqs: '并排对比表。维度：价格、功能、易用性、性能、支持。各场景明确胜者' },
+    'tool-rec': { topic: '5个AI工具，每周帮你省下10+小时', style: 'casual', platform: 'twitter', reqs: '每个工具：名称、功能、为什么好、适合谁。包含价格信息' },
+    'trend': { topic: '影响[行业]的3大趋势([年份])', style: 'professional', platform: 'linkedin', reqs: '每个趋势：是什么、为什么重要、数据/证据、如何准备。最后给出策略建议' }
+  };
+  const p = presets[type];
+  if (!p) return;
+  document.getElementById('topicInput').value = p.topic;
+  document.getElementById('styleSelect').value = p.style;
+  document.getElementById('platformSelect').value = p.platform;
+  document.getElementById('reqInput').value = p.reqs;
+  switchToWrite();
+}
+
+function switchToWrite() {
+function switchToWriteTopic(tag) {
+  document.getElementById("topicInput").value = tag;
+  switchToWrite();
+}
+  document.querySelectorAll('#mainTabs button').forEach(b => b.classList.remove('active'));
+  document.querySelector('#mainTabs button[data-panel="write"]').classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-write').classList.add('active');
+  window.scrollTo({ top: document.getElementById('panel-write').offsetTop - 80, behavior: 'smooth' });
+}
+
+function regenerate() { generateContent(); }
+</script>
+</body>
+</html>

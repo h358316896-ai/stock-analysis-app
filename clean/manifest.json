@@ -1,0 +1,22 @@
+{
+  "name": "StockAI - Market Intelligence",
+  "short_name": "StockAI",
+  "description": "Professional market intelligence platform with real-time global indices, AI analysis, and portfolio tools",
+  "start_url": "/stock",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#060608",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

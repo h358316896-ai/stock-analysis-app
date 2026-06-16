@@ -1,0 +1,9 @@
+{
+  "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/stock", "destination": "/stock.html" },
+    { "source": "/media", "destination": "/media.html" },
+    { "source": "/services", "destination": "/services.html" }
+  ]
+}

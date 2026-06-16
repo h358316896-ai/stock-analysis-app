@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#060608">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="StockAI — 专业的A股、港股、美股行情分析平台。AI驱动的股票分析、实时数据、板块热力图和智能筛选工具。">
+<meta property="og:title" content="StockAI — 专业行情分析平台">
+<meta property="og:description" content="AI驱动的A股、港股、美股分析平台，实时数据、K线图表、专业PDF报告。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kunhuang.top">
+<meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="manifest" href="/manifest.json">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "StockAI",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "description": "专业的A股、港股、美股行情分析平台。AI驱动的股票分析、实时数据、板块热力图和智能筛选工具。",
+  "offers": {
+    "@type": "AggregateOffer",
+    "lowPrice": "29",
+    "highPrice": "69",
+    "priceCurrency": "CNY",
+    "offerCount": "3"
+  }
+}
+</script>
+<title>StockAI — 专业行情分析平台</title>
+<link rel="stylesheet" href="/css/style.css">
+<style>
+/* ========== HOMEPAGE SPECIFIC ========== */
+/* Hero */
+.hero { padding:100px 24px 80px; text-align:center; position:relative; overflow:hidden; }
+.hero::before { content:''; position:absolute; top:-200px; left:50%; transform:translateX(-50%); width:600px; height:600px; background:radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%); pointer-events:none; }
+.hero-badge { display:inline-block; padding:6px 16px; border-radius:20px; background:var(--accent-glow); color:var(--accent); font-size:12px; font-weight:600; margin-bottom:24px; border:1px solid rgba(59,130,246,0.2); }
+.hero h1 { font-size:56px; font-weight:900; line-height:1.1; margin-bottom:20px; letter-spacing:-0.03em; max-width:800px; margin-left:auto; margin-right:auto; }
+.hero h1 span { background:linear-gradient(135deg, var(--accent), var(--purple)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.hero p { color:var(--text-secondary); font-size:18px; max-width:550px; margin:0 auto 36px; line-height:1.7; }
+.hero-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; }
+.btn-primary { padding:14px 32px; border-radius:var(--radius-md); background:var(--accent); color:white; font-size:15px; font-weight:600; text-decoration:none; transition:var(--transition); box-shadow:0 0 30px var(--accent-glow); display:inline-block; }
+.btn-primary:hover { background:#2563eb; transform:translateY(-2px); }
+.btn-outline { padding:14px 32px; border-radius:var(--radius-md); background:transparent; color:var(--text-primary); font-size:15px; font-weight:600; text-decoration:none; border:1px solid var(--border-strong); transition:var(--transition); display:inline-block; }
+.btn-outline:hover { border-color:var(--accent); color:var(--accent); }
+
+/* Stats Bar */
+.stats-bar { padding:40px 24px; }
+.stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:20px; max-width:1000px; margin:0 auto; text-align:center; }
+.stat-item .stat-num { font-size:40px; font-weight:900; color:var(--accent); letter-spacing:-0.02em; }
+.stat-item .stat-label { font-size:13px; color:var(--text-tertiary); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px; }
+
+/* Product Cards */
+.products { padding:80px 24px; }
+.products-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:20px; max-width:1100px; margin:40px auto 0; }
+.prod-card {
+  background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-xl);
+  padding:36px 28px; text-decoration:none; color:var(--text-primary); transition:var(--transition);
+  position:relative; overflow:hidden;
+}
+.prod-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:3px; transition:var(--transition); }
+.prod-card:hover { border-color:var(--border-default); transform:translateY(-4px); box-shadow:var(--shadow-lg); }
+.prod-card:nth-child(1)::before { background:var(--accent); }
+.prod-card:nth-child(2)::before { background:var(--green); }
+.prod-card:nth-child(3)::before { background:var(--purple); }
+.prod-card .pc-icon { font-size:40px; margin-bottom:16px; }
+.prod-card h3 { font-size:22px; font-weight:700; margin-bottom:8px; }
+.prod-card p { color:var(--text-secondary); font-size:14px; line-height:1.7; margin-bottom:16px; }
+.prod-card .pc-features { list-style:none; margin-bottom:20px; }
+.prod-card .pc-features li { color:var(--text-secondary); font-size:13px; padding:4px 0; padding-left:20px; position:relative; }
+.prod-card .pc-features li::before { content:'✓'; position:absolute; left:0; color:var(--green); font-weight:700; }
+.prod-card .pc-bottom { display:flex; justify-content:space-between; align-items:center; padding-top:16px; border-top:1px solid var(--border-subtle); }
+.prod-card .pc-price { font-size:24px; font-weight:800; color:var(--accent); }
+.prod-card .pc-cta { font-size:13px; color:var(--accent); font-weight:600; }
+
+/* Showcase */
+.showcase { padding:80px 24px; }
+.showcase-item { display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; max-width:1100px; margin:0 auto 80px; }
+.showcase-item:last-child { margin-bottom:0; }
+.showcase-item.reverse { direction:rtl; }
+.showcase-item.reverse .sc-text { direction:ltr; }
+.sc-preview { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-xl); padding:24px; height:300px; display:flex; align-items:center; justify-content:center; color:var(--text-tertiary); font-size:14px; }
+.sc-text h3 { font-size:28px; font-weight:800; margin-bottom:12px; letter-spacing:-0.02em; }
+.sc-text p { color:var(--text-secondary); font-size:15px; line-height:1.7; margin-bottom:20px; }
+.sc-list { list-style:none; }
+.sc-list li { font-size:14px; padding:8px 0; padding-left:24px; position:relative; color:var(--text-secondary); }
+.sc-list li::before { content:'→'; position:absolute; left:0; color:var(--accent); font-weight:700; }
+@media (max-width:768px) { .showcase-item { grid-template-columns:1fr; gap:30px; } }
+
+/* FAQ */
+.faq { padding:80px 24px; }
+.faq-grid { max-width:800px; margin:40px auto 0; display:flex; flex-direction:column; gap:12px; }
+.faq-item { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:20px 24px; cursor:pointer; transition:var(--transition); }
+.faq-item:hover { border-color:var(--border-default); }
+.faq-item .faq-q { font-size:15px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
+.faq-item .faq-q span { color:var(--text-tertiary); font-size:18px; transition:var(--transition); }
+.faq-item.open .faq-q span { transform:rotate(45deg); }
+.faq-item .faq-a { color:var(--text-secondary); font-size:14px; line-height:1.7; margin-top:12px; max-height:0; overflow:hidden; transition:max-height 0.3s ease; }
+.faq-item.open .faq-a { max-height:500px; }
+
+/* CTA Banner */
+.cta-banner {
+  max-width:900px; margin:0 auto 80px;
+  background:linear-gradient(135deg, rgba(59,130,246,0.1), rgba(168,85,247,0.1));
+  border:1px solid rgba(59,130,246,0.2); border-radius:var(--radius-xl);
+  padding:60px 40px; text-align:center;
+}
+.cta-banner h2 { font-size:32px; font-weight:800; margin-bottom:12px; }
+.cta-banner p { color:var(--text-secondary); font-size:16px; margin-bottom:24px; }
+
+/* Footer */
+.footer { background:var(--bg-secondary); border-top:1px solid var(--border-subtle); padding:48px 24px 24px; }
+.footer-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:40px; max-width:1100px; margin:0 auto; }
+@media (max-width:768px) { .footer-grid { grid-template-columns:1fr 1fr; } }
+.footer-col h4 { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; color:var(--text-primary); }
+.footer-col a { display:block; color:var(--text-tertiary); text-decoration:none; font-size:13px; padding:4px 0; transition:var(--transition); }
+.footer-col a:hover { color:var(--text-primary); }
+.footer-bottom { max-width:1100px; margin:32px auto 0; padding-top:24px; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; color:var(--text-tertiary); font-size:12px; }
+
+/* Section Headers */
+.section { padding:80px 24px; }
+.section-inner { max-width:1100px; margin:0 auto; }
+.section-tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent); margin-bottom:12px; }
+.section-h2 { font-size:36px; font-weight:800; line-height:1.2; margin-bottom:16px; letter-spacing:-0.02em; }
+.section-p { color:var(--text-secondary); font-size:17px; max-width:600px; line-height:1.7; }
+
+/* Homepage top-bar height override */
+.top-bar { height:56px; }
+.logo-icon { width:30px; height:30px; font-size:15px; }
+.logo-text { font-size:17px; }
+.btn-sign { padding:8px 20px; }
+
+/* Homepage responsive */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 36px; }
+  .hero p { font-size: 15px; }
+  .hero { padding: 60px 20px 40px; }
+  .showcase-item { grid-template-columns: 1fr; gap: 20px; }
+  .showcase-item.reverse { direction: ltr; }
+  .cta-banner { margin: 0 16px 60px; padding: 40px 24px; }
+  .cta-banner h2 { font-size: 24px; }
+  .products-grid { grid-template-columns: 1fr; max-width: 500px; }
+  .section-h2 { font-size: 28px; }
+}
+
+@media (max-width: 480px) {
+  .hero h1 { font-size: 28px; }
+  .hero p { font-size: 14px; }
+  .hero { padding: 40px 16px 32px; }
+  .hero-actions { flex-direction: column; }
+  .btn-primary, .btn-outline { width: 100%; text-align: center; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .stat-item .stat-num { font-size: 30px; }
+  .products { padding: 40px 16px; }
+  .showcase { padding: 40px 16px; }
+  .section-h2 { font-size: 24px; }
+  .section-p { font-size: 14px; }
+  .footer-grid { grid-template-columns: 1fr; gap: 24px; }
+  .footer-bottom { flex-direction: column; gap: 8px; text-align: center; }
+  .cta-banner { padding: 32px 20px; margin: 0 12px 40px; }
+  .cta-banner h2 { font-size: 20px; }
+}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<div class="top-bar">
+  <div class="logo-area">
+    <div class="logo-icon">S</div>
+    <div class="logo-text">Stock<span>AI</span></div>
+  </div>
+  <div class="top-nav">
+    <a href="/" class="active">首页</a>
+    <a href="/stock">行情</a>
+    <a href="/media">自媒体</a>
+    <a href="/services">服务</a>
+  </div>
+  <a href="/stock" class="btn-sign">开始使用 →</a>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">🚀 AI驱动的金融平台</div>
+  <h1>专业行情分析， <span>化繁为简</span></h1>
+  <p>全球实时行情、AI深度分析、专业级工具——尽在一个平台。为交易者、创作者和开发者打造。</p>
+  <div class="hero-actions">
+    <a href="/stock" class="btn-primary">进入终端 →</a>
+    <a href="#products" class="btn-outline">了解产品</a>
+  </div>
+</div>
+
+<!-- TICKER STRIP -->
+<div class="ticker-strip">
+  <div class="scroll" id="tickerEl">
+    <span style="padding:0 20px;color:var(--text-tertiary)">正在加载行情数据...</span>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="section-inner">
+    <div class="stats-grid">
+      <div class="stat-item"><div class="stat-num">实时行情</div><div class="stat-label">覆盖股票</div></div>
+      <div class="stat-item"><div class="stat-num">全球指数</div><div class="stat-label">全球指数</div></div>
+      <div class="stat-item"><div class="stat-num">三大市场</div><div class="stat-label">覆盖市场</div></div>
+      <div class="stat-item"><div class="stat-num">实时</div><div class="stat-label">数据更新</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PRODUCT CARDS -->
+<div class="products" id="products">
+  <div class="section-inner">
+    <div class="section-tag">产品</div>
+    <div class="section-h2">三大强力工具<br>一个平台</div>
+    <div class="section-p">行情分析、内容创作、定制开发，一应俱全。</div>
+    <div class="products-grid">
+      <a href="/stock" class="prod-card">
+        <div class="pc-icon">📈</div>
+        <h3>AI 股票分析</h3>
+        <p>实时A股、港股、美股数据，AI深度分析，K线图表，专业PDF报告。</p>
+        <ul class="pc-features">
+          <li>全球指数 & 热力图</li>
+          <li>技术指标（MACD、RSI、布林带）</li>
+          <li>北向资金追踪</li>
+          <li>智能选股 & 对比</li>
+          <li>龙虎榜排名</li>
+        </ul>
+        <div class="pc-bottom"><span class="pc-price">¥39<span style="font-size:13px;font-weight:400">/月</span></span><a href="/stock" class="pc-cta" style="text-decoration:none">立即使用 →</a></div>
+      </a>
+      <a href="/media" class="prod-card">
+        <div class="pc-icon">✍️</div>
+        <h3>自媒体 AI 助手</h3>
+        <p>AI内容生成、热点分析、视频脚本、配音制作，赋能内容创作者。</p>
+        <ul class="pc-features">
+          <li>多引擎AI（DeepSeek + Claude）</li>
+          <li>风格模仿 & 模板</li>
+          <li>视频脚本 & 配音生成</li>
+          <li>热点趋势发现</li>
+          <li>多平台内容优化</li>
+        </ul>
+        <div class="pc-bottom"><span class="pc-price">¥29<span style="font-size:13px;font-weight:400">/月</span></span><a href="/media" class="pc-cta" style="text-decoration:none">立即体验 →</a></div>
+      </a>
+      <a href="/services" class="prod-card">
+        <div class="pc-icon">🔧</div>
+        <h3>定制 AI 开发</h3>
+        <p>为企业与个人量身定制AI方案、自动化工具和全栈应用。</p>
+        <ul class="pc-features">
+          <li>AI工具MVP开发</li>
+          <li>全栈Web应用</li>
+          <li>金融数据系统</li>
+          <li>自动化 & 数据采集</li>
+          <li>微信小程序</li>
+        </ul>
+        <div class="pc-bottom"><span class="pc-price">¥500 起<span style="font-size:13px;font-weight:400">/项目</span></span><span class="pc-cta">获取报价 →</span></div>
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- SHOWCASE -->
+<div class="showcase">
+  <div class="section-inner" style="text-align:center;margin-bottom:60px">
+    <div class="section-tag">产品特性</div>
+    <div class="section-h2">为什么交易者选择 StockAI</div>
+  </div>
+  <div class="showcase-item">
+    <div class="sc-text">
+      <h3>实时全球行情数据</h3>
+      <p>追踪A股、港股、美股、欧亚市场，每30秒实时更新。同步监控大宗商品与加密货币。</p>
+      <ul class="sc-list">
+        <li>7大全球指数 + 板块热力图</li>
+        <li>北向资金可视化</li>
+        <li>实时滚动行情条</li>
+      </ul>
+    </div>
+    <div class="sc-preview">📊 实时行情数据可视化<br><span style="font-size:11px;margin-top:8px;display:block">实时指数 • 板块热力图 • 资金流向</span></div>
+  </div>
+  <div class="showcase-item reverse">
+    <div class="sc-text">
+      <h3>专业的技术分析</h3>
+      <p>K线图 + 均线叠加、MACD动量指标、RSI超买超卖信号。为专业交易者打造。</p>
+      <ul class="sc-list">
+        <li>K线 + MA5/MA10/MA20/MA60</li>
+        <li>MACD柱状图 + DIF/DEA交叉信号</li>
+        <li>RSI(14) + 30/70阈值线</li>
+      </ul>
+    </div>
+    <div class="sc-preview">📈 K线图表<br><span style="font-size:11px;margin-top:8px;display:block">MACD • RSI • 布林带 • KDJ</span></div>
+  </div>
+  <div class="showcase-item">
+    <div class="sc-text">
+      <h3>AI 驱动的深度分析</h3>
+      <p>7个分析维度，从综合分析到风险评估。由 DeepSeek AI 驱动，秒级生成专业洞察。</p>
+      <ul class="sc-list">
+        <li>综合分析、技术面、基本面</li>
+        <li>新闻事件、估值分析、行业对比</li>
+        <li>风险评估附具体建议</li>
+      </ul>
+    </div>
+    <div class="sc-preview">🤖 AI 分析引擎<br><span style="font-size:11px;margin-top:8px;display:block">7维分析 • PDF报告 • 历史记录</span></div>
+  </div>
+</div>
+
+<!-- FAQ -->
+<div class="faq">
+  <div class="section-inner" style="text-align:center">
+    <div class="section-tag">FAQ</div>
+    <div class="section-h2">常见问题</div>
+  </div>
+  <div class="faq-grid">
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">StockAI 覆盖哪些市场？ <span>+</span></div>
+      <div class="faq-a">A股（沪深）、港股（港交所）和美股（纽交所&纳斯达克）。以及日本、韩国、印度、欧洲等全球指数，大宗商品和加密货币。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">AI 分析是如何工作的？ <span>+</span></div>
+      <div class="faq-a">AI 获取实时行情和近期K线数据，运用 DeepSeek 大模型生成多维分析报告，涵盖技术面、基本面、估值、新闻情绪、行业对比和风险评估。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">数据是实时的吗？ <span>+</span></div>
+      <div class="faq-a">是的。行情数据通过腾讯财经和东方财富API每30秒刷新。美股数据来自 Yahoo Finance（按交易所要求延迟15分钟）。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">可以保存分析并追踪股票吗？ <span>+</span></div>
+      <div class="faq-a">当然可以。注册免费账号即可管理自选股、设置价格提醒（上下限、涨跌幅触发），并保存所有AI分析历史供回顾。</div>
+    </div>
+  </div>
+</div>
+
+<!-- CTA BANNER -->
+<div class="cta-banner">
+  <h2>准备好提升你的交易水平？</h2>
+  <p>加入数千名使用 StockAI 进行专业行情分析的交易者。</p>
+  <a href="/stock" class="btn-primary" style="display:inline-block">打开终端 →</a>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>StockAI</h4>
+      <a style="color:var(--text-secondary);font-size:13px;line-height:1.6;padding:0">专业行情分析平台。AI驱动的分析、实时数据和专业工具，赋能现代交易者和创作者。</a>
+    </div>
+    <div class="footer-col">
+      <h4>产品</h4>
+      <a href="/stock">AI 股票分析</a>
+      <a href="/media">自媒体 AI 助手</a>
+      <a href="/services">定制 AI 开发</a>
+    </div>
+    <div class="footer-col">
+      <h4>资源</h4>
+      <a href="/stock">行情数据</a>
+      <a href="/stock">板块热力图</a>
+      <a href="/stock">智能选股</a>
+    </div>
+    <div class="footer-col">
+      <h4>关于</h4>
+      <a href="/services">联系我们</a>
+      <a href="/services">服务</a>
+      <a href="/">关于我们</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© <span id="copyrightYear">2026</span> StockAI. All rights reserved.</span>
+    <span>AI 构建 · Railway 部署</span>
+  </div>
+</div>
+
+<script>
+// CDN API proxy — 仅非本地时启用
+(function(){
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('172.16.');
+  if (!isLocal) {
+    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    var orig = window.fetch;
+    window.fetch = function(url, opts) {
+      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
+      return orig.call(this, url, opts);
+    };
+  }
+})();
+
+// Auto-update copyright year
+document.getElementById('copyrightYear').textContent = new Date().getFullYear();
+
+// Live ticker
+(async function ticker() {
+  try {
+    const r = await fetch('/api/market/indices');
+    const d = await r.json();
+    if (!d.indices) return;
+    const labels = { 'sh000001':'SSE','sz399001':'SZSE','sz399006':'ChiNext','hk800000':'HSI','us.INX':'S&P500','us.IXIC':'NASDAQ','us.DJI':'DJIA' };
+    const all = [...d.indices, ...d.indices]; // duplicate for seamless loop
+    document.getElementById('tickerEl').innerHTML = all.map(i => {
+      const up = i.change_pct >= 0, c = up ? '#22c55e' : '#ef4444', s = up ? '+' : '';
+      return `<span class="item"><span class="sym">${labels[i.code]||i.name}</span><span>${i.price.toFixed(2)}</span><span style="color:${c};font-size:12px">${s}${i.change_pct.toFixed(2)}%</span><span class="divider"></span></span>`;
+    }).join('');
+  } catch(e) {}
+})();
+</script>
+</body>
+</html>

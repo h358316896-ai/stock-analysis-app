@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><title>Diag</title>
+<style>body{font:14px sans-serif;background:#0c0c14;color:#f0f0f5;padding:20px}button{margin:4px;padding:8px 16px;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer}.log{background:#1a1a28;padding:12px;border-radius:6px;font:12px monospace;max-height:400px;overflow-y:auto;white-space:pre-wrap;margin:10px 0}.ok{color:#22c55e}.err{color:#ef4444}</style></head>
+<body>
+<h2>kunhuang.top 自选股诊断</h2>
+<div class="log" id="log"></div>
+<button onclick="step1()">1. 注册/登录</button>
+<button onclick="step2()">2. 验证Token</button>
+<button onclick="step3()">3. 加入自选股</button>
+<button onclick="step4()">4. 查看列表</button>
+<script>
+var API = 'https://stock-analysis-app-production-da60.up.railway.app';
+var token = localStorage.getItem('stockai_token');
+
+function log(msg, cls) { document.getElementById('log').innerHTML += '<div class="'+cls+'">'+msg+'</div>'; }
+
+async function step1() {
+  log('=== 步骤1: 登录 ===');
+  try {
+    var r = await fetch(API+'/api/auth/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:'final2',password:'123456'}),
+      credentials:'include'
+    });
+    if (r.status === 502) {
+      // Try register
+      log('登录502, 尝试注册...');
+      r = await fetch(API+'/api/auth/register', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({username:'final2',password:'123456',email:'f2@t.com'}),
+        credentials:'include'
+      });
+    }
+    var d = await r.json();
+    log('响应: '+r.status+' '+JSON.stringify(d).substring(0,200));
+    if (d.token) {
+      localStorage.setItem('stockai_token', d.token);
+      token = d.token;
+      log('Token已保存: '+token.substring(0,20)+'...', 'ok');
+    }
+  } catch(e) { log('错误: '+e.message, 'err'); }
+}
+
+async function step2() {
+  log('=== 步骤2: 验证Token ===');
+  try {
+    var r = await fetch(API+'/api/auth/me', {
+      headers:{'Authorization':'Bearer '+token},
+      credentials:'include'
+    });
+    var d = await r.json();
+    log('响应: '+r.status+' '+JSON.stringify(d));
+  } catch(e) { log('错误: '+e.message, 'err'); }
+}
+
+async function step3() {
+  log('=== 步骤3: 加入自选股 ===');
+  try {
+    var r = await fetch(API+'/api/watchlist/add', {
+      method:'POST',
+      headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+token},
+      body:JSON.stringify({code:'600519',name:'MT',market:'cn'}),
+      credentials:'include'
+    });
+    var d = await r.json();
+    log('响应: '+r.status+' '+JSON.stringify(d));
+  } catch(e) { log('错误: '+e.message, 'err'); }
+}
+
+async function step4() {
+  log('=== 步骤4: 查看列表 ===');
+  try {
+    var r = await fetch(API+'/api/watchlist', {
+      headers:{'Authorization':'Bearer '+token},
+      credentials:'include'
+    });
+    var d = await r.json();
+    log('响应: '+r.status+' '+JSON.stringify(d));
+    if (d.items) d.items.forEach(function(i){log('  '+i.code+' '+i.name);});
+  } catch(e) { log('错误: '+e.message, 'err'); }
+}
+</script>
+</body>
+</html>

@@ -5,8 +5,11 @@
 
 [build]
 builder = "nixpacks"
-# 确保 nixpacks 使用 Python 3.12
+# 强制 nixpacks 使用 Python（package.json 会导致误判为 Node.js 项目）
 buildCommand = "pip install -r requirements.txt"
+
+[build.buildArgs]
+NIXPACKS_PROVIDERS = "python"
 
 [deploy]
 numReplicas = 1
