@@ -1045,15 +1045,17 @@ async function loadBigDataStock() {
 }
 
 async function loadShareholders(code) {
+  var el = document.getElementById('shareholdersPanel');
+  if (!el) return;
+  el.innerHTML = '<span style="color:var(--text-tertiary)">加载中...</span>';
   try {
     var r = await fetch('/api/stock/shareholders?code='+code); var d = await r.json();
-    var el = document.getElementById('shareholdersPanel');
-    if (!d.shareholders||!d.shareholders.length) { el.innerHTML='<span style="color:var(--text-tertiary)">暂无数据</span>'; return; }
+    if (!d.shareholders||!d.shareholders.length) { el.innerHTML='<span style="color:var(--text-secondary)">暂无数据（'+code+'）</span>'; return; }
     el.innerHTML = d.shareholders.slice(0,8).map(function(s){
       var chg = s.change||0, arrow = chg>0?'▲':chg<0?'▼':'─', clr = chg>0?'#ef4444':'#22c55e';
       return '<div style="padding:2px 0;font-size:11px">'+s.date+' <b>'+(s.holders/1e4).toFixed(1)+'万户</b> <span style="color:'+clr+'">'+arrow+' '+Math.abs(chg||0).toLocaleString()+'</span></div>';
     }).join('');
-  } catch(e) { console.warn(e); }
+  } catch(e) { el.innerHTML='<span style="color:#ef4444">加载失败: '+e.message+'</span>'; console.error('shareholdersPanel', e); }
 }
 
 async function loadBlockTrades(code) {
@@ -1240,10 +1242,12 @@ async function loadCapitalGame(code, market) {
 }
 
 async function loadChipConcentration(code) {
+  var el = document.getElementById('chipPanel');
+  if (!el) return;
+  el.innerHTML = '<span style="color:var(--text-tertiary)">加载中...</span>';
   try {
     var r = await fetch('/api/stock/shareholders?code='+code); var d = await r.json();
-    var el = document.getElementById('chipPanel');
-    if (!d.shareholders || !d.shareholders.length) { el.innerHTML='<span style="color:var(--text-tertiary)">暂无筹码数据，请先搜索股票</span>'; return; }
+    if (!d.shareholders || !d.shareholders.length) { el.innerHTML='<span style="color:var(--text-secondary)">暂无筹码数据（'+code+'）</span>'; return; }
     var latest = d.shareholders[0], prev = d.shareholders.length > 1 ? d.shareholders[d.shareholders.length-1] : latest;
     var change = (latest.holders||0)-(prev.holders||0);
     var trend = change<0 ? '集中' : (change>0 ? '分散' : '持平');
@@ -1255,7 +1259,7 @@ async function loadChipConcentration(code) {
       '<div><span style="color:var(--text-tertiary)">变化趋势</span><br><b style="color:'+clr+'">筹码'+trend+'</b></div>'+
       '<div><span style="color:var(--text-tertiary)">变动人数</span><br><b style="color:'+clr+'">'+(change>0?'+':'')+(change/1e4).toFixed(1)+'万户</b></div>'+
       '</div>';
-  } catch(e) { console.warn(e); }
+  } catch(e) { el.innerHTML='<span style="color:#ef4444">加载失败: '+e.message+'</span>'; console.error('chipPanel', e); }
 }
 
 // ============================================================
