@@ -2325,7 +2325,7 @@ def stock_shareholders():
     prefix = "1" if code.startswith("6") else "0"
     secid = f"{prefix}.{code}"
     url = f"https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_HOLDERNUMLATEST&columns=SECURITY_CODE,SECURITY_NAME_ABBR,END_DATE,HOLDER_NUM,HOLDER_NUM_CHANGE,HOLDER_NUM_RATIO,AVG_HOLD_NUM&filter=(SECURITY_CODE=%22{code}%22)&pageNumber=1&pageSize=20&sortTypes=-1&sortColumns=END_DATE&source=WEB&client=WEB"
-    data = _cached_eastmoney("shareholders_"+code, url, ttl=86400)
+    data = _cached_eastmoney("shareholders_"+code, url, ttl=3600)
     result = []
     if data and data.get("result") and data["result"].get("data"):
         for item in data["result"]["data"]:
