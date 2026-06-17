@@ -15,7 +15,7 @@
 <meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="/manifest.json">
-<title>StockAI — 专业行情分析平台</title>
+<title>StockAI v2 — 专业行情分析平台</title>
 <link rel="stylesheet" href="/css/style.css">
 <style>
 /* Stock page specific overrides — main styles in /css/style.css */
@@ -562,6 +562,16 @@ const MKT_CLR = { cn: '#ef4444', hk: '#22c55e', us: '#3b82f6' };
 // ============================================================
 // INIT
 // ============================================================
+// 预加载筹码数据（页面加载时即获取，不等点标签）
+window._chipCache = null;
+async function preloadChipData(code) {
+  try {
+    var r = await fetch('/api/stock/shareholders?code='+(code||'600519')); var d = await r.json();
+    if (d.shareholders && d.shareholders.length) window._chipCache = d;
+  } catch(e) {}
+}
+preloadChipData('600519');
+
 document.addEventListener('DOMContentLoaded', () => {
   checkLogin();
   loadAllMarketData();  // dashboard: indices + sectors + concepts + movers in ONE call
@@ -1244,10 +1254,22 @@ async function loadCapitalGame(code, market) {
 async function loadChipConcentration(code) {
   var el = document.getElementById('chipPanel');
   if (!el) return;
+  // 优先用预加载缓存
+  if (window._chipCache && window._chipCache.code === code) {
+    renderChipPanel(el, window._chipCache);
+    return;
+  }
   el.innerHTML = '<span style="color:var(--text-tertiary)">加载中...</span>';
   try {
     var r = await fetch('/api/stock/shareholders?code='+code); var d = await r.json();
+    if (d.shareholders && d.shareholders.length) window._chipCache = d;
     if (!d.shareholders || !d.shareholders.length) { el.innerHTML='<span style="color:var(--text-secondary)">暂无筹码数据（'+code+'）</span>'; return; }
+    renderChipPanel(el, d);
+  } catch(e) { el.innerHTML='<span style="color:#ef4444">加载失败: '+e.message+'</span>'; console.error('chipPanel', e); }
+}
+
+function renderChipPanel(el, d) {
+    if (!d.shareholders || !d.shareholders.length) { el.innerHTML='<span style="color:var(--text-secondary)">暂无筹码数据（'+d.code+'）</span>'; return; }
     var latest = d.shareholders[0], prev = d.shareholders.length > 1 ? d.shareholders[d.shareholders.length-1] : latest;
     var change = (latest.holders||0)-(prev.holders||0);
     var trend = change<0 ? '集中' : (change>0 ? '分散' : '持平');
@@ -1259,7 +1281,6 @@ async function loadChipConcentration(code) {
       '<div><span style="color:var(--text-tertiary)">变化趋势</span><br><b style="color:'+clr+'">筹码'+trend+'</b></div>'+
       '<div><span style="color:var(--text-tertiary)">变动人数</span><br><b style="color:'+clr+'">'+(change>0?'+':'')+(change/1e4).toFixed(1)+'万户</b></div>'+
       '</div>';
-  } catch(e) { el.innerHTML='<span style="color:#ef4444">加载失败: '+e.message+'</span>'; console.error('chipPanel', e); }
 }
 
 // ============================================================
