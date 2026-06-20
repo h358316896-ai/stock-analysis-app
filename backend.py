@@ -31,23 +31,21 @@ from quant_engine import (
 )
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY") or "stockai-prod-secret-2026-kunhuang-top"
+_secret_key = os.getenv("FLASK_SECRET_KEY")
+if not _secret_key:
+    import secrets
+    _secret_key = secrets.token_hex(32)
+    print("[WARN] FLASK_SECRET_KEY env var not set — using random key. Sessions will be invalidated on restart.")
+app.secret_key = _secret_key
 # ProxyFix: trust X-Forwarded-Proto from Railway/Render reverse proxy
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 # Cross-site cookie for kunhuang.top → railway.app (different domains)
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-# Secure flag must be set dynamically: True for HTTPS (behind proxy), False for local HTTP
-# Use ProxyFix middleware to make request.is_secure work correctly
-@app.before_request
-def _set_secure_cookie():
-    """Dynamically set Secure flag based on the actual request scheme."""
-    # After ProxyFix, is_secure reflects the real client connection
-    app.config['SESSION_COOKIE_SECURE'] = request.is_secure
-if not os.getenv("FLASK_SECRET_KEY"):
-    print("[WARN] FLASK_SECRET_KEY env var not set — using random key. Sessions will be invalidated on restart.")
-
+# Secure flag: True in production (behind Railway/Render HTTPS proxy), False for local dev
+# No runtime modification of app.config to avoid race conditions
+app.config['SESSION_COOKIE_SECURE'] = os.getenv("FLASK_SECURE_COOKIE", "true").lower() == "true"
 # Auth helper: supports both session cookie AND token (Authorization header)
 def current_user_id():
     # Priority 1: Session cookie
@@ -72,6 +70,34 @@ def login_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+# Track admin user IDs (set during startup auto-admin creation)
+_ADMIN_USER_IDS: set = set()
+
+def admin_required(fn):
+    """Decorator: require login AND admin privileges (svip tier with long expiration, or in _ADMIN_USER_IDS)"""
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        uid = current_user_id()
+        if not uid:
+            return jsonify({"error": "请先登录", "need_login": True}), 401
+        if uid in _ADMIN_USER_IDS:
+            return fn(*args, **kwargs)
+        info = auth_db.get_membership(uid)
+        tier = info.get("membership", "free")
+        expires = info.get("expires", "")
+        # Admin check: svip tier with very long expiration (>= 1000 months)
+        if tier == "svip" and expires:
+            try:
+                from datetime import datetime as _dt
+                exp_date = _dt.strptime(expires, "%Y-%m-%d")
+                months = (exp_date.year - _dt.now().year) * 12 + (exp_date.month - _dt.now().month)
+                if months >= 1000:
+                    return fn(*args, **kwargs)
+            except Exception:
+                pass
+        return jsonify({"error": "需要管理员权限", "forbidden": True}), 403
+    return wrapper
+
 # Member tier feature flags
 FEATURE_FLAGS = {
     "ai_analysis":    {"free": 5,   "vip": -1, "svip": -1},  # -1 = unlimited
@@ -87,6 +113,7 @@ FEATURE_FLAGS = {
     "market_breadth": {"free": -1,  "vip": -1, "svip": -1},
     "risk_metrics":   {"free": 0,   "vip": 20, "svip": -1},
     "backtest":       {"free": 0,   "vip": 10, "svip": -1},
+    "daily_briefing": {"free": 2,   "vip": -1, "svip": -1},
 }
 
 _daily_usage: dict = {}  # key: "uid:feature:YYYY-MM-DD", value: count
@@ -218,8 +245,32 @@ XH_APPSECRET = os.getenv("XH_APPSECRET", "")
 XH_API = "https://api.xunhupay.com/payment/do.html"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")  # 对外公开 URL（用于支付回调）
 
-# 支付订单临时存储 (out_trade_no -> order info)
+# 支付订单存储 (out_trade_no -> order info) — persisted to JSON file for crash recovery
+PAYMENT_ORDERS_FILE = os.path.join(BASE_DIR, "payment_orders.json")
 payment_orders: dict = {}
+
+def _load_payment_orders():
+    """Load persisted payment orders from file on startup"""
+    try:
+        if os.path.exists(PAYMENT_ORDERS_FILE):
+            with open(PAYMENT_ORDERS_FILE, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    payment_orders.update(loaded)
+            print(f"[AI Workshop] Loaded {len(payment_orders)} persisted payment orders")
+    except Exception as e:
+        print(f"[AI Workshop] Failed to load payment orders: {e}")
+
+def _save_payment_orders():
+    """Persist payment orders to file"""
+    try:
+        with open(PAYMENT_ORDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(payment_orders, f, ensure_ascii=False)
+    except Exception as e:
+        print(f"[AI Workshop] Failed to save payment orders: {e}")
+
+# Load payment orders on import (works for both __main__ and Gunicorn)
+_load_payment_orders()
 
 def _xh_sign(params: dict) -> str:
     """虎皮椒签名：按 key ASCII 排序，拼接 key=value&...，末尾加 appsecret，MD5 小写"""
@@ -275,13 +326,12 @@ EM_HEADERS = {
 }
 
 def fetch_eastmoney(url, timeout=5):
-    """Fetch JSON from Eastmoney API with SSL fallback. Returns parsed JSON or None."""
-    for verify in (True, False):
-        try:
-            resp = requests.get(url, headers=EM_HEADERS, timeout=timeout, verify=verify)
-            return resp.json()
-        except Exception:
-            continue
+    """Fetch JSON from Eastmoney API. Returns parsed JSON or None."""
+    try:
+        resp = requests.get(url, headers=EM_HEADERS, timeout=timeout, verify=True)
+        return resp.json()
+    except Exception as e:
+        print(f"[fetch_eastmoney] Request failed: {e}")
     return None
 
 
@@ -315,6 +365,11 @@ def home():
 @app.route("/health")
 def health():
     info = auth_db.get_persistence_info()
+    # Auto-snapshot check: save daily market data after close
+    try:
+        _auto_snapshot_if_needed()
+    except Exception:
+        pass
     return {
         "status": "ok",
         "persistence": {
@@ -470,6 +525,7 @@ except ImportError:
 # Admin endpoint: refresh HK stock database from Eastmoney
 # -----------------------------------------------------------
 @app.route("/api/admin/refresh-hk-stocks")
+@admin_required
 def refresh_hk_stocks():
     """Fetch all HK stocks from Eastmoney and regenerate hk_stock_names.py"""
     import threading
@@ -1053,7 +1109,7 @@ def stock_ai_analysis():
         allowed, limit, used = check_usage_limit(uid, "ai_analysis")
         if not allowed:
             return jsonify({
-                "error": f"Free tier daily limit reached ({limit}/day). Upgrade to VIP for unlimited AI analysis.",
+                "error": f"今日免费AI分析次数已用完（{limit}次/天）～ 新用户赠送3天VIP，升级即可无限使用",
                 "need_upgrade": True,
                 "limit": limit,
                 "used": used
@@ -1152,6 +1208,120 @@ def stock_ai_analysis():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---- 快速诊断（免登录，散户友好） ----
+_VERDICT_CACHE = {}
+
+@app.route("/api/stock/quick-verdict", methods=["POST"])
+def quick_verdict():
+    """Fast one-sentence stock verdict for retail investors. No login required. Cached 5 min."""
+    data = request.json or {}
+    code = data.get("code", "").strip()
+    name = data.get("name", "")
+    market = data.get("market", "cn")
+    if not code:
+        return jsonify({"error": "no code"}), 400
+
+    cache_key = f"{code}|{market}"
+    now_ts = time.time()
+    if cache_key in _VERDICT_CACHE:
+        entry = _VERDICT_CACHE[cache_key]
+        if (now_ts - entry["ts"]) < 300:
+            return jsonify(entry["data"])
+
+    # Fetch quote + kline quickly
+    quote = None
+    prices = []
+    try:
+        if market == "cn":
+            quote = fetch_cn_quote(code)
+            name = quote.get("name", name) if quote else name
+            kl = fetch_cn_kline(code, 20) or []
+            prices = [k["close"] for k in kl if k.get("close")]
+        elif market == "hk":
+            quote = fetch_hk_quote(code)
+            name = quote.get("name", name) if quote else name
+        elif market == "us":
+            quote = fetch_us_quote(code)
+            name = quote.get("name", name) if quote else name
+    except Exception:
+        pass
+
+    price = quote.get("price", 0) if quote else 0
+    chg_pct = quote.get("change_pct", 0) if quote else 0
+    pe = quote.get("pe", 0) if quote else 0
+
+    # Calculate simple technical scores from price data
+    tech_score = 50
+    if len(prices) >= 10:
+        ma5 = sum(prices[-5:]) / 5
+        ma10 = sum(prices[-10:]) / 10
+        if price > ma5 > ma10:
+            tech_score = 75
+        elif price > ma10:
+            tech_score = 60
+        elif price < ma5 < ma10:
+            tech_score = 30
+        elif price < ma10:
+            tech_score = 40
+        # Recent momentum
+        if len(prices) >= 5:
+            mom = (prices[-1] - prices[-5]) / prices[-5] * 100
+            if mom > 3:
+                tech_score = min(90, tech_score + 15)
+            elif mom < -3:
+                tech_score = max(20, tech_score - 15)
+
+    # Valuation score
+    val_score = 50
+    if pe > 0 and pe < 20:
+        val_score = 75
+    elif pe > 50:
+        val_score = 35
+    elif pe > 100:
+        val_score = 20
+
+    # Money flow score (simplified)
+    flow_score = 50
+    if chg_pct > 2:
+        flow_score = 70
+    elif chg_pct < -2:
+        flow_score = 30
+
+    # Sentiment
+    sent_score = 50
+    if chg_pct > 3:
+        sent_score = 75
+    elif chg_pct < -3:
+        sent_score = 25
+
+    overall = int((tech_score + val_score + flow_score + sent_score) / 4)
+
+    if overall >= 75:
+        verdict = "偏多"
+        advice = "技术面偏强，可关注回调机会"
+        color = "green"
+    elif overall >= 55:
+        verdict = "中性偏强"
+        advice = "基本面尚可，等待更好买点"
+        color = "yellow"
+    elif overall >= 40:
+        verdict = "观望"
+        advice = "多空交织，建议等待方向明确"
+        color = "orange"
+    else:
+        verdict = "偏空"
+        advice = "技术面偏弱，暂不建议介入"
+        color = "red"
+
+    result = {
+        "code": code, "name": name, "price": price, "change_pct": round(chg_pct, 2),
+        "verdict": verdict, "advice": advice, "color": color, "score": overall,
+        "technical": tech_score, "fundamental": val_score, "capital": flow_score, "sentiment": sent_score,
+        "pe": pe,
+    }
+    _VERDICT_CACHE[cache_key] = {"data": result, "ts": now_ts}
+    return jsonify(result)
+
 
 @app.route("/api/stock/generate-report", methods=["POST"])
 def generate_report():
@@ -1248,14 +1418,24 @@ def ai_screener():
 
     try:
         r = deepseek_chat([
-            {"role":"system","content":"你是A股量化分析师。严格按JSON格式返回。评分标准：90+强烈推荐/80-89推荐/70-79中性/60-69谨慎/<60回避。"},
+            {"role":"system","content":"你是A股量化分析师。严格按JSON格式返回。评分标准：90+强烈推荐/80-89推荐/70-79中性/60-69谨慎/<60观望。"},
             {"role":"user","content": f"分析{sector}行业，{smap.get(strategy,smap['comprehensive'])}。\n{stock_list}\n返回JSON：{{\"stocks\":[{{\"code\":\"\",\"name\":\"\",\"score\":85,\"technical\":90,\"fundamental\":80,\"capital\":85,\"sentiment\":85,\"reason\":\"10字内\"}}],\"summary\":\"30字判断\",\"topPick\":\"首推股名\"}}。只返回前{count}只。"}
         ], temperature=0.3, max_tokens=2000)
-        import re
-        j = re.search(r'\{[\s\S]*\}', r if isinstance(r, str) else str(r))
-        if j: return jsonify({"success": True, **(json.loads(j.group()))})
-    except:
-        pass
+        # Check if deepseek returned an error
+        if isinstance(r, dict) and "error" in r:
+            print(f"[AI Screener] DeepSeek error: {r['error'][:150]}")
+        # Greedy match: AI returns a single JSON object, greedy captures the full thing
+        raw = r if isinstance(r, str) else str(r)
+        j = re.search(r'\{[\s\S]*\}', raw)
+        if j:
+            try:
+                ai_data = json.loads(j.group())
+                ai_data.pop("success", None)
+                return jsonify({"success": True, **ai_data})
+            except (json.JSONDecodeError, TypeError) as e:
+                print(f"[AI Screener] JSON parse failed: {e} — raw: {str(j.group())[:200]}")
+    except Exception as e:
+        print(f"[AI Screener] Exception: {e}")
     return jsonify({"success": True, "stocks": [{"code":s["code"],"name":s["name"],"score":0,"technical":0,"fundamental":0,"capital":0,"sentiment":0,"reason":"AI暂不可用"} for s in stocks_data], "summary": "AI引擎暂时不可用","topPick":""})
 
 
@@ -1309,31 +1489,370 @@ def market_indices():
 
 
 # ==========================================================
+# 散户仪表盘 API — 今日必看 / 异动 / 聪明钱 / 避雷
+# ==========================================================
+_DASHBOARD_CACHE = {}  # key -> {"data": ..., "ts": ...}
+
+def _get_market_status():
+    """Determine if market is open now"""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return "周末休市"
+    h, m = now.hour, now.minute
+    if 9 <= h < 11 or (h == 11 and m <= 30):
+        return "盘中交易"
+    elif 13 <= h < 15:
+        return "盘中交易"
+    elif h < 9 or (h == 9 and m < 15):
+        return "盘前"
+    elif (h == 11 and m > 30) or h == 12:
+        return "午间休市"
+    else:
+        return "盘后"
+
+@app.route("/api/market/daily-briefing", methods=["POST"])
+def daily_briefing():
+    """AI每日市场简报 — 散户专属口语化解读"""
+    now_ts = time.time()
+    cached = _DASHBOARD_CACHE.get("briefing", {})
+    if cached.get("data") and (now_ts - cached.get("ts", 0)) < 900:
+        return jsonify(cached["data"])
+
+    # Free for everyone — no login required (15-min cache makes this cheap)
+    uid = current_user_id()
+    if uid:
+        increment_usage(uid, "daily_briefing")
+
+    # Gather market data
+    indices_data = _get_indices_snapshot()
+    status = _get_market_status()
+
+    # Build prompt
+    prompt = f"""当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}，市场状态：{status}
+指数快照：{indices_data}
+
+请用口语化的中文(适当加emoji)给散户做一份简短的"今日必看"简报，按以下格式回复：
+
+【大盘风向】
+一句话判断今天市场偏多/偏空/震荡，不超过20字
+
+【今日关注】
+推荐2-3个值得关注的方向或板块，各一句话
+
+【风险提示】
+提醒1-2个需要注意的风险，各一句话
+
+【散户建议】
+给散户一句操作建议，不超过30字
+
+要求：每句话不超过一行，不要列数据表，不要用专业术语。"""
+
+    try:
+        r = deepseek_chat([
+            {"role": "system", "content": "你是A股散户专属的市场解读助手。语言口语化、有温度、带适当emoji。只给结论，不给数据。让不懂股票的人也能看懂。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.5, max_tokens=800)
+        raw = r if isinstance(r, str) else ""
+    except Exception:
+        raw = ""
+
+    briefing = {
+        "briefing_text": raw or "AI分析暂时不可用，请稍后刷新",
+        "market_status": status,
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    _DASHBOARD_CACHE["briefing"] = {"data": briefing, "ts": now_ts}
+    return jsonify(briefing)
+
+
+def _get_indices_snapshot():
+    """Quick index snapshot for AI prompt context"""
+    try:
+        url = "https://qt.gtimg.cn/q=sh000001,sz399001,sz399006,hk800000"
+        text = _fetch_tencent_raw(url)
+        if not text:
+            return "数据获取失败"
+        lines = []
+        for m in re.finditer(r'v_([^=]+)="([^"]*)"', text):
+            code = m.group(1)
+            fields = m.group(2).split("~")
+            if len(fields) < 35:
+                continue
+            name = fields[1]
+            price = float(fields[3]) if fields[3] else 0
+            chg_pct = float(fields[32]) if fields[32] else 0
+            lines.append(f"{name}({code}): {price:.2f} {chg_pct:+.2f}%")
+        return "; ".join(lines) if lines else "暂无数据"
+    except Exception:
+        return "数据获取异常"
+
+
+@app.route("/api/market/anomaly-live")
+def anomaly_live():
+    """盘中实时异动监控 — 放量拉升/跳水/高换手"""
+    now_ts = time.time()
+    cached = _DASHBOARD_CACHE.get("anomaly", {})
+    if cached.get("data") and (now_ts - cached.get("ts", 0)) < 30:
+        return jsonify(cached["data"])
+
+    anomalies = []
+    try:
+        url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=50&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f7,f8,f10,f12,f14"
+        data = _cached_eastmoney("anomaly_live", url, ttl=30)
+        if data and data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"]:
+                code = item.get("f12", "")
+                name = item.get("f14", "")
+                price = item.get("f2", 0) or 0
+                chg_pct = item.get("f3", 0) or 0
+                vol_ratio = item.get("f10", 1) or 1
+                turnover = item.get("f8", 0) or 0
+                amplitude = item.get("f7", 0) or 0
+
+                atype, severity = None, "low"
+                if vol_ratio >= 3 and chg_pct >= 3:
+                    atype, severity = "放量拉升", "high"
+                elif vol_ratio >= 3 and chg_pct <= -3:
+                    atype, severity = "放量跳水", "high"
+                elif vol_ratio >= 5:
+                    atype, severity = "巨量异动", "medium"
+                elif turnover > 15:
+                    atype, severity = "高换手", "medium"
+                elif amplitude > 8:
+                    atype, severity = "剧烈震荡", "medium"
+
+                if atype:
+                    anomalies.append({
+                        "code": code, "name": name, "price": price,
+                        "change_pct": round(chg_pct, 2),
+                        "volume_ratio": round(vol_ratio, 1),
+                        "turnover": round(turnover, 2),
+                        "anomaly_type": atype, "severity": severity,
+                    })
+
+        anomalies.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+    except Exception:
+        pass
+
+    result = {
+        "anomalies": anomalies[:30], "count": len(anomalies),
+        "updated": datetime.now().strftime("%H:%M:%S"),
+    }
+    _DASHBOARD_CACHE["anomaly"] = {"data": result, "ts": now_ts}
+    return jsonify(result)
+
+
+@app.route("/api/market/smart-money")
+def smart_money():
+    """聪明钱追踪 — 北向资金 + 板块流向综合"""
+    now_ts = time.time()
+    cached = _DASHBOARD_CACHE.get("smartmoney", {})
+    if cached.get("data") and (now_ts - cached.get("ts", 0)) < 300:
+        return jsonify(cached["data"])
+
+    result = {"north_flow_5d": 0, "hot_sectors": [], "updated": datetime.now().strftime("%H:%M:%S")}
+
+    try:
+        # North-bound flow recent
+        nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=5"
+        nb_data = fetch_eastmoney(nb_url, timeout=8)
+        if nb_data and nb_data.get("data") and nb_data["data"].get("klines"):
+            flows = []
+            for line in nb_data["data"]["klines"]:
+                parts = line.split(",")
+                if len(parts) >= 4:
+                    flows.append(float(parts[3]))
+            # Net of last 5 days
+            total = sum(flows) if flows else 0
+            result["north_flow_5d"] = round(total, 1)
+
+        # Sector fund flow top 5
+        sf_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62"
+        sf_data = fetch_eastmoney(sf_url, timeout=8)
+        if sf_data and sf_data.get("data") and sf_data["data"].get("diff"):
+            for item in sf_data["data"]["diff"]:
+                result["hot_sectors"].append({
+                    "name": item.get("f14", ""),
+                    "code": item.get("f12", ""),
+                    "net_flow": round((item.get("f62", 0) or 0) / 10000, 1),  # 万元→亿
+                })
+    except Exception:
+        pass
+
+    _DASHBOARD_CACHE["smartmoney"] = {"data": result, "ts": now_ts}
+    return jsonify(result)
+
+
+@app.route("/api/market/risk-radar")
+def risk_radar():
+    """避雷指南 — 跌停/解禁/高PE风险"""
+    now_ts = time.time()
+    cached = _DASHBOARD_CACHE.get("risk", {})
+    if cached.get("data") and (now_ts - cached.get("ts", 0)) < 300:
+        return jsonify(cached["data"])
+
+    risks = []
+
+    try:
+        # Risk 1: Stocks near limit-down (approaching -8%+)
+        ld_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f9,f12,f14,f20"
+        ld_data = fetch_eastmoney(ld_url, timeout=8)
+        if ld_data and ld_data.get("data") and ld_data["data"].get("diff"):
+            for item in ld_data["data"]["diff"]:
+                chg = item.get("f3", 0) or 0
+                pe = item.get("f9", 0) or 0
+                if chg <= -7:
+                    risks.append({
+                        "code": item.get("f12", ""), "name": item.get("f14", ""),
+                        "price": item.get("f2", 0) or 0,
+                        "change_pct": round(chg, 2),
+                        "risk_type": "跌停风险", "severity": "high",
+                        "reason": f"已跌{abs(chg):.1f}%，接近跌停",
+                    })
+
+        # Risk 2: High PE + declining
+        pe_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f9&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f9,f12,f14,f20"
+        pe_data = fetch_eastmoney(pe_url, timeout=8)
+        if pe_data and pe_data.get("data") and pe_data["data"].get("diff"):
+            for item in pe_data["data"]["diff"]:
+                pe = item.get("f9", 0) or 0
+                chg = item.get("f3", 0) or 0
+                code = item.get("f12", "")
+                if pe > 100 and chg < 0 and not any(r["code"] == code for r in risks):
+                    risks.append({
+                        "code": code, "name": item.get("f14", ""),
+                        "price": item.get("f2", 0) or 0,
+                        "change_pct": round(chg, 2),
+                        "risk_type": "高估值风险", "severity": "medium",
+                        "reason": f"PE高达{pe:.0f}倍且持续下跌",
+                    })
+
+        risks.sort(key=lambda x: {"high": 0, "medium": 1, "low": 2}[x["severity"]])
+    except Exception:
+        pass
+
+    result = {
+        "risks": risks, "count": len(risks),
+        "high_count": sum(1 for r in risks if r["severity"] == "high"),
+        "updated": datetime.now().strftime("%H:%M:%S"),
+    }
+    _DASHBOARD_CACHE["risk"] = {"data": result, "ts": now_ts}
+    return jsonify(result)
+
+
+# ==========================================================
 # PWA Icon Generator
 # ==========================================================
 @app.route("/static/icon-<int:size>.png")
 def pwa_icon(size):
-    """Dynamic PWA icon generation"""
+    """Dynamic PWA icon — professional stock market themed icon"""
     buf = BytesIO()
     try:
-        from PIL import Image, ImageDraw
-        img = Image.new("RGBA", (size, size), (6, 6, 8, 255))
+        from PIL import Image, ImageDraw, ImageFont
+
+        img = Image.new("RGBA", (size, size), (6, 6, 12, 255))
         draw = ImageDraw.Draw(img)
-        m = size // 8
-        draw.rounded_rectangle([m, m, size-m, size-m], radius=size//6, fill=(59, 130, 246, 255))
-        # Simple "S" shape
-        bw, bh = size//5, size//4
-        cx, cy = size//2, size//2
-        draw.rectangle([cx-bw, cy-bh, cx+bw, cy+bh], fill=(255, 255, 255, 255))
-        draw.rectangle([cx-bw+size//20, cy-bh+size//20, cx+bw-size//20, cy+bh-size//20], fill=(59, 130, 246, 255))
+
+        # Background: rounded rect with gradient-like border
+        m = size // 24
+        r = size // 5
+        # Outer glow ring
+        draw.rounded_rectangle(
+            [m, m, size - m, size - m],
+            radius=r,
+            fill=(10, 14, 28, 255),
+            outline=(59, 130, 246, 80),
+            width=max(2, size // 96),
+        )
+
+        # Inner panel
+        inner_m = size // 6
+        draw.rounded_rectangle(
+            [inner_m, inner_m, size - inner_m, size - inner_m],
+            radius=r // 2,
+            fill=(15, 21, 40, 255),
+        )
+
+        # Draw candlestick chart
+        cx = size // 2
+        cy = size // 2
+        bar_w = max(3, size // 18)
+        bar_gap = max(4, size // 10)
+        bar_area_h = size // 3
+        bar_top = cy - bar_area_h // 2
+        bar_bot = cy + bar_area_h // 2
+
+        # 5 candles: green, green, green, smaller green, green (uptrend)
+        candles = [
+            (0.55, 0.85, 0.45, 0.95),  # open, close, low, high (ratios of bar_area)
+            (0.40, 0.82, 0.32, 0.88),
+            (0.25, 0.72, 0.18, 0.78),
+            (0.15, 0.50, 0.08, 0.60),
+            (0.30, 0.68, 0.20, 0.75),
+        ]
+
+        for i, (open_r, close_r, low_r, high_r) in enumerate(candles):
+            x = inner_m + size // 5 + i * bar_gap + bar_w // 2
+
+            open_y = bar_top + int(bar_area_h * open_r)
+            close_y = bar_top + int(bar_area_h * close_r)
+            low_y = bar_top + int(bar_area_h * low_r)
+            high_y = bar_top + int(bar_area_h * high_r)
+
+            body_top = min(open_y, close_y)
+            body_bot = max(open_y, close_y)
+            body_h = max(1, body_bot - body_top)
+
+            # Wick (high-low line)
+            wick_color = (74, 222, 128, 220)  # green
+            draw.line([(x, high_y), (x, low_y)], fill=wick_color, width=max(1, size // 96))
+
+            # Candle body
+            body_color = (34, 197, 94, 240)  # brighter green (bullish)
+            draw.rectangle([x - bar_w, body_top, x + bar_w, body_bot], fill=body_color)
+
+        # Uptrend arrow (diagonal up)
+        arrow_color = (96, 165, 250, 200)
+        arrow_x1 = inner_m + size // 5 + bar_w
+        arrow_y1 = bar_bot - size // 20
+        arrow_x2 = inner_m + size // 5 + 4 * bar_gap + bar_w
+        arrow_y2 = bar_top + size // 20
+        aw = max(2, size // 32)
+        draw.line([(arrow_x1, arrow_y1), (arrow_x2, arrow_y2)], fill=arrow_color, width=aw)
+        # Arrowhead
+        draw.line(
+            [(arrow_x2 - aw * 2, arrow_y2 + aw * 2), (arrow_x2, arrow_y2), (arrow_x2 - aw * 2, arrow_y2 - aw * 2)],
+            fill=arrow_color,
+            width=aw,
+        )
+
+        # Small "+" in corner brand mark
+        cross_cx = size - inner_m - size // 10
+        cross_cy = inner_m + size // 10
+        cross_s = max(3, size // 16)
+        brand_color = (59, 130, 246, 180)
+        draw.line([(cross_cx - cross_s, cross_cy), (cross_cx + cross_s, cross_cy)], fill=brand_color, width=max(1, size // 48))
+        draw.line([(cross_cx, cross_cy - cross_s), (cross_cx, cross_cy + cross_s)], fill=brand_color, width=max(1, size // 48))
+
         img.save(buf, "PNG")
     except ImportError:
-        # Minimal PNG without PIL
+        # Minimal PNG fallback without PIL — gradient square
         import struct, zlib
         def chunk(t, d):
             c = t + d
             return struct.pack('>I', len(d)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-        raw = b'\x00' + bytes([59, 130, 246, 255] * size) * size
+        # Create a simple gradient effect with raw pixels
+        raw = b''
+        for y in range(size):
+            row = b''
+            for x in range(size):
+                r_val = 10 + (x * 30 // size)
+                g_val = 14 + (y * 40 // size)
+                b_val = 59 - (x * 20 // size) + (y * 30 // size)
+                a_val = 255
+                row += bytes([max(0, min(255, r_val)), max(0, min(255, g_val)), max(0, min(255, b_val)), a_val])
+            raw += b'\x00' + row
         buf.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
     buf.seek(0)
     return send_file(buf, mimetype="image/png")
@@ -2220,25 +2739,74 @@ def _fetch_movers_tencent_fallback():
 # ---- 市值排行榜 ----
 @app.route("/api/market/cap-ranking")
 def cap_ranking():
-    """获取总市值排行榜"""
+    """获取总市值排行榜 — 东方财富为主，腾讯兜底"""
+    stocks = []
     try:
-        # Sort by market cap (f20) descending for all A stocks
+        # Primary: Eastmoney push2 API
         url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&fltt=2&invt=2&fid=f20&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f12,f14,f20,f9,f115"
         data = _cached_eastmoney("cap_ranking", url, ttl=600)
-        stocks = []
-        if data and data.get("data") and data["data"].get("diff"):
+        if data and data.get("data") and data["data"].get("diff") and len(data["data"]["diff"]) > 0:
             for item in data["data"]["diff"][:30]:
                 stocks.append({
                     "code": item.get("f12", ""),
                     "name": item.get("f14", ""),
                     "price": item.get("f2", 0),
                     "change_pct": item.get("f3", 0),
-                    "market_cap": item.get("f20", 0),  # 总市值(元)
+                    "market_cap": item.get("f20", 0),
                     "pe": item.get("f9"),
                 })
-        return jsonify({"stocks": stocks, "updated": datetime.now().strftime("%H:%M:%S")})
     except Exception as e:
-        return jsonify({"error": str(e), "stocks": []})
+        print(f"[cap_ranking] Eastmoney failed: {e}")
+
+    # Fallback: Tencent Finance API (works outside trading hours)
+    if not stocks:
+        try:
+            # Tencent market cap ranking via stock list
+            import urllib.parse
+            tc_url = "https://web.ifzq.gtimg.cn/appstock/app/rank/cap/list?_var=caprank&board=all&sort=marketCap&order=desc&count=30"
+            tc_data = fetch_json(tc_url, 10)
+            if isinstance(tc_data, dict):
+                tc_list = tc_data.get("data", []) or tc_data.get("list", []) or []
+                for item in tc_list[:30]:
+                    stocks.append({
+                        "code": str(item.get("code", "")),
+                        "name": str(item.get("name", "")),
+                        "price": float(item.get("price", item.get("last", 0))),
+                        "change_pct": float(item.get("changePercent", item.get("changepercent", 0))),
+                        "market_cap": float(item.get("marketCap", item.get("market_cap", 0))) * 1e8 if float(item.get("marketCap", item.get("market_cap", 0))) < 1e6 else float(item.get("marketCap", item.get("market_cap", 0))),
+                        "pe": item.get("pe", item.get("pe_ttm")),
+                    })
+        except Exception as e:
+            print(f"[cap_ranking] Tencent fallback failed: {e}")
+
+    # Last resort: return hardcoded top stocks with live quotes fetched individually
+    if not stocks:
+        top30_codes = ["600519","300750","601398","601939","601288","601857","601988","600036","601628","600900",
+                        "601318","600030","000858","002594","601166","600276","600809","000333","002415","601088",
+                        "600585","601668","600104","000651","002475","300059","601225","600050","000725","603259"]
+        try:
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                futures = {executor.submit(fetch_cn_quote, c): c for c in top30_codes}
+                for f in as_completed(futures, timeout=8):
+                    try:
+                        q = f.result()
+                        if q and "error" not in q:
+                            stocks.append({
+                                "code": q.get("code", ""),
+                                "name": q.get("name", ""),
+                                "price": q.get("price", 0),
+                                "change_pct": q.get("change_pct", 0),
+                        "market_cap": q.get("market_cap", 0) * 1e8 if q.get("market_cap", 0) and q.get("market_cap", 0) < 1e8 else q.get("market_cap", 0),
+                                "pe": q.get("pe"),
+                            })
+                    except Exception:
+                        pass
+            stocks.sort(key=lambda x: x.get("market_cap", 0), reverse=True)
+            stocks = stocks[:30]
+        except Exception:
+            pass
+
+    return jsonify({"stocks": stocks, "updated": datetime.now().strftime("%H:%M:%S")})
 
 
 # ==========================================================
@@ -2249,7 +2817,7 @@ def cap_ranking():
 @app.route("/api/market/margin-trading")
 def margin_trading():
     """获取融资融券余额数据"""
-    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f12,f14,f20,f124,f125,f126,f127,f128"
+    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5000&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f12,f14,f20,f124,f125,f126,f127,f128"
     data = _cached_eastmoney("margin_total", url, ttl=3600)
     total_rz = total_rq = 0
     if data and data.get("data") and data["data"].get("diff"):
@@ -2273,28 +2841,34 @@ def margin_trading():
 # ---- 2. 涨跌停统计 ----
 @app.route("/api/market/limit-up-down")
 def limit_up_down():
-    """获取涨跌停统计"""
-    # 涨停
-    url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10&f3=9.9"
-    up_data = _cached_eastmoney("limit_up", url_up, ttl=300)
-    # 跌停
-    url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10&f3=-9.9"
-    down_data = _cached_eastmoney("limit_down", url_down, ttl=300)
+    """获取涨跌停统计 — 拉取全市场排序后客户端过滤"""
+    # 全市场按涨跌幅排序，取前200条再过滤
+    url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
+    up_data = fetch_eastmoney(url_up, timeout=10)
+    url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
+    down_data = fetch_eastmoney(url_down, timeout=10)
 
     def parse_limit(item):
-        return {"code":item.get("f12",""),"name":item.get("f14",""),"price":item.get("f2",0),"change_pct":item.get("f3",0),"turnover_rate":item.get("f8",0)}
+        return {"code":item.get("f12",""),"name":item.get("f14",""),"price":item.get("f2",0),"change_pct":float(item.get("f3",0) or 0),"turnover_rate":float(item.get("f8",0) or 0)}
 
-    up_list = [parse_limit(i) for i in up_data.get("data",{}).get("diff",[])[:20]] if up_data else []
-    down_list = [parse_limit(i) for i in down_data.get("data",{}).get("diff",[])[:20]] if down_data else []
-    # push2 返回空时用腾讯API回退
+    all_up = [parse_limit(i) for i in up_data.get("data",{}).get("diff",[])] if up_data else []
+    all_down = [parse_limit(i) for i in down_data.get("data",{}).get("diff",[])] if down_data else []
+
+    # Filter: limit-up >= 9.5%, limit-down <= -9.5%
+    up_list = [s for s in all_up if s["change_pct"] >= 9.5][:30]
+    down_list = [s for s in all_down if s["change_pct"] <= -9.5][:30]
+
+    # Fallback to Tencent if empty
     if not up_list and not down_list:
         fb = _fetch_movers_tencent_fallback()
-        up_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] >= 9.5][:20]
-        down_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] <= -5][:20]
-    url_count = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f12"
-    count_data = _cached_eastmoney("limit_count", url_count, ttl=300)
-    total = count_data.get("data",{}).get("total",0) if count_data else 0
-    return jsonify({"up_count": len(up_list), "down_count": len(down_list), "total_stocks": total, "up_list": up_list, "down_list": down_list})
+        up_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] >= 9.5][:30]
+        down_list = [{"code":s["code"],"name":s["name"],"price":s["price"],"change_pct":s["change_pct"],"turnover_rate":0} for s in fb if s["change_pct"] <= -5][:30]
+
+    return jsonify({
+        "up_count": len(up_list), "down_count": len(down_list),
+        "up_list": up_list, "down_list": down_list,
+        "updated": datetime.now().strftime("%H:%M:%S"),
+    })
 
 
 # ---- 3. 板块资金净流入排行 ----
@@ -2417,6 +2991,22 @@ def limit_up_review():
                     "pe": s.get("pe"), "mkt_cap": s.get("market_cap", 0),
                     "main_net": 0, "reason": "",
                 })
+    # AI explain top 3 limit-up stocks (cached 10 min)
+    try:
+        top3 = [s for s in stocks if not s.get("reason") or s["reason"].startswith("推测")][:3]
+        if top3:
+            names = ", ".join([f"{s['name']}({s['code']})" for s in top3])
+            prompt = f"今天A股以下股票涨停：{names}。请用极简中文（每条不超过15字）解释每只股票可能的涨停原因。格式：股票名：原因"
+            r = deepseek_chat([{"role":"user","content": prompt}], temperature=0.2, max_tokens=200)
+            if isinstance(r, str) and r:
+                for s in top3:
+                    for line in r.split("\n"):
+                        if s["name"] in line:
+                            s["reason"] = line.split("：",1)[-1].strip() if "：" in line else line.strip()
+                            break
+    except Exception:
+        pass
+
     stocks.sort(key=lambda x: x["change_pct"], reverse=True)
     return jsonify({"stocks": stocks[:50], "total": len(stocks)})
 
@@ -2629,40 +3219,156 @@ def economic_calendar():
     """经济事件日历"""
     today = datetime.now()
     events = []
-    # Generate upcoming events for next 7 days
+    WEEKDAY_CN = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
     for i in range(7):
         d = today + timedelta(days=i)
         day_events = []
-        if d.weekday() == 0:  # Monday
+        if d.weekday() == 0:  # 周一
             day_events = [
-                {"time": "09:30", "event": "China Manufacturing PMI", "importance": "high", "country": "CN"},
-                {"time": "10:00", "event": "Eurozone Industrial Production", "importance": "medium", "country": "EU"},
+                {"time": "09:30", "event": "中国制造业PMI", "importance": "high", "country": "中国"},
+                {"time": "10:00", "event": "欧元区工业生产数据", "importance": "medium", "country": "欧盟"},
             ]
-        elif d.weekday() == 2:  # Wednesday
+        elif d.weekday() == 2:  # 周三
             day_events = [
-                {"time": "14:00", "event": "US Fed Interest Rate Decision", "importance": "high", "country": "US"},
-                {"time": "16:30", "event": "US Crude Oil Inventories", "importance": "medium", "country": "US"},
+                {"time": "14:00", "event": "美联储利率决议", "importance": "high", "country": "美国"},
+                {"time": "16:30", "event": "美国原油库存变动", "importance": "medium", "country": "美国"},
             ]
-        elif d.weekday() == 3:  # Thursday
+        elif d.weekday() == 3:  # 周四
             day_events = [
-                {"time": "08:00", "event": "UK GDP (QoQ)", "importance": "high", "country": "UK"},
-                {"time": "20:30", "event": "US Initial Jobless Claims", "importance": "medium", "country": "US"},
+                {"time": "08:00", "event": "英国GDP季度数据", "importance": "high", "country": "英国"},
+                {"time": "20:30", "event": "美国初请失业金人数", "importance": "medium", "country": "美国"},
             ]
-        elif d.weekday() == 4:  # Friday
+        elif d.weekday() == 4:  # 周五
             day_events = [
-                {"time": "09:30", "event": "China CPI (YoY)", "importance": "high", "country": "CN"},
-                {"time": "14:30", "event": "US Nonfarm Payrolls", "importance": "high", "country": "US"},
+                {"time": "09:30", "event": "中国CPI同比数据", "importance": "high", "country": "中国"},
+                {"time": "14:30", "event": "美国非农就业数据", "importance": "high", "country": "美国"},
             ]
         else:
             day_events = [
-                {"time": "10:00", "event": "Consumer Confidence Index", "importance": "low", "country": "EU"},
+                {"time": "10:00", "event": "消费者信心指数", "importance": "low", "country": "欧盟"},
             ]
         events.append({
             "date": d.strftime("%Y-%m-%d"),
-            "day": d.strftime("%A"),
+            "day": WEEKDAY_CN[d.weekday()],
             "events": day_events,
         })
-    return jsonify({"calendar": events, "note": "Sample calendar. Live data requires premium API key."})
+    return jsonify({"calendar": events, "note": "示例日历数据，实时数据需配置付费API"})
+
+
+# ==========================================================
+# 每日收盘快照 — 防止盘后数据丢失（尤其是周五）
+# ==========================================================
+_last_snapshot_date = {"date": ""}
+
+def _auto_snapshot_if_needed():
+    """Auto-save snapshot at 15:05 each trading day (weekday)"""
+    now = datetime.now()
+    if now.weekday() >= 5:
+        return  # Weekend, skip
+    today = now.strftime("%Y-%m-%d")
+    h, m = now.hour, now.minute
+    # Only snapshot after 15:00, once per day
+    if h < 15 or (h == 15 and m < 5):
+        return
+    if _last_snapshot_date["date"] == today:
+        return  # Already saved today
+    _last_snapshot_date["date"] = today
+    # Collect data
+    try:
+        snapshot = {
+            "indices": _get_indices_snapshot(),
+            "market_status": _get_market_status(),
+            "saved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        # Add limit-up/down counts
+        try:
+            ld = limit_up_down()
+            ld_data = ld.get_json()
+            snapshot["limit_up_count"] = ld_data.get("up_count", 0)
+            snapshot["limit_down_count"] = ld_data.get("down_count", 0)
+            snapshot["limit_ups"] = ld_data.get("up_list", [])[:10]
+            snapshot["limit_downs"] = ld_data.get("down_list", [])[:10]
+        except Exception:
+            pass
+        auth_db.save_daily_snapshot(today, snapshot)
+        print(f"[AI Workshop] Daily snapshot saved for {today}")
+    except Exception as e:
+        print(f"[AI Workshop] Snapshot failed: {e}")
+
+# Trigger snapshot check on every health check and periodically
+@app.route("/api/market/snapshot", methods=["POST"])
+def trigger_snapshot():
+    """手动触发或获取当日快照"""
+    today = datetime.now().strftime("%Y-%m-%d")
+    # Force save
+    try:
+        snapshot = {
+            "indices": _get_indices_snapshot(),
+            "market_status": _get_market_status(),
+            "saved_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        try:
+            ld = limit_up_down()
+            ld_data = ld.get_json()
+            snapshot["limit_up_count"] = ld_data.get("up_count", 0)
+            snapshot["limit_down_count"] = ld_data.get("down_count", 0)
+            snapshot["limit_ups"] = ld_data.get("up_list", [])[:10]
+            snapshot["limit_downs"] = ld_data.get("down_list", [])[:10]
+        except Exception:
+            pass
+        auth_db.save_daily_snapshot(today, snapshot)
+        return jsonify({"success": True, "date": today, "snapshot": snapshot})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/market/snapshots")
+def get_snapshots():
+    """获取历史快照列表（最近30天）"""
+    days = int(request.args.get("days", 30))
+    snaps = auth_db.get_daily_snapshots(days)
+    return jsonify({"snapshots": snaps, "count": len(snaps)})
+
+@app.route("/api/market/trending")
+def trending_stocks():
+    """热门关注 — 全市场最受关注的股票。休市时回落快照数据。"""
+    try:
+        url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f5,f12,f14,f20"
+        data = fetch_eastmoney(url, timeout=8)
+        stocks = []
+        if data and data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"]:
+                stocks.append({
+                    "code": item.get("f12", ""),
+                    "name": item.get("f14", ""),
+                    "price": item.get("f2", 0) or 0,
+                    "change_pct": round(float(item.get("f3", 0) or 0), 2),
+                    "volume_hands": item.get("f5", 0) or 0,
+                    "market_cap": item.get("f20", 0) or 0,
+                })
+        # Fallback to snapshot data if empty (weekend/holiday)
+        if not stocks:
+            snaps = auth_db.get_daily_snapshots(3)
+            if snaps:
+                snap = snaps[0]
+                snap_stocks = snap.get("data", {}).get("limit_ups", [])
+                if snap_stocks:
+                    stocks = [{
+                        "code": s.get("code", ""), "name": s.get("name", ""),
+                        "price": s.get("price", 0), "change_pct": s.get("change_pct", 0),
+                        "volume_hands": 0, "market_cap": 0,
+                    } for s in snap_stocks[:10]]
+        is_snapshot = False if (data and data.get("data") and data["data"].get("diff")) else True
+        return jsonify({"stocks": stocks, "is_snapshot": is_snapshot, "updated": datetime.now().strftime("%H:%M:%S")})
+    except Exception as e:
+        return jsonify({"stocks": [], "error": str(e)})
+
+@app.route("/api/market/latest-snapshot")
+def latest_snapshot():
+    """最新快照数据 — 仪表盘'本周回顾'卡片"""
+    snaps = auth_db.get_daily_snapshots(7)
+    if snaps:
+        return jsonify({"snapshot": snaps[0], "has_data": True})
+    return jsonify({"has_data": False, "snapshot": None})
 
 
 # ==========================================================
@@ -2984,20 +3690,25 @@ def service_inquiry():
 def auth_register():
     data = request.json or {}
     username = data.get("username", "").strip()
-    email = data.get("email", "").strip()
+    email = data.get("email", "新用户")
     password = data.get("password", "")
     if not username or not password:
         return jsonify({"error": "用户名和密码不能为空"}), 400
+    if len(username) < 2:
+        return jsonify({"error": "用户名至少2个字符"}), 400
     if len(password) < 6:
         return jsonify({"error": "密码至少6位"}), 400
     result = auth_db.create_user(username, email, password)
     if "error" in result:
         return jsonify(result), 400
     uid = result["user_id"]
+    # New users get 3-day VIP trial
+    trial_exp = (datetime.now() + timedelta(days=3)).strftime("%Y-%m-%d")
+    auth_db.upgrade_membership(uid, "vip", expires_at=trial_exp)
     session["user_id"] = uid
     session["username"] = result["username"]
     token = auth_db.create_token(uid)
-    return jsonify({"success": True, "username": result["username"], "token": token})
+    return jsonify({"success": True, "username": result["username"], "token": token, "trial": True, "trial_days": 3})
 
 @app.route("/api/auth/login", methods=["POST"])
 def auth_login():
@@ -3034,6 +3745,7 @@ def auth_logout():
 
 # ---- 管理员快速升级（开发期专用） ----
 @app.route("/api/admin/quick-upgrade", methods=["POST"])
+@admin_required
 def admin_quick_upgrade():
     data = request.json or {}
     username = data.get("username", "")
@@ -3055,6 +3767,7 @@ def admin_quick_upgrade():
 
 # ---- 数据持久化管理（管理员） ----
 @app.route("/api/admin/persistence")
+@admin_required
 def admin_persistence():
     """查看持久化状态"""
     info = auth_db.get_persistence_info()
@@ -3082,6 +3795,7 @@ def admin_persistence():
     })
 
 @app.route("/api/admin/backup", methods=["POST"])
+@admin_required
 def admin_backup():
     """手动触发数据库备份"""
     path = auth_db.backup_db()
@@ -3091,6 +3805,7 @@ def admin_backup():
     return jsonify({"error": "备份失败 — 数据库可能不存在"}), 500
 
 @app.route("/api/admin/restore", methods=["POST"])
+@admin_required
 def admin_restore():
     """从最新备份恢复数据库（需要确认）"""
     data = request.json or {}
@@ -3143,6 +3858,7 @@ def payment_create():
         "status": "pending",
         "created_at": time.time()
     }
+    _save_payment_orders()
 
     return jsonify({
         "success": True,
@@ -3190,6 +3906,7 @@ def payment_notify():
     order["status"] = "completed"
     order["paid_fee"] = total_fee
     order["paid_at"] = time.time()
+    _save_payment_orders()
 
     # 必须返回纯文本 success
     return "success", 200, {"Content-Type": "text/plain; charset=utf-8"}
@@ -3269,7 +3986,9 @@ def admin_setup_svip():
     """用 ADMIN_SETUP_KEY 直接创建/升级超管"""
     data = request.json or {}
     setup_key = data.get("key", "")
-    expected = os.getenv("ADMIN_SETUP_KEY", os.getenv("ADMIN_PASS", "kunhuang-admin-2026"))
+    expected = os.getenv("ADMIN_SETUP_KEY") or os.getenv("ADMIN_PASS")
+    if not expected:
+        return jsonify({"error": "Admin setup not configured — set ADMIN_SETUP_KEY env var"}), 500
     if not setup_key or setup_key != expected:
         return jsonify({"error": "无效密钥"}), 403
     username = data.get("username", "admin")
@@ -3379,6 +4098,22 @@ def get_analysis_history():
     items = auth_db.get_analysis_history(uid, limit)
     return jsonify({"items": items})
 
+@app.route("/api/analysis/save", methods=["POST"])
+@login_required
+def save_analysis_manual():
+    """Manually save/update an analysis history entry."""
+    uid = current_user_id()
+    data = request.json or {}
+    code = data.get("code", "")
+    name = data.get("name", "")
+    market = data.get("market", "cn")
+    aspect = data.get("aspect", "comprehensive")
+    analysis = data.get("analysis", "")
+    if not code or not analysis:
+        return jsonify({"error": "code and analysis are required"}), 400
+    auth_db.save_analysis(uid, code, name, market, aspect, analysis)
+    return jsonify({"success": True, "message": "Analysis saved to history"})
+
 
 # ---- Alert Check Task (called periodically) ----
 @app.route("/api/alerts/check", methods=["POST"])
@@ -3416,10 +4151,186 @@ def check_all_alerts():
                 })
         except Exception:
             continue
+    # Send notifications (WxPusher + Email dual channel)
+    if triggered:
+        try:
+            conn = auth_db.get_db()
+            cur = conn.cursor()
+            cur.execute("SELECT push_token, email FROM users WHERE id=?", (uid,))
+            row = cur.fetchone()
+            conn.close()
+            wx_uid = row[0] if row and row[0] else ""
+            email = row[1] if row and row[1] else ""
+            if wx_uid or email:
+                _send_alert_notification(wx_uid, email, triggered)
+        except Exception:
+            pass
+
     return jsonify({"triggered": triggered})
 
 
+def _send_alert_notification(wx_uid, email, alerts):
+    """Dual-channel: WxPusher (WeChat) + SMTP email"""
+    msgs = []
+    for t in alerts[:5]:
+        emoji = "📈" if t["change_pct"] >= 0 else "📉"
+        msgs.append(f"{emoji} {t['name']}({t['code']}) {t['condition']}: {t['current_price']} ({t['change_pct']:+.2f}%)")
+    title = f"StockAI {len(alerts)}个股价提醒触发"
+    body = "\n".join(msgs)
 
+    # Channel 1: WxPusher → WeChat
+    WXPUSHER_TOKEN = os.getenv("WXPUSHER_APP_TOKEN", "")
+    if wx_uid and WXPUSHER_TOKEN:
+        try:
+            r = requests.post("https://wxpusher.zjiecode.com/api/send/message", json={
+                "appToken": WXPUSHER_TOKEN,
+                "content": title + "\n\n" + body,
+                "uid": wx_uid,
+                "contentType": 1,  # text
+            }, timeout=10)
+            if r.status_code == 200:
+                print(f"[WxPusher] Sent to uid={wx_uid[:8]}...")
+        except Exception as e:
+            print(f"[WxPusher] Failed: {e}")
+
+    # Channel 2: Email (via SMTP env vars, if configured)
+    if email:
+        _send_email_alert(email, title, body)
+
+
+def _send_email_alert(to_email, subject, body_text):
+    """Send alert via SMTP. Set SMTP_HOST/SMTP_USER/SMTP_PASS env vars."""
+    smtp_host = os.getenv("SMTP_HOST", "")
+    smtp_user = os.getenv("SMTP_USER", "")
+    smtp_pass = os.getenv("SMTP_PASS", "")
+    if not (smtp_host and smtp_user and smtp_pass):
+        return  # SMTP not configured
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        msg = MIMEText(body_text, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = smtp_user
+        msg["To"] = to_email
+        server = smtplib.SMTP_SSL(smtp_host, 465, timeout=10)
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(smtp_user, [to_email], msg.as_string())
+        server.quit()
+        print(f"[Email] Sent to {to_email}")
+    except Exception as e:
+        print(f"[Email] Failed: {e}")
+
+@app.route("/api/auth/push-token", methods=["POST"])
+@login_required
+def save_push_uid():
+    """Save WxPusher UID + email for notifications"""
+    uid = current_user_id()
+    data = request.json or {}
+    wx_uid = data.get("wx_uid", "").strip()
+    email = data.get("email", "").strip()
+    try:
+        conn = auth_db.get_db()
+        cur = conn.cursor()
+        if wx_uid:
+            cur.execute("UPDATE users SET push_token=? WHERE id=?", (wx_uid, uid))
+        if email:
+            cur.execute("UPDATE users SET email=? WHERE id=?", (email, uid))
+        conn.commit()
+        conn.close()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/auth/push-token", methods=["GET"])
+@login_required
+def get_push_uid():
+    """Get current user's WxPusher UID and email"""
+    uid = current_user_id()
+    try:
+        conn = auth_db.get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT push_token, email FROM users WHERE id=?", (uid,))
+        row = cur.fetchone()
+        conn.close()
+        return jsonify({"wx_uid": row[0] if row else "", "email": row[1] if row else ""})
+    except Exception:
+        return jsonify({"wx_uid": "", "email": ""})
+
+
+
+
+
+# ==========================================================
+# 模拟组合 (Virtual Portfolio)
+# ==========================================================
+_portfolios = {}  # uid -> {stocks: [{code,name,price,shares,added_at}], cash: 100000}
+
+@app.route("/api/portfolio", methods=["GET"])
+def get_portfolio():
+    uid = current_user_id() or "anon"
+    pf = _portfolios.get(uid, {"stocks": [], "cash": 100000, "initial": 100000})
+    # Calculate current value
+    total_value = pf["cash"]
+    for s in pf["stocks"]:
+        try:
+            q = fetch_cn_quote(s["code"])
+            s["current_price"] = q.get("price", s["price"]) if q else s["price"]
+            s["change_pct"] = q.get("change_pct", 0) if q else 0
+            total_value += s["current_price"] * s["shares"]
+        except Exception:
+            s["current_price"] = s["price"]
+    pf["total_value"] = round(total_value, 2)
+    pf["pnl"] = round(total_value - pf["initial"], 2)
+    pf["pnl_pct"] = round((total_value / pf["initial"] - 1) * 100, 2)
+    return jsonify(pf)
+
+@app.route("/api/portfolio/trade", methods=["POST"])
+def portfolio_trade():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "请先登录"}), 401
+    data = request.json or {}
+    code = data.get("code", "").strip()
+    name = data.get("name", "")
+    action = data.get("action", "buy")  # buy or sell
+    shares = int(data.get("shares", 0))
+    price = float(data.get("price", 0))
+    if not code or shares <= 0 or price <= 0:
+        return jsonify({"error": "参数不完整"}), 400
+    pf = _portfolios.get(uid, {"stocks": [], "cash": 100000, "initial": 100000})
+    if action == "buy":
+        cost = price * shares
+        if cost > pf["cash"]:
+            return jsonify({"error": f"现金不足（需要{cost:.0f}，可用{pf['cash']:.0f}）"}), 400
+        pf["cash"] -= cost
+        existing = next((s for s in pf["stocks"] if s["code"] == code), None)
+        if existing:
+            total_shares = existing["shares"] + shares
+            existing["price"] = (existing["price"] * existing["shares"] + price * shares) / total_shares
+            existing["shares"] = total_shares
+        else:
+            pf["stocks"].append({"code": code, "name": name, "price": price, "shares": shares, "added_at": datetime.now().strftime("%m-%d %H:%M")})
+    elif action == "sell":
+        existing = next((s for s in pf["stocks"] if s["code"] == code), None)
+        if not existing or existing["shares"] < shares:
+            return jsonify({"error": "持仓不足"}), 400
+        pf["cash"] += price * shares
+        existing["shares"] -= shares
+        if existing["shares"] <= 0:
+            pf["stocks"].remove(existing)
+    pf["total_value"] = round(pf["cash"] + sum(s.get("current_price", s["price"]) * s["shares"] for s in pf["stocks"]), 2)
+    pf["pnl"] = round(pf["total_value"] - pf["initial"], 2)
+    pf["pnl_pct"] = round(pf["pnl"] / pf["initial"] * 100, 2)
+    _portfolios[uid] = pf
+    return jsonify({"success": True, **pf})
+
+@app.route("/api/portfolio/reset", methods=["POST"])
+def portfolio_reset():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "请先登录"}), 401
+    _portfolios[uid] = {"stocks": [], "cash": 100000, "initial": 100000}
+    return jsonify({"success": True, **_portfolios[uid]})
 
 
 # ==========================================================
@@ -3875,7 +4786,7 @@ def stock_risk_metrics():
         return jsonify({"error": str(e)}), 500
 
     if len(prices) < 20:
-        return jsonify({"error": f"数据不足（仅{len(prices)}个交易日，需要≥20）"})
+        return jsonify({"error": f"数据不足（仅{len(prices)}个交易日，需要≥20）"}), 400
 
     # Fetch CSI 300 kline for beta
     mkt_prices = None
@@ -3993,15 +4904,8 @@ def quant_backtest():
 # ==========================================================
 # STARTUP
 # ==========================================================
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5003))
-    print(f"[AI Workshop] Starting on http://0.0.0.0:{port}")
-    print(f"[AI Workshop] DeepSeek:  {'configured' if DEEPSEEK_API_KEY else 'MISSING'}")
-    print(f"[AI Workshop] Claude:     {'configured' if CLAUDE_API_KEY else 'MISSING'}")
-    print(f"[AI Workshop] XunhuPay:   {'configured' if XH_APPID else 'MISSING -- 支付功能不可用'}")
-    print(f"[AI Workshop] HK stocks: {len(HK_STOCK_NAMES)} loaded from local DB")
-
-    # Auto-create super admin account (set ADMIN_PASS env var to activate)
+def _auto_create_admin():
+    """Auto-create super admin account from env vars (runs on both Gunicorn and __main__)"""
     try:
         admin_user = os.getenv("ADMIN_USER", "admin")
         admin_pass = os.getenv("ADMIN_PASS", "")
@@ -4010,13 +4914,32 @@ if __name__ == "__main__":
             if result.get("success"):
                 uid = result.get("user_id")
                 auth_db.upgrade_membership(uid, "svip", 1200)
+                _ADMIN_USER_IDS.add(uid)
                 print(f"[AI Workshop] Super admin created: {admin_user}")
             elif "已存在" in str(result.get("error","")):
                 v = auth_db.verify_user(admin_user, admin_pass)
                 if v.get("success"):
                     auth_db.upgrade_membership(v["user_id"], "svip", 1200)
+                    _ADMIN_USER_IDS.add(v["user_id"])
                     print(f"[AI Workshop] Super admin upgraded: {admin_user}")
     except Exception as e:
         print(f"[AI Workshop] Admin setup: {e}")
+
+# Run admin creation at module level for Gunicorn
+_auto_create_admin()
+
+# Auto-snapshot on startup (catch if server restarted after market close)
+try:
+    _auto_snapshot_if_needed()
+except Exception:
+    pass
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5003))
+    print(f"[AI Workshop] Starting on http://0.0.0.0:{port}")
+    print(f"[AI Workshop] DeepSeek:  {'configured' if DEEPSEEK_API_KEY else 'MISSING'}")
+    print(f"[AI Workshop] Claude:     {'configured' if CLAUDE_API_KEY else 'MISSING'}")
+    print(f"[AI Workshop] XunhuPay:   {'configured' if XH_APPID else 'MISSING -- 支付功能不可用'}")
+    print(f"[AI Workshop] HK stocks: {len(HK_STOCK_NAMES)} loaded from local DB")
 
     app.run(host="0.0.0.0", port=port, debug=False)
