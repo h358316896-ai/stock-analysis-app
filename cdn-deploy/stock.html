@@ -20,10 +20,9 @@
 <title>StockAI v2 — 专业行情分析平台</title>
 <link rel="stylesheet" href="/css/style.css">
 <script>
-// Kill old service workers that may cache broken pages
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) { r.unregister(); });
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
   });
 }
 var _pwaDeferredPrompt = null;
@@ -102,6 +101,7 @@ function pwaDismissBar() {
   <div class="top-nav">
     <a href="/stock" class="active">行情</a>
     <a href="/">首页</a>
+    <a href="/bottleneck">瓶颈扫描</a>
     <a href="/media">自媒体</a>
     <a href="/services">服务</a>
   </div>
@@ -207,6 +207,18 @@ function pwaDismissBar() {
   <!-- ========== 📊 今日必看 DASHBOARD ========== -->
   <div id="panel-dashboard" class="dashboard">
 
+    <!-- 你的今日操盘计划 -->
+    <div id="dailyPlanCard" class="dash-card glass" style="display:none;margin-bottom:14px;border:1px solid rgba(79,140,255,0.15)">
+      <div class="dash-card-header" style="background:rgba(79,140,255,0.04)">
+        <span>📋 <b>你的今日操盘计划</b> <span style="font-weight:400;font-size:11px;color:var(--text-tertiary)">基于你的自选股</span></span>
+        <span class="dash-updated-time" id="planUpdated"></span>
+      </div>
+      <div class="dash-card-body" id="dailyPlanList" style="padding:0">
+        <div class="dash-empty">加载中...</div>
+      </div>
+      <div style="padding:8px 14px;font-size:9px;color:var(--text-tertiary);border-top:1px solid var(--border-subtle);text-align:center" id="planTip"></div>
+    </div>
+
     <!-- Row 1: Market Pulse -->
     <div class="dash-grid dash-grid-4">
       <div class="dash-card glass pulse-card">
@@ -221,9 +233,9 @@ function pwaDismissBar() {
     </div>
 
     <!-- Row 2: AI Briefing -->
-    <div class="dash-card glass briefing-card" style="margin-bottom:14px">
-      <div class="dash-card-header">
-        <span>🤖 AI今日必看 <span style="font-weight:400;font-size:12px;color:var(--text-tertiary)">— 散户专属市场解读</span></span>
+    <div class="dash-card glass briefing-card" style="margin-bottom:14px;border-left:4px solid var(--accent)">
+      <div class="dash-card-header" style="background:rgba(79,140,255,0.05)">
+        <span>🤖 <b><span id="briefingScene">AI今日必看</span></b> <span style="font-weight:400;font-size:12px;color:var(--text-tertiary)">— 散户专属市场解读</span></span>
         <div class="dash-header-actions"><span class="dash-updated-time" id="briefingTime"></span><button class="btn-icon" onclick="refreshBriefing()" title="刷新">🔄</button></div>
       </div>
       <div class="dash-card-body" id="aiBriefingBody" style="padding:0"><div class="spinner-wrap show" style="padding:30px"><div class="spinner"></div>AI正在解读今日行情...</div></div>
@@ -514,6 +526,15 @@ function pwaDismissBar() {
         <button class="btn-watchlist" onclick="shareStock()" style="display:none;margin-left:8px;background:rgba(7,193,96,0.1);border-color:rgba(7,193,96,0.2);color:#07c160" id="shareBtn">📤 分享</button>
       </div>
 
+      <!-- Deep Research Panel -->
+      <div class="glass" id="deepResearchPanel" style="display:none;margin-bottom:12px;padding:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-weight:700;font-size:14px;color:var(--gold)">🔬 五步深度研报</span>
+          <span id="deepResearchTime" style="font-size:10px;color:var(--text-tertiary)"></span>
+        </div>
+        <div id="deepResearchContent" style="font-size:13px;line-height:2;color:var(--text-secondary)"></div>
+      </div>
+
       <!-- AI 一眼结论 -->
       <div class="verdict-card" id="verdictCard" style="display:none;margin-bottom:12px;padding:16px;border-radius:var(--radius-lg);border:1px solid var(--border-subtle)">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
@@ -531,8 +552,11 @@ function pwaDismissBar() {
         </div>
         <div style="display:flex;gap:8px">
           <button onclick="runAnalysis('comprehensive')" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">📊 AI深度分析</button>
+          <button onclick="runDeepResearch()" style="flex:1;padding:8px;background:var(--gold);color:#0a0c14;border:none;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">🔬 五步研报</button>
+          <button onclick="quickDevilsAdvocate()" style="padding:8px 12px;background:rgba(192,57,43,0.1);color:var(--red);border:1px solid rgba(192,57,43,0.2);border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">😈 魔鬼代言人</button>
           <button onclick="document.getElementById('alertsList').scrollIntoView({behavior:'smooth'})" style="padding:8px 16px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-default);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)">🔔 设提醒</button>
-          <button onclick="portfolioBuy()" id="pfBuyBtn" style="display:none;padding:8px 16px;background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)">💰 模拟买入</button>
+          <button onclick="portfolioBuy()" id="pfBuyBtn" style="display:none;padding:8px 16px;background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)" title="模拟交易，10万本金起步">💰 模拟买入</button>
+          <button onclick="document.getElementById('cardPortfolio').scrollIntoView({behavior:'smooth',block:'center'});loadPortfolio()" style="display:none;padding:8px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border-default);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)" id="pfViewBtn">📋 持仓</button>
         </div>
         <!-- Quick Nav Anchors -->
         <div class="quick-nav" id="quickNav" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle);display:flex;gap:6px;flex-wrap:wrap">
@@ -626,13 +650,20 @@ function pwaDismissBar() {
         </div>
         <button class="btn-sm btn-primary" style="width:100%;margin-top:10px;padding:8px" onclick="showUpgradeModal()">升级 →</button>
         <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle)">
-          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">📲 通知设置（微信+邮件双通道）</div>
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px">步骤1: <a href="https://wxpusher.zjiecode.com" target="_blank" style="color:var(--accent)">打开WxPusher</a> → 扫码关注 → 复制你的UID</div>
-          <input type="text" id="wxUidInput" placeholder="粘贴WxPusher UID" style="width:100%;padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:6px;color:var(--text-primary);font-size:11px;font-family:var(--font);margin-bottom:4px">
-          <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">步骤2: 输入邮箱（备份通道）</div>
-          <input type="email" id="emailInput" placeholder="your@email.com" style="width:100%;padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:6px;color:var(--text-primary);font-size:11px;font-family:var(--font);margin-bottom:4px">
-          <button class="btn-sm btn-primary" style="width:100%;padding:6px;font-size:11px" onclick="savePushToken()">保存通知设置</button>
-          <span id="pushTokenStatus" style="font-size:10px;color:var(--green);display:none;margin-top:4px">✅ 已绑定 | 微信 + 邮件双通道</span>
+          <div style="font-size:11px;color:var(--text-secondary);margin-bottom:6px">📲 微信通知绑定</div>
+          <div id="wxBindArea">
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:8px">扫码关注公众号即可自动绑定，无需手动输入</div>
+            <div id="wxQrWrap" style="text-align:center;margin-bottom:8px">
+              <div id="wxQrLoading" style="padding:20px;color:var(--text-tertiary);font-size:11px">点击下方按钮生成二维码</div>
+              <img id="wxQrImg" src="" style="display:none;width:160px;height:160px;border-radius:8px;margin:0 auto">
+            </div>
+            <button class="btn-sm btn-primary" style="width:100%;padding:6px;font-size:11px" onclick="generateWxQr()">🔗 生成绑定二维码</button>
+            <div style="font-size:9px;color:var(--text-tertiary);margin-top:4px;text-align:center">扫码关注后自动绑定，无需手动输入</div>
+          </div>
+          <div style="margin-top:6px">
+            <input type="email" id="emailInput" placeholder="邮箱备份（可选）" style="width:100%;padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:6px;color:var(--text-primary);font-size:11px;font-family:var(--font)">
+          </div>
+          <span id="pushTokenStatus" style="font-size:10px;color:var(--green);display:none;margin-top:4px">✅ 已绑定微信通知</span>
         </div>
       </div>
       <div class="sidebar-card" id="cardWatchlist">
@@ -655,6 +686,11 @@ function pwaDismissBar() {
           <button onclick="submitAlert()" style="width:100%">创建提醒</button>
         </div>
       </div>
+      <div class="sidebar-card" id="cardRealPortfolio">
+        <h3>💼 真实持仓 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400">盈亏追踪</span></h3>
+        <div id="realPortfolioInfo"><div class="empty" style="display:flex;flex-direction:column;align-items:center;gap:8px"><span>登录后添加真实持仓</span></div></div>
+        <button class="btn-sm btn-secondary" style="width:100%;margin-top:6px;padding:6px;font-size:11px" onclick="addRealHolding()">+ 添加持仓</button>
+      </div>
       <div class="sidebar-card" id="cardPortfolio">
         <h3>💰 模拟组合 <span style="font-size:10px;color:var(--text-tertiary);font-weight:400">10万起步</span></h3>
         <div id="portfolioInfo"><div class="empty" style="display:flex;flex-direction:column;align-items:center;gap:8px"><span>登录后使用模拟交易</span></div></div>
@@ -673,9 +709,7 @@ function pwaDismissBar() {
 // ============================================================
 // 强制清除旧缓存（Service Worker + 应用缓存）
 // ============================================================
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs){ regs.forEach(function(r){ r.unregister(); }); });
-}
+
 if ('caches' in window) {
   caches.keys().then(function(names){ names.forEach(function(name){ caches.delete(name); }); });
 }
@@ -853,6 +887,7 @@ async function checkLogin() {
       loadHistory();
       loadMembership();
       loadPushToken();
+      loadRealPortfolio();
       loadPortfolio();
     } else {
       onLoginChange();
@@ -1038,25 +1073,67 @@ function updateMembershipUI() {
   }
 }
 
-async function savePushToken() {
+function generateWxQr() {
   if (!state.isLogin) { showAuthModal('login'); return; }
-  var wx = document.getElementById('wxUidInput').value.trim();
-  var email = document.getElementById('emailInput').value.trim();
-  if (!wx && !email) { showToast('请至少填写WxPusher UID或邮箱', 'error'); return; }
-  try {
-    var r = await fetch('/api/auth/push-token', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('stockai_token')}, body:JSON.stringify({wx_uid:wx, email:email}) });
-    var d = await r.json();
-    if (d.success) { document.getElementById('pushTokenStatus').style.display='block'; showToast('通知设置已保存','success'); }
-  } catch(e) { showToast('保存失败','error'); }
+  // Get current user info
+  fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') } })
+    .then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (!d.user || !d.user.id) return;
+      var uid = d.user.id;
+      // WxPusher subscribe URL with callback
+      var appToken = 'AT_mnTgmCSIdkc8sSXaEEQHSOVsMj0uYFij';
+      var cbUrl = 'https://stock-analysis-app-production-da60.up.railway.app/api/wxpusher/callback';
+      // Generate WxPusher QR code — they have a subscribe API
+      var qrUrl = 'https://wxpusher.zjiecode.com/api/qrcode/create';
+      fetch(qrUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appToken: appToken,
+          extra: String(uid),
+          validTime: 300,
+          callbackUrl: cbUrl
+        })
+      }).then(function(r2) { return r2.json(); })
+      .then(function(d2) {
+        if (d2.success && d2.data && d2.data.url) {
+          var img = document.getElementById('wxQrImg');
+          img.src = d2.data.url;
+          img.style.display = 'block';
+          document.getElementById('wxQrLoading').style.display = 'none';
+        } else {
+          // Fallback: show manual subscribe link
+          document.getElementById('wxQrLoading').innerHTML = '生成失败，<a href=\"https://wxpusher.zjiecode.com\" target=\"_blank\" style=\"color:var(--accent)\">手动打开WxPusher</a>关注后复制UID到下方';
+        }
+      });
+    });
 }
+
+async function saveEmailOnly() {
+  if (!state.isLogin) return;
+  var email = document.getElementById('emailInput').value.trim();
+  if (!email) return;
+  try {
+    await fetch('/api/auth/push-token', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+localStorage.getItem('stockai_token')}, body:JSON.stringify({email:email}) });
+  } catch(e) {}
+}
+// Auto-save email on blur
+document.addEventListener('DOMContentLoaded', function() {
+  var ei = document.getElementById('emailInput');
+  if (ei) ei.addEventListener('blur', saveEmailOnly);
+});
+
 async function loadPushToken() {
   if (!state.isLogin) return;
   try {
     var r = await fetch('/api/auth/push-token', { headers:{'Authorization':'Bearer '+localStorage.getItem('stockai_token')} });
     var d = await r.json();
-    if (d.wx_uid) document.getElementById('wxUidInput').value = d.wx_uid;
+    if (d.wx_uid) {
+      document.getElementById('pushTokenStatus').style.display = 'block';
+      document.getElementById('wxBindArea').innerHTML = '<div style=\"font-size:11px;color:var(--green);text-align:center;padding:8px\">已绑定微信通知</div>';
+    }
     if (d.email) document.getElementById('emailInput').value = d.email;
-    if (d.wx_uid || d.email) document.getElementById('pushTokenStatus').style.display='block';
   } catch(e) {}
 }
 
@@ -1697,12 +1774,137 @@ function showToast(msg, type='info') {
   toast._timer = setTimeout(() => { toast.style.opacity = '0'; toast.style.transform = 'translateX(-50%) translateY(10px)'; }, 3000);
 }
 
-// Onboarding + Portfolio disabled for now
-async function loadPortfolio() { }
-function portfolioBuy() { }
-async function execPortfolioTrade(a) { }
-async function resetPortfolio() { }
-function showPfBuyBtn() { }
+// Onboarding — temporarily disabled (causes page freeze)
+
+// Portfolio simulator
+async function loadPortfolio() {
+  if (!state.isLogin) return;
+  try {
+    var r = await fetch('/api/portfolio', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') } });
+    var d = await r.json();
+    var el = document.getElementById('portfolioInfo');
+    var cls = d.pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    var html = '<div style=\"font-size:11px;margin-bottom:4px\">总资产: <b style=\"color:' + cls + '\">' + d.total_value.toFixed(0) + '</b></div>';
+    html += '<div style=\"font-size:10px;color:var(--text-tertiary);margin-bottom:4px\">收益: ' + (d.pnl >= 0 ? '+' : '') + d.pnl.toFixed(0) + ' (' + (d.pnl_pct >= 0 ? '+' : '') + d.pnl_pct.toFixed(1) + '%)  现金: ' + d.cash.toFixed(0) + '</div>';
+    if (d.stocks && d.stocks.length) {
+      d.stocks.forEach(function(s) {
+        var up = (s.current_price || s.price) >= s.price;
+        html += '<div style=\"font-size:10px;display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid var(--border-subtle)\"><span>' + s.name + ' x' + s.shares + '</span><span style=\"color:' + (up ? 'var(--green)' : 'var(--red)') + '\">' + (s.current_price || s.price).toFixed(2) + '</span></div>';
+      });
+    } else {
+      html += '<div style=\"font-size:10px;color:var(--text-tertiary)\">暂无持仓，搜股票后点击模拟买入</div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {}
+}
+
+function portfolioBuy() {
+  if (!state.isLogin) { showAuthModal('login'); return; }
+  if (!state.stock) { showToast('请先搜索股票', 'info'); return; }
+  document.getElementById('pfStockInfo').textContent = state.stock.name + ' ' + state.stock.code + ' @ ' + state.stock.price;
+  document.getElementById('pfTradeModal').style.display = 'flex';
+  document.getElementById('pfShares').value = '100';
+}
+
+async function execPortfolioTrade(action) {
+  var shares = parseInt(document.getElementById('pfShares').value) || 0;
+  if (shares <= 0) { showToast('请输入股数', 'error'); return; }
+  try {
+    var r = await fetch('/api/portfolio/trade', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') },
+      body: JSON.stringify({ code: state.stock.code, name: state.stock.name, action: action, shares: shares, price: state.stock.price })
+    });
+    var d = await r.json();
+    if (d.error) { showToast(d.error, 'error'); return; }
+    document.getElementById('pfTradeModal').style.display = 'none';
+    loadPortfolio();
+    // Scroll to portfolio card so user sees it
+    document.getElementById('cardPortfolio').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    showToast((action === 'buy' ? '买入' : '卖出') + '成功', 'success');
+  } catch(e) { showToast('交易失败', 'error'); }
+}
+
+async function resetPortfolio() {
+  if (!state.isLogin) return;
+  try {
+    await fetch('/api/portfolio/reset', { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') } });
+    loadPortfolio();
+    showToast('组合已重置', 'success');
+  } catch(e) {}
+}
+
+// Real portfolio
+async function loadRealPortfolio() {
+  if (!state.isLogin) return;
+  try {
+    var r = await fetch('/api/portfolio/real', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') } });
+    var d = await r.json();
+    var el = document.getElementById('realPortfolioInfo');
+    var html = '';
+    if (d.holdings && d.holdings.length) {
+      html += '<div style=\"font-size:10px;color:var(--text-tertiary);margin-bottom:4px\">持仓盈亏: <b style=\"color:' + (d.pnl>=0?'var(--green)':'var(--red)') + '\">' + (d.pnl>=0?'+':'') + d.pnl.toFixed(0) + ' (' + (d.pnl_pct>=0?'+':'') + d.pnl_pct.toFixed(1) + '%)</b></div>';
+      d.holdings.forEach(function(s) {
+        var pnl = (s.current_price - s.cost_price) * s.shares;
+        var up = pnl >= 0;
+        html += '<div style=\"font-size:10px;display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid var(--border-subtle)\"><span>' + s.name + ' x' + s.shares + '</span><span style=\"color:' + (up?'var(--green)':'var(--red)') + '\">成本' + s.cost_price.toFixed(2) + ' 现价' + s.current_price.toFixed(2) + '</span></div>';
+      });
+    } else {
+      html += '<div style=\"font-size:10px;color:var(--text-tertiary)\">点击下方添加真实持仓</div>';
+    }
+    el.innerHTML = html;
+  } catch(e) {}
+}
+function addRealHolding() {
+  if (!state.isLogin) { showAuthModal('login'); return; }
+  if (!state.stock) { showToast('请先搜索股票', 'info'); return; }
+  var shares = prompt('持有' + state.stock.name + '多少股？', '100');
+  if (!shares) return;
+  var cost = prompt('成本价是多少？', state.stock.price.toFixed(2));
+  if (!cost) return;
+  fetch('/api/portfolio/real', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') },
+    body: JSON.stringify({ code: state.stock.code, name: state.stock.name, shares: parseInt(shares), cost_price: parseFloat(cost) })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.success) { loadRealPortfolio(); showToast('持仓已保存', 'success'); }
+    else { showToast(d.error || '保存失败', 'error'); }
+  });
+}
+
+function quickDevilsAdvocate() {
+  if (!state.stock) { showToast('请先搜索股票','info'); return; }
+  window.open('/bottleneck#devil&code=' + state.stock.code + '&name=' + encodeURIComponent(state.stock.name), '_blank');
+}
+
+async function runDeepResearch() {
+  if (!state.stock) { showToast('请先搜索股票', 'info'); return; }
+  var panel = document.getElementById('deepResearchPanel');
+  var content = document.getElementById('deepResearchContent');
+  panel.style.display = 'block';
+  content.innerHTML = '<div class="spinner-wrap show" style="padding:30px"><div class="spinner"></div>AI正在进行五步深度研究...</div>';
+  try {
+    var r = await fetch('/api/stock/deep-research', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (localStorage.getItem('stockai_token') || '') },
+      body: JSON.stringify({ code: state.stock.code, name: state.stock.name, market: state.stock.market })
+    });
+    var d = await r.json();
+    if (d.error) { content.innerHTML = '<div class=\"dash-empty\">' + d.error + '</div>'; return; }
+    document.getElementById('deepResearchTime').textContent = d.timestamp || '';
+    content.innerHTML = d.report_html || d.report;
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    content.innerHTML = '<div class=\"dash-empty\">AI深度研究暂不可用，请重试</div>';
+  }
+}
+
+function showPfBuyBtn() {
+  var b = document.getElementById('pfBuyBtn');
+  var v = document.getElementById('pfViewBtn');
+  if (b) b.style.display = 'inline-block';
+  if (v) v.style.display = 'inline-block';
+}
 
 // Search history
 var _searchHistory = JSON.parse(localStorage.getItem('stockHistory') || '[]');
@@ -2931,7 +3133,37 @@ function showPanelError(elId, msg) {
 // ============================================================
 // DASHBOARD CONTROLLER — 今日必看
 // ============================================================
+async function loadDailyPlan() {
+  var card = document.getElementById('dailyPlanCard');
+  if (!state.isLogin) { if (card) card.style.display = 'none'; return; }
+  try {
+    var r = await fetch('/api/portfolio/daily-plan', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('stockai_token') } });
+    var d = await r.json();
+    if (!d.has_watchlist || !d.plan || !d.plan.length) {
+      if (card) card.style.display = 'none';
+      return;
+    }
+    if (card) card.style.display = 'block';
+    document.getElementById('planUpdated').textContent = d.updated || '';
+    document.getElementById('planTip').textContent = d.tip || '';
+    var colorMap = { 'green': 'var(--green)', 'yellow': 'var(--yellow)', 'red': 'var(--red)', 'gray': 'var(--text-tertiary)' };
+    var list = document.getElementById('dailyPlanList');
+    list.innerHTML = d.plan.map(function(s) {
+      var clr = colorMap[s.action_color] || 'var(--text-tertiary)';
+      return '<div style=\"display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border-subtle);cursor:pointer\" onclick=\"quickSearch(\'' + s.code + '\',\'cn\')\">' +
+        '<div style=\"display:flex;align-items:center;gap:10px\">' +
+        '<span style=\"font-size:22px\">' + s.action_icon + '</span>' +
+        '<div><div style=\"font-size:14px;font-weight:600;color:' + clr + '\">' + s.action + '</div>' +
+        '<div style=\"font-size:11px;color:var(--text-secondary)\">' + s.name + ' ' + s.code + '</div></div></div>' +
+        '<div style=\"text-align:right\"><div style=\"font-size:14px;font-weight:700\">' + (s.price||'--').toFixed(2) + '</div>' +
+        '<div style=\"font-size:10px;color:' + (s.change_pct>=0?'var(--green)':'var(--red)') + '\">' + (s.change_pct>=0?'+':'') + (s.change_pct||0).toFixed(2) + '%</div>' +
+        '<div style=\"font-size:9px;color:var(--text-tertiary);margin-top:2px\">' + s.reason + '</div></div></div>';
+    }).join('');
+  } catch(e) { console.warn('DailyPlan:', e); }
+}
+
 async function loadDashboard() {
+  loadDailyPlan();
   loadMarketPulse();
   loadAIBriefing();
   loadTrendingStocks();
@@ -2985,6 +3217,8 @@ async function loadAIBriefing() {
     var body = document.getElementById('aiBriefingBody');
     var timeEl = document.getElementById('briefingTime');
     if (timeEl) timeEl.textContent = '更新于 ' + (d.generated_at || '');
+    var sceneEl = document.getElementById('briefingScene');
+    if (sceneEl && d.scene) sceneEl.textContent = (d.scene_emoji || '') + ' ' + d.scene;
     var text = d.briefing_text || 'AI分析暂时不可用';
     // Parse sections
     text = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
@@ -3007,7 +3241,7 @@ async function loadAIBriefing() {
       else dot.style.background = 'var(--yellow)';
     }
   } catch(e) {
-    document.getElementById('aiBriefingBody').innerHTML = '<div class="dash-empty">🤖 AI分析暂不可用，点击🔄刷新重试</div>';
+    document.getElementById('aiBriefingBody').innerHTML = '<div class="dash-empty" style=\"padding:20px\">🤖 AI分析暂不可用<br><button onclick=\"refreshBriefing()\" style=\"margin-top:8px;padding:6px 16px;background:var(--accent);color:#fff;border:none;border-radius:16px;font-size:12px;cursor:pointer\">点击重试</button></div>';
   }
 }
 
@@ -3254,12 +3488,7 @@ setInterval(function() {
   if (el) { if (refreshCounter <= 1) { refreshCounter = 60; } else { refreshCounter--; } el.textContent = refreshCounter; }
 }, 1000);
 </script>
-<script>
-// SW self-destruct (registered previously, will unregister on next visit)
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
-}
-</script>
+
 
 <!-- PWA Install Bar -->
 <div id="pwaInstallBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(180deg,rgba(15,18,37,0.98),rgba(6,6,8,0.98));border-top:1px solid rgba(59,130,246,0.3);padding:10px 14px calc(10px + env(safe-area-inset-bottom));justify-content:space-between;align-items:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-family:var(--font)">
