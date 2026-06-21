@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>StockAI — Professional Market Intelligence</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0c14; color:#c8c8d4; font-family:'SF Pro Display','Inter','Helvetica Neue',sans-serif; overflow:hidden; height:100vh; -webkit-font-smoothing:antialiased; }
+
+.scene { display:none; width:100%; height:100vh; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:48px 32px; position:absolute; top:0; left:0; }
+.scene.active { display:flex; }
+
+/* Typography */
+h1 { font-size:clamp(32px,7vw,56px); font-weight:200; letter-spacing:-0.02em; color:#ffffff; line-height:1.2; margin-bottom:12px; }
+h1 strong { font-weight:600; }
+h2 { font-size:clamp(16px,3vw,22px); font-weight:300; color:#6b6b80; letter-spacing:0.04em; margin-bottom:32px; text-transform:uppercase; }
+.accent { color:#d4a853; }
+.danger { color:#c0392b; }
+.success { color:#27ae60; }
+.muted { color:#5a5a72; }
+
+/* Divider */
+.divider { width:60px; height:1px; background:rgba(255,255,255,0.1); margin:24px auto; }
+
+/* Score card */
+.score-card { background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06); border-radius:12px; padding:24px 32px; max-width:400px; width:100%; }
+.score-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; }
+.score-label { font-size:13px; font-weight:500; color:#8a8a9e; text-transform:uppercase; letter-spacing:0.08em; }
+.score-value { font-size:14px; font-weight:600; }
+.score-bar-wrap { width:120px; height:2px; background:rgba(255,255,255,0.04); border-radius:1px; overflow:hidden; }
+.score-bar-fill { height:100%; border-radius:1px; }
+
+/* Verdict */
+.verdict { font-size:clamp(40px,10vw,72px); font-weight:100; letter-spacing:-0.03em; margin:8px 0; }
+.verdict-sub { font-size:16px; font-weight:400; color:#6b6b80; letter-spacing:0.06em; }
+
+/* Stock row */
+.stock-row { display:flex; align-items:center; gap:16px; padding:14px 20px; background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); border-radius:8px; margin:6px 0; width:100%; max-width:420px; text-align:left; }
+.stock-row .tag { display:inline-block; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; }
+.tag-buy { background:rgba(39,174,96,0.1); color:#27ae60; border:1px solid rgba(39,174,96,0.2); }
+.tag-hold { background:rgba(212,168,83,0.1); color:#d4a853; border:1px solid rgba(212,168,83,0.2); }
+.tag-sell { background:rgba(192,57,43,0.1); color:#c0392b; border:1px solid rgba(192,57,43,0.2); }
+.stock-row .info { flex:1; }
+.stock-row .symbol { font-size:15px; font-weight:600; color:#fff; }
+.stock-row .reason { font-size:11px; color:#5a5a72; margin-top:2px; }
+
+/* VS */
+.vs-row { display:flex; gap:12px; width:100%; max-width:520px; }
+.vs-card { flex:1; padding:24px; border-radius:10px; text-align:center; }
+.vs-left { background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.05); }
+.vs-right { background:rgba(212,168,83,0.04); border:1px solid rgba(212,168,83,0.15); }
+.vs-label { font-size:10px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; margin-bottom:12px; }
+.vs-data { font-size:11px; color:#5a5a72; line-height:2.2; text-align:left; font-family:'SF Mono','JetBrains Mono',monospace; }
+
+/* Counter */
+.counter { font-size:72px; font-weight:100; letter-spacing:-0.04em; }
+.pnl-pos { color:#27ae60; }
+
+/* Badge */
+.badge-row { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin:20px 0; }
+
+/* Footer */
+.url-foot { position:absolute; bottom:36px; font-size:12px; font-weight:400; color:#4a4a60; letter-spacing:0.08em; text-transform:uppercase; }
+
+/* Animations */
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.scene.active > * { animation:fadeUp .6s ease-out both; }
+.scene.active > *:nth-child(2) { animation-delay:.1s; }
+.scene.active > *:nth-child(3) { animation-delay:.2s; }
+.scene.active > *:nth-child(4) { animation-delay:.3s; }
+</style>
+</head>
+<body>
+
+<!-- 1: BUY OR SELL -->
+<div class="scene active" id="s1">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Market Intelligence</div>
+  <h1>Buy, Hold, <strong>or Sell?</strong></h1>
+  <div class="divider"></div>
+  <div class="verdict" style="color:#d4a853">HOLD</div>
+  <div class="verdict-sub">Score 43 · Technical Weak · Value Fair</div>
+  <div class="divider"></div>
+  <div style="max-width:320px;width:100%">
+    <div class="score-row"><span class="score-label">Technical</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:20%;background:#c0392b"></div></div><span class="score-value danger">20</span></div>
+    <div class="score-row"><span class="score-label">Fundamental</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:75%;background:#27ae60"></div></div><span class="score-value success">75</span></div>
+    <div class="score-row"><span class="score-label">Capital Flow</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:30%;background:#c0392b"></div></div><span class="score-value danger">30</span></div>
+    <div class="score-row"><span class="score-label">Sentiment</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:50%;background:#d4a853"></div></div><span class="score-value accent">50</span></div>
+  </div>
+  <div class="url-foot">StockAI · One Answer, Not a Hundred Indicators</div>
+</div>
+
+<!-- 2: DAILY PLAN -->
+<div class="scene" id="s2">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Your Watchlist</div>
+  <h1>Daily <strong>Action Plan</strong></h1>
+  <div class="divider"></div>
+  <div class="stock-row">
+    <span class="tag tag-buy">BUY</span>
+    <div class="info"><div class="symbol">Wuliangye 000858</div><div class="reason">Technical strength · Capital inflow</div></div>
+  </div>
+  <div class="stock-row">
+    <span class="tag tag-hold">HOLD</span>
+    <div class="info"><div class="symbol">Moutai 600519</div><div class="reason">Fair valuation · Mixed signals</div></div>
+  </div>
+  <div class="stock-row">
+    <span class="tag tag-sell">AVOID</span>
+    <div class="info"><div class="symbol">CATL 300750</div><div class="reason">3-day institutional outflow</div></div>
+  </div>
+  <div class="url-foot">Log in · Add Watchlist · Every Morning</div>
+</div>
+
+<!-- 3: SIMULATED P&L -->
+<div class="scene" id="s3">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Paper Trading</div>
+  <h1>Virtual <strong>Portfolio</strong></h1>
+  <div class="counter pnl-pos">+12.5%</div>
+  <div style="font-size:18px;color:#27ae60;font-weight:400;margin-bottom:32px">+12,500 CNY · 100K Starting Capital</div>
+  <div class="stock-row">
+    <div class="info"><div class="symbol">Wuliangye 000858</div><div class="reason">Cost 72.00 → Market 80.50</div></div>
+    <span class="tag tag-buy">+11.8%</span>
+  </div>
+  <div class="stock-row">
+    <div class="info"><div class="symbol">Moutai 600519</div><div class="reason">Cost 1,180 → Market 1,215</div></div>
+    <span class="tag tag-buy">+2.9%</span>
+  </div>
+  <div class="url-foot">Risk-Free Practice · Real Market Data</div>
+</div>
+
+<!-- 4: RISK WARNING -->
+<div class="scene" id="s4">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">3 Days Ago · Risk Radar</div>
+  <h1><strong>Pre-Market</strong> Warning</h1>
+  <div class="divider"></div>
+  <div class="stock-row" style="border-left:2px solid #c0392b;">
+    <span class="tag tag-sell">RISK</span>
+    <div class="info"><div class="symbol">XX Corp 000XXX</div><div class="reason">Technical 20 · Sustained Outflow</div></div>
+  </div>
+  <div style="font-size:48px;margin:28px 0;font-weight:100;color:#4a4a60">&#9650;</div>
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">Today</div>
+  <div style="font-size:28px;font-weight:600;color:#c0392b;">-10.02% Limit Down</div>
+  <div class="url-foot">Not Hindsight. Real-Time Risk Detection.</div>
+</div>
+
+<!-- 5: COMPARISON -->
+<div class="scene" id="s5">
+  <h1>Data <strong>vs</strong> Decision</h1>
+  <div class="divider"></div>
+  <div class="vs-row">
+    <div class="vs-card vs-left">
+      <div class="vs-label" style="color:#5a5a72">Traditional</div>
+      <div class="vs-data">
+        MACD -0.32<br>RSI 42.15<br>KDJ K38 D41<br>Boll U1280 L1150<br>VOL 57,472<br>MA5 1218 MA10 1225<br>...
+      </div>
+      <div style="font-size:14px;color:#5a5a72;margin-top:12px">Raw Data</div>
+    </div>
+    <div class="vs-card vs-right">
+      <div class="vs-label" style="color:#d4a853">StockAI</div>
+      <div class="verdict" style="font-size:56px;color:#d4a853">HOLD</div>
+      <div style="font-size:13px;color:#6b6b80;margin:4px 0">Mixed signals detected</div>
+      <div style="font-size:13px;color:#6b6b80">Wait for clear direction</div>
+      <div style="font-size:14px;color:#d4a853;margin-top:12px">One Decision</div>
+    </div>
+  </div>
+  <div class="url-foot">You Don't Need 100 Indicators. You Need 1 Answer.</div>
+</div>
+
+<!-- 6: QUANT WARNING -->
+<div class="scene" id="s6">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">The Truth</div>
+  <h1>Quant Trading <strong style="color:#c0392b">is Poison</strong></h1>
+  <div class="divider"></div>
+  <div style="max-width:380px;text-align:center">
+    <div style="font-size:15px;color:#6b6b80;line-height:2.4;margin-bottom:28px">
+      Algorithms execute <span style="color:#c0392b">1,000 trades/sec</span><br>
+      You click <span style="color:#c0392b">once every 30 seconds</span><br>
+      You will never out-speed them.
+    </div>
+    <div style="background:rgba(212,168,83,0.04);border:1px solid rgba(212,168,83,0.12);border-radius:10px;padding:20px 28px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.1em;color:#d4a853;margin-bottom:12px;text-transform:uppercase">But You Can</div>
+      <div style="font-size:14px;color:#c8c8d4;line-height:2.4;text-align:left">
+        &#9654; See institutional money moving<br>
+        &#9654; Get pre-market risk alerts<br>
+        &#9654; Out-think the machines
+      </div>
+    </div>
+  </div>
+  <div class="url-foot">StockAI · Defense, Not Another Blade</div>
+</div>
+
+<script>
+var scenes = document.querySelectorAll('.scene');
+var current = 0;
+var total = scenes.length;
+function show(i) { scenes.forEach(function(s){ s.classList.remove('active'); }); scenes[i].classList.add('active'); }
+setInterval(function() { current = (current + 1) % total; show(current); }, 7000);
+document.body.addEventListener('click', function() { current = (current + 1) % total; show(current); });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { current = (current + 1) % total; show(current); }
+  if (e.key === 'ArrowLeft') { current = (current - 1 + total) % total; show(current); }
+});
+</script>
+</body>
+</html>
