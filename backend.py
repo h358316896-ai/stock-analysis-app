@@ -486,6 +486,18 @@ def media_page():
 def services_page():
     return send_file(os.path.join(STATIC_DIR, "services.html"), mimetype="text/html")
 
+@app.route("/video-ad")
+def video_ad_page():
+    return send_file(os.path.join(STATIC_DIR, "video-ad.html"), mimetype="text/html")
+
+@app.route("/video-ad-cn")
+def video_ad_cn_page():
+    return send_file(os.path.join(STATIC_DIR, "video-ad-cn.html"), mimetype="text/html")
+
+@app.route("/bottleneck")
+def bottleneck_page():
+    return send_file(os.path.join(STATIC_DIR, "bottleneck.html"), mimetype="text/html")
+
 # CDN-compatible asset routes (serve /css/style.css and /manifest.json from static/)
 @app.route("/css/<path:filename>")
 def serve_css(filename):
@@ -1382,6 +1394,359 @@ def generate_report():
         return jsonify({"error": str(e)}), 500
 
 
+# ---- 深度研究：五步投研框架 ----
+@app.route("/api/stock/deep-research", methods=["POST"])
+def deep_research():
+    """五步深度研报：逆向拆解→锁定标的→穿透财报→空头对狙→退出机制"""
+    data = request.json or {}
+    code = data.get("code", "").strip()
+    name = data.get("name", "")
+    market = data.get("market", "cn")
+    sector = data.get("sector", "")  # Optional: user-specified industry
+
+    if not code:
+        return jsonify({"error": "no stock code"}), 400
+
+    # Usage check
+    uid = current_user_id()
+    if uid:
+        allowed, limit, used = check_usage_limit(uid, "ai_analysis")
+        if not allowed:
+            return jsonify({"error": f"今日深度分析次数已达上限", "need_upgrade": True}), 403
+        increment_usage(uid, "ai_analysis")
+
+    # Gather data
+    try:
+        quote = None
+        prices = []
+        fin_data = {}
+        if market == "cn":
+            quote = fetch_cn_quote(code)
+            name = quote.get("name", name) if quote else name
+            kl = fetch_cn_kline(code, 60) or []
+            prices = [k["close"] for k in kl if k.get("close")]
+            # Get financial indicators
+            try:
+                ind = fetch_json(f"https://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param=sh{code},day,,,60,qfq", 15)
+            except Exception:
+                ind = None
+        elif market == "hk":
+            quote = fetch_hk_quote(code)
+            name = quote.get("name", name) if quote else name
+        elif market == "us":
+            quote = fetch_us_quote(code)
+            name = quote.get("name", name) if quote else name
+    except Exception:
+        quote = None
+
+    price = quote.get("price", 0) if quote else 0
+    chg_pct = quote.get("change_pct", 0) if quote else 0
+    pe = quote.get("pe", 0) if quote else 0
+    pb = quote.get("pb", 0) if quote else 0
+    mkt_cap = quote.get("market_cap", 0) if quote else 0
+
+    # Calculate some metrics for context
+    ma20 = sum(prices[-20:]) / 20 if len(prices) >= 20 else price
+    ma60 = sum(prices[-60:]) / 60 if len(prices) >= 60 else price
+    vol_30d = None
+    if len(prices) >= 30:
+        returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices))]
+        vol_30d = (sum(r**2 for r in returns[-20:]) / 20) ** 0.5 * (250**0.5) * 100 if returns else None
+
+    prompt = f"""你是一位顶级产业投资分析师。请对{name}({code})进行五步深度研究。当前数据：价格{price}，市盈率{pe}，市值{mkt_cap}亿，行业{sector}。
+
+请严格按以下五步框架输出研究报告，每步要有实质内容：
+
+## 第一步：逆向拆解
+针对{sector or '该股所在'}产业，通过逆向工程思维拆解产业链每个环节。找出该股所处的具体环节，分析该环节的：扩产周期长度、技术门槛高度、是否不可替代。如果该股不在关键节点，请诚实指出。
+
+## 第二步：锁定标的
+分析该标的是否具备"隐形冠军"特征：市值是否在合理区间、机构覆盖率是否偏低、细分领域是否具有垄断性或不可替代性。给出具体评分。
+
+## 第三步：穿透财报
+重点分析两大核心指标：
+1. 毛利率最近两个季度是否出现爆发性拐点
+2. 资本支出(capex)是否飙涨以准备迎接需求爆发
+如果有应收账款暴增、经营现金流恶化等危险信号，请明确指出。
+
+## 第四步：空头对狙
+你现在是产业空头，从以下角度全面攻击该标的：
+1. 产品被抄袭复刻的风险
+2. 技术路径被替代的可能
+3. 大客户真实度与集中度风险
+4. 供应链断裂风险
+找出最坏可能性并评估其概率。
+
+## 第五步：退出机制
+假设该标的高成长逻辑可能被证伪，以表格形式列出具体的退出触发条件，包括：
+- 哪些标志性事件(产品/订单/专利/业绩)不及预期时应分批撤退
+- 每个触发条件对应的减仓比例
+- 强制性全部离场的最终红线
+
+格式要求：每步用###标题，内容简洁有料，不堆砌废话。数据用数字说话。"""
+
+    try:
+        r = deepseek_chat([
+            {"role": "system", "content": "你是顶级产业投资分析师，擅长逆向拆解产业链、穿透财报、风险识别。只说实话，不写废话。数据驱动，逻辑严密。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.3, max_tokens=2500)
+        raw = r if isinstance(r, str) else ""
+    except Exception:
+        raw = ""
+
+    # Format the response
+    report = raw or "AI深度研究暂时不可用，请稍后重试"
+    # Markdown to HTML conversion
+    html = report
+    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html = html.replace("\n\n", "</p><p>")
+    html = html.replace("\n", "<br>")
+    html = "<p>" + html + "</p>"
+    # Style headings
+    html = html.replace("### 第", "<h4 style='color:var(--accent);margin:20px 0 10px;font-size:15px'>第")
+    html = html.replace("### ", "<h4 style='color:var(--accent);margin:20px 0 10px;font-size:15px'>")
+    html = html.replace("**", "<strong>")
+    html = html.replace("**", "</strong>")
+    # Highlight key words
+    for kw in ["风险", "危险", "警告", "退出", "离场", "证伪", "断链"]:
+        html = html.replace(kw, f"<span style='color:var(--red);font-weight:600'>{kw}</span>")
+    for kw in ["机会", "拐点", "爆发", "壁垒", "垄断", "不可替代"]:
+        html = html.replace(kw, f"<span style='color:var(--green);font-weight:600'>{kw}</span>")
+
+    return jsonify({
+        "success": True,
+        "code": code,
+        "name": name,
+        "report": report,
+        "report_html": html,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "context": {"price": price, "pe": pe, "pb": pb, "mkt_cap": mkt_cap, "ma20": round(ma20, 2), "ma60": round(ma60, 2)}
+    })
+
+
+# ---- 产业链瓶颈扫描 ----
+@app.route("/api/stock/bottleneck-scan", methods=["POST"])
+def bottleneck_scan():
+    """扫描产业链关键瓶颈环节，找出A股相关标的"""
+    data = request.json or {}
+    industry = data.get("industry", "").strip()
+    if not industry:
+        return jsonify({"error": "请输入产业链名称"}), 400
+
+    prompt = f"""你是顶级产业链分析师和瓶颈交易策略专家。核心理念：瓶颈才是王道——没有这个环节，整个产业链就会断链。
+
+请对"{industry}"产业链做以瓶颈为核心的深度分析。
+
+在开始正文之前，请先输出一个结构化的产业链图谱JSON，我将用它来渲染可视化图表。格式必须严格如下：
+
+```chain_json
+{{
+  "industry": "{industry}",
+  "layers": [
+    {{ "name": "上游", "nodes": [
+      {{ "name": "环节名", "companies": ["公司A 代码", "公司B 代码"], "bottleneck": true/false, "bottleneck_score": 8, "note": "一句话说明" }}
+    ]}},
+    {{ "name": "中游", "nodes": [...] }},
+    {{ "name": "下游", "nodes": [...] }}
+  ]
+}}
+```
+
+每个环节标记是否为瓶颈(bottleneck:true)，以及瓶颈评分(1-10)。
+
+## 核心方法论
+瓶颈交易的精髓：找到产业链中那个"离了它就转不动"的环节。这个环节通常具有以下特征：
+1. 扩产周期极长（2年以上），短期无法通过砸钱解决
+2. 技术壁垒极高，全球能做的不超过3家
+3. 下游完全依赖它，没有替代方案
+4. 占终端产品成本极低但对性能影响极大（客户对涨价不敏感）
+
+## 第一层：产业链地图 + 断链推演
+画出产业链全景图。然后对每个环节做"断链推演"：
+假设这个环节突然断供，下游哪些环节会立即停摆？影响多大？用具体数字说明（如：高端光模块断供 → AI训练成本飙升300% → 所有大模型公司亏损翻倍）。
+
+## 第二层：瓶颈锁定——谁是真正的主宰者
+从产业链中找出真正的瓶颈环节。标准极其严格：
+- 扩产周期 > 2年
+- 全球能做的不超过 5 家
+- 下游没有任何替代方案
+- 占终端成本 < 15% 但对性能影响 > 50%
+
+对每个瓶颈给出：
+- 为什么它是"离了它就转不动"的环节
+- 瓶颈瓶颈指数（综合评分 1-10）：10分 = 整个行业被这一个东西卡死
+- 全球垄断者是谁
+- A股有没有对标公司（具体代码+名称+市值+毛利率）
+- 这个瓶颈正在变紧还是变松？（产能缺口是扩大还是缩小）
+
+## 第三层：瓶颈的子瓶颈——再挖一层
+瓶颈环节内部还有瓶颈。继续拆解：
+- 瓶颈的上游是什么？（瓶颈的瓶颈）
+- 瓶颈的核心技术难点是什么？
+- 每个子瓶颈对应哪些A股公司？
+
+## 第四层：瓶颈五因子评分卡
+对每只核心标的，用 Serenity 五因子模型严格打分（每项1-10分）：
+
+| 因子 | 评分 | 依据 |
+|------|------|------|
+| 确定需求 | X/10 | 下游需求确定性证据 |
+| 受限供给 | X/10 | 全球供应商数量+扩产周期 |
+| 低关注度 | X/10 | 机构覆盖数量+媒体报道密度 |
+| 价值捕获 | X/10 | 定价权+毛利率+客户锁定 |
+| 催化剂 | X/10 | 近期可能触发上涨的事件 |
+
+**综合瓶颈分 = 五项平均分**
+
+➤ 8分以上：超级瓶颈，重仓关注
+➤ 6-8分：优质瓶颈，择机配置
+➤ 4-6分：一般瓶颈，轻仓观察
+➤ 4分以下：伪瓶颈，回避
+
+## 第五层：瓶颈交易标的池
+筛选标准：必须是"这个细分领域唯一的或唯二的A股上市公司"。
+对每只标的给出：
+- 代码+名称+市值+PE+毛利率
+- 为什么它是瓶颈（不可替代性的证据）
+- 瓶颈定价权：这家公司涨价10%，客户敢不敢换供应商？
+- 产能扩张计划：未来2年产能能增加多少？
+- 机构持仓：是被抱团了还是被忽视了？
+
+## 第六层：瓶颈破裂预警——什么时候跑
+瓶颈优势不是永久的。列出可能打破瓶颈的标志性事件：
+- 技术替代（出现新路线可以绕过这个瓶颈）
+- 产能爆发（瓶颈环节突然大幅扩产）
+- 需求崩塌（下游需求消失导致瓶颈不再重要）
+- 政策突变（出口管制或补贴取消）
+
+每个事件对应一个减仓或清仓动作。
+
+要求：A股代码真实。数据具体。逻辑严密。不要泛泛而谈。"""
+
+    try:
+        r = deepseek_chat([
+            {"role": "system", "content": "你是顶级产业链分析师，擅长识别产业瓶颈和关键节点。A股代码和公司数据必须真实准确。分析简洁有力。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.3, max_tokens=2500)
+        raw = r if isinstance(r, str) else ""
+    except Exception:
+        raw = ""
+
+    report = raw or "AI分析暂不可用"
+    # Format HTML
+    html = report
+    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html = html.replace("\n\n", "</p><p>")
+    html = html.replace("\n", "<br>")
+    html = "<p>" + html + "</p>"
+    for tag in ["## 产业链全景图", "## 瓶颈识别", "## 核心标的", "## 风险提示"]:
+        label = tag.replace("## ", "")
+        html = html.replace(tag, "<h3 style='color:var(--accent);margin:20px 0 10px;font-size:16px;border-bottom:1px solid var(--border-subtle);padding-bottom:6px'>" + label + "</h3>")
+    html = html.replace("**", "<strong>")
+
+    # Parse chain_json from report
+    chain_data = None
+    try:
+        import re as re2
+        m = re2.search(r'```chain_json\s*\n(.*?)\n```', report, re2.DOTALL)
+        if m:
+            chain_data = json.loads(m.group(1))
+        # Remove the JSON block from displayed report
+        report_clean = re2.sub(r'```chain_json.*?```\s*\n*', '', report, flags=re2.DOTALL)
+    except Exception:
+        report_clean = report
+        chain_data = None
+
+    # Clean HTML without the JSON block
+    html_clean = report_clean
+    html_clean = html_clean.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html_clean = html_clean.replace("\n\n", "</p><p>")
+    html_clean = html_clean.replace("\n", "<br>")
+    html_clean = "<p>" + html_clean + "</p>"
+    for tag in ["## 第一层", "## 第二层", "## 第三层", "## 第四层", "## 第五层", "## 第六层"]:
+        html_clean = html_clean.replace(tag, "<h3 style='color:var(--accent);margin:20px 0 10px;font-size:16px;border-bottom:1px solid var(--border-subtle);padding-bottom:6px'>" + tag.replace("## ", "") + "</h3>")
+    html_clean = html_clean.replace("**", "<strong>")
+
+    return jsonify({
+        "success": True,
+        "industry": industry,
+        "report": report_clean,
+        "report_html": html_clean,
+        "chain_data": chain_data,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+
+# ---- AI 魔鬼代言人 ----
+@app.route("/api/stock/devils-advocate", methods=["POST"])
+def devils_advocate():
+    """AI从空头角度攻击你的投资逻辑，找出你没想到的风险"""
+    data = request.json or {}
+    code = data.get("code", "").strip()
+    name = data.get("name", "")
+    thesis = data.get("thesis", "")  # User's investment thesis
+
+    if not code:
+        return jsonify({"error": "no stock code"}), 400
+    if not thesis:
+        thesis = f"我买{name or code}是因为它是细分龙头，基本面不错"
+
+    # Get some context
+    try:
+        quote = fetch_cn_quote(code) if code.startswith(("6","0","3","4","8")) else None
+        price = quote.get("price", 0) if quote else 0
+        pe = quote.get("pe", 0) if quote else 0
+        chg = quote.get("change_pct", 0) if quote else 0
+        ctx = f"当前价格{price}，PE{pe}，涨跌幅{chg}%。"
+    except Exception:
+        ctx = ""
+
+    prompt = f"""你是一位顶级的产业空头分析师。你的工作不是做空股票，而是帮你面前的投资者找出他投资逻辑中的漏洞。
+
+这位投资者买了{name or code}（{code}）。{ctx}
+他的投资逻辑是："{thesis}"
+
+现在请你以魔鬼代言人的身份，从以下角度逐一攻击他的逻辑：
+
+1. **需求端**：有没有可能下游需求根本没有他想的那么确定？有没有替代方案正在蚕食市场？
+
+2. **供给端**：他以为的"稀缺"是不是暂时的？有没有新的产能正在路上？有没有他没注意到的竞争对手？
+
+3. **估值端**：现在的价格已经把多少乐观预期计入了？如果增速放缓10%，估值应该打几折？
+
+4. **技术路线**：有没有一条他没看到的技术路径，可能让这家公司的产品变得可有可无？
+
+5. **黑天鹅**：最坏情况下，什么事件可以让这只股票腰斩？
+
+请用犀利但不刻薄的语气。每点独立成段，用具体数据或逻辑支撑。最后给他一个总结：他的逻辑最大的漏洞是什么，以及他应该去查什么信息来验证。"""
+
+    try:
+        r = deepseek_chat([
+            {"role": "system", "content": "你是空头分析师，说话犀利但客观。你的目标不是吓唬投资者，而是帮他看到盲区。"},
+            {"role": "user", "content": prompt}
+        ], temperature=0.5, max_tokens=1500)
+        raw = r if isinstance(r, str) else ""
+    except Exception:
+        raw = ""
+
+    attack = raw or "AI分析暂不可用"
+    html = attack.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    html = html.replace("\n\n", "</p><p>").replace("\n", "<br>")
+    html = "<p>" + html + "</p>"
+    html = html.replace("**", "<strong>")
+    for kw in ["风险", "漏洞", "错误", "危险", "腰斩", "泡沫", "高估", "忽视", "盲区", "致命"]:
+        html = html.replace(kw, f"<span style='color:var(--red);font-weight:600'>{kw}</span>")
+
+    return jsonify({
+        "success": True,
+        "code": code, "name": name,
+        "thesis": thesis,
+        "attack": attack,
+        "attack_html": html,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+
 # ---- AI 智能选股：四维策略打分 ----
 @app.route("/api/stock/ai-screener", methods=["POST"])
 def ai_screener():
@@ -1527,25 +1892,48 @@ def daily_briefing():
     indices_data = _get_indices_snapshot()
     status = _get_market_status()
 
-    # Build prompt
+    # Build time-aware prompt
+    h = datetime.now().hour
+    wd = datetime.now().weekday()
+    if wd >= 5:
+        scene = "周末总结"
+        scene_prompt = f"""今天是周末，市场休市。请根据最近的指数数据给散户做一份"周末复盘+下周展望"：
+【上周回顾】一句话总结最近一周市场
+【下周展望】预判下周方向，不超过20字
+【周末功课】建议散户周末关注什么"""
+    elif h < 9 or (h == 9 and datetime.now().minute < 15):
+        scene = "盘前速览"
+        scene_prompt = f"""现在是盘前，还有不到一小时开盘。请给散户做一份"开盘前速览"：
+【隔夜外盘】如果有美股数据，一句话说外盘对A股的影响
+【今日预判】今天开盘大概率怎么走，不超过20字
+【盘前关注】开盘后应该关注哪些板块或方向
+【今日提醒】今天有什么需要注意的风险"""
+    elif 9 <= h < 11 or (h == 11 and datetime.now().minute <= 30):
+        scene = "盘中解读"
+        scene_prompt = f"""现在是盘中交易时间。请给散户做一份简洁的盘中解读：
+【大盘风向】一句话判断当前市场偏多/偏空/震荡
+【今日关注】推荐1-2个正在表现的板块
+【风险提示】盘中需要注意什么风险"""
+    elif (h == 11 and datetime.now().minute > 30) or h == 12:
+        scene = "午间速递"
+        scene_prompt = f"""现在是午间休市。请给散户做一份午间小结：
+【上午回顾】一句话总结上午走势
+【下午展望】下午可能怎么走
+【午后关注】下午值得关注的方向"""
+    else:
+        scene = "收盘复盘"
+        scene_prompt = f"""今天已经收盘。请给散户做一份收盘复盘：
+【今日复盘】一句话总结今天市场
+【板块表现】今天哪些板块涨得好，哪些跌得多
+【明日展望】明天大概会怎么走，不超过20字
+【操作建议】给散户一句明天操作建议"""
+
     prompt = f"""当前时间：{datetime.now().strftime('%Y-%m-%d %H:%M')}，市场状态：{status}
 指数快照：{indices_data}
 
-请用口语化的中文(适当加emoji)给散户做一份简短的"今日必看"简报，按以下格式回复：
+{scene_prompt}
 
-【大盘风向】
-一句话判断今天市场偏多/偏空/震荡，不超过20字
-
-【今日关注】
-推荐2-3个值得关注的方向或板块，各一句话
-
-【风险提示】
-提醒1-2个需要注意的风险，各一句话
-
-【散户建议】
-给散户一句操作建议，不超过30字
-
-要求：每句话不超过一行，不要列数据表，不要用专业术语。"""
+要求：每句话不超过一行，不要列数据表，不要用专业术语，用口语化中文适当加emoji。"""
 
     try:
         r = deepseek_chat([
@@ -1556,10 +1944,13 @@ def daily_briefing():
     except Exception:
         raw = ""
 
+    scene_emoji = {"盘前速览": "🌅", "盘中解读": "📊", "午间速递": "☀️", "收盘复盘": "🌙", "周末总结": "📅"}
     briefing = {
         "briefing_text": raw or "AI分析暂时不可用，请稍后刷新",
         "market_status": status,
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "scene": scene,
+        "scene_emoji": scene_emoji.get(scene, "📊"),
     }
 
     _DASHBOARD_CACHE["briefing"] = {"data": briefing, "ts": now_ts}
@@ -1746,112 +2137,76 @@ def risk_radar():
 # ==========================================================
 @app.route("/static/icon-<int:size>.png")
 def pwa_icon(size):
-    """Dynamic PWA icon — professional stock market themed icon"""
+    """Bright STOCKAI icon — blue bg + white card + blue 'S' shape (no font needed)"""
     buf = BytesIO()
     try:
-        from PIL import Image, ImageDraw, ImageFont
+        from PIL import Image, ImageDraw
 
-        img = Image.new("RGBA", (size, size), (6, 6, 12, 255))
+        # Bright blue background
+        img = Image.new("RGBA", (size, size), (59, 130, 246, 255))
         draw = ImageDraw.Draw(img)
 
-        # Background: rounded rect with gradient-like border
-        m = size // 24
-        r = size // 5
-        # Outer glow ring
+        # White rounded card in center
+        m = size // 10
         draw.rounded_rectangle(
             [m, m, size - m, size - m],
-            radius=r,
-            fill=(10, 14, 28, 255),
-            outline=(59, 130, 246, 80),
-            width=max(2, size // 96),
+            radius=size // 5,
+            fill=(255, 255, 255, 255),
         )
 
-        # Inner panel
-        inner_m = size // 6
-        draw.rounded_rectangle(
-            [inner_m, inner_m, size - inner_m, size - inner_m],
-            radius=r // 2,
-            fill=(15, 21, 40, 255),
-        )
+        # Draw "S" shape using lines (no font dependency)
+        s_color = (59, 130, 246, 255)
+        sw = max(3, size // 16)  # stroke width
+        lx = size * 3 // 10     # left edge
+        rx = size * 7 // 10     # right edge
+        ty = size * 3 // 10     # top
+        my = size // 2          # middle
+        by = size * 7 // 10     # bottom
 
-        # Draw candlestick chart
-        cx = size // 2
-        cy = size // 2
-        bar_w = max(3, size // 18)
-        bar_gap = max(4, size // 10)
-        bar_area_h = size // 3
-        bar_top = cy - bar_area_h // 2
-        bar_bot = cy + bar_area_h // 2
-
-        # 5 candles: green, green, green, smaller green, green (uptrend)
-        candles = [
-            (0.55, 0.85, 0.45, 0.95),  # open, close, low, high (ratios of bar_area)
-            (0.40, 0.82, 0.32, 0.88),
-            (0.25, 0.72, 0.18, 0.78),
-            (0.15, 0.50, 0.08, 0.60),
-            (0.30, 0.68, 0.20, 0.75),
-        ]
-
-        for i, (open_r, close_r, low_r, high_r) in enumerate(candles):
-            x = inner_m + size // 5 + i * bar_gap + bar_w // 2
-
-            open_y = bar_top + int(bar_area_h * open_r)
-            close_y = bar_top + int(bar_area_h * close_r)
-            low_y = bar_top + int(bar_area_h * low_r)
-            high_y = bar_top + int(bar_area_h * high_r)
-
-            body_top = min(open_y, close_y)
-            body_bot = max(open_y, close_y)
-            body_h = max(1, body_bot - body_top)
-
-            # Wick (high-low line)
-            wick_color = (74, 222, 128, 220)  # green
-            draw.line([(x, high_y), (x, low_y)], fill=wick_color, width=max(1, size // 96))
-
-            # Candle body
-            body_color = (34, 197, 94, 240)  # brighter green (bullish)
-            draw.rectangle([x - bar_w, body_top, x + bar_w, body_bot], fill=body_color)
-
-        # Uptrend arrow (diagonal up)
-        arrow_color = (96, 165, 250, 200)
-        arrow_x1 = inner_m + size // 5 + bar_w
-        arrow_y1 = bar_bot - size // 20
-        arrow_x2 = inner_m + size // 5 + 4 * bar_gap + bar_w
-        arrow_y2 = bar_top + size // 20
-        aw = max(2, size // 32)
-        draw.line([(arrow_x1, arrow_y1), (arrow_x2, arrow_y2)], fill=arrow_color, width=aw)
-        # Arrowhead
-        draw.line(
-            [(arrow_x2 - aw * 2, arrow_y2 + aw * 2), (arrow_x2, arrow_y2), (arrow_x2 - aw * 2, arrow_y2 - aw * 2)],
-            fill=arrow_color,
-            width=aw,
-        )
-
-        # Small "+" in corner brand mark
-        cross_cx = size - inner_m - size // 10
-        cross_cy = inner_m + size // 10
-        cross_s = max(3, size // 16)
-        brand_color = (59, 130, 246, 180)
-        draw.line([(cross_cx - cross_s, cross_cy), (cross_cx + cross_s, cross_cy)], fill=brand_color, width=max(1, size // 48))
-        draw.line([(cross_cx, cross_cy - cross_s), (cross_cx, cross_cy + cross_s)], fill=brand_color, width=max(1, size // 48))
+        # Top horizontal bar of S
+        draw.rounded_rectangle([lx + sw, ty, rx, ty + sw], radius=sw, fill=s_color)
+        # Left top vertical
+        draw.rounded_rectangle([lx, ty, lx + sw, my + sw // 2], radius=sw, fill=s_color)
+        # Middle horizontal
+        draw.rounded_rectangle([lx + sw, my - sw // 2, rx, my + sw // 2], radius=sw, fill=s_color)
+        # Right bottom vertical
+        draw.rounded_rectangle([rx - sw, my - sw // 2, rx, by], radius=sw, fill=s_color)
+        # Bottom horizontal
+        draw.rounded_rectangle([lx, by - sw, rx - sw, by], radius=sw, fill=s_color)
 
         img.save(buf, "PNG")
     except ImportError:
-        # Minimal PNG fallback without PIL — gradient square
         import struct, zlib
         def chunk(t, d):
             c = t + d
             return struct.pack('>I', len(d)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-        # Create a simple gradient effect with raw pixels
         raw = b''
         for y in range(size):
             row = b''
+            m2 = size // 10
             for x in range(size):
-                r_val = 10 + (x * 30 // size)
-                g_val = 14 + (y * 40 // size)
-                b_val = 59 - (x * 20 // size) + (y * 30 // size)
-                a_val = 255
-                row += bytes([max(0, min(255, r_val)), max(0, min(255, g_val)), max(0, min(255, b_val)), a_val])
+                r_val, g_val, b_val = 59, 130, 246  # blue
+                if m2 < x < size - m2 and m2 < y < size - m2:
+                    r_val, g_val, b_val = 255, 255, 255  # white card
+                # Draw 'S' shape in center
+                sw2 = size // 16
+                lx2 = size * 3 // 10
+                rx2 = size * 7 // 10
+                ty2 = size * 3 // 10
+                my2 = size // 2
+                by2 = size * 7 // 10
+                is_s = False
+                if ty2 <= y <= by2:
+                    if (y <= my2 + sw2 and lx2 + sw2 <= x <= rx2) or \
+                       (y >= my2 - sw2 and lx2 + sw2 <= x <= rx2) or \
+                       (y <= my2 + sw2 and lx2 <= x <= lx2 + sw2) or \
+                       (y >= my2 - sw2 and rx2 - sw2 <= x <= rx2) or \
+                       (y <= ty2 + sw2 and lx2 + sw2 <= x <= rx2) or \
+                       (y >= by2 - sw2 and lx2 <= x <= rx2 - sw2):
+                        is_s = True
+                if is_s:
+                    r_val, g_val, b_val = 59, 130, 246
+                row += bytes([r_val, g_val, b_val, 255])
             raw += b'\x00' + row
         buf.write(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 6, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b''))
     buf.seek(0)
@@ -3280,7 +3635,6 @@ def _auto_snapshot_if_needed():
             "market_status": _get_market_status(),
             "saved_at": now.strftime("%Y-%m-%d %H:%M:%S"),
         }
-        # Add limit-up/down counts
         try:
             ld = limit_up_down()
             ld_data = ld.get_json()
@@ -3288,6 +3642,13 @@ def _auto_snapshot_if_needed():
             snapshot["limit_down_count"] = ld_data.get("down_count", 0)
             snapshot["limit_ups"] = ld_data.get("up_list", [])[:10]
             snapshot["limit_downs"] = ld_data.get("down_list", [])[:10]
+            # Also grab top gainers/losers for richer weekend data
+            movers = _cached_eastmoney("movers_snap", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20", ttl=300)
+            if movers and movers.get("data") and movers["data"].get("diff"):
+                top_movers = []
+                for m in movers["data"]["diff"]:
+                    top_movers.append({"name": m.get("f14",""), "code": m.get("f12",""), "price": m.get("f2",0), "change_pct": m.get("f3",0)})
+                snapshot["top_movers"] = top_movers[:15]
         except Exception:
             pass
         auth_db.save_daily_snapshot(today, snapshot)
@@ -3350,7 +3711,10 @@ def trending_stocks():
             snaps = auth_db.get_daily_snapshots(3)
             if snaps:
                 snap = snaps[0]
-                snap_stocks = snap.get("data", {}).get("limit_ups", [])
+                # Try top_movers first, then limit_ups
+                snap_stocks = snap.get("data", {}).get("top_movers", [])
+                if not snap_stocks:
+                    snap_stocks = snap.get("data", {}).get("limit_ups", [])
                 if snap_stocks:
                     stocks = [{
                         "code": s.get("code", ""), "name": s.get("name", ""),
@@ -3369,6 +3733,92 @@ def latest_snapshot():
     if snaps:
         return jsonify({"snapshot": snaps[0], "has_data": True})
     return jsonify({"has_data": False, "snapshot": None})
+
+
+# ==========================================================
+# 每日操盘计划 — 基于自选股的个性化操作建议
+# ==========================================================
+@app.route("/api/portfolio/daily-plan")
+def daily_plan():
+    """为登录用户生成基于自选股的每日操作计划"""
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"has_watchlist": False, "plan": [], "tip": "登录并添加自选股后，每天看到专属操盘计划"})
+
+    watchlist = auth_db.get_watchlist(uid)
+    if not watchlist:
+        return jsonify({"has_watchlist": False, "plan": [], "tip": "还没有自选股，搜索股票后加入自选"})
+
+    plan = []
+    for w in watchlist[:8]:
+        code = w["code"]
+        name = w["name"]
+        market = w.get("market", "cn")
+        try:
+            quote = None
+            prices = []
+            if market == "cn":
+                quote = fetch_cn_quote(code)
+                kl = fetch_cn_kline(code, 20) or []
+                prices = [k["close"] for k in kl if k.get("close")]
+            price = quote.get("price", 0) if quote else 0
+            chg = quote.get("change_pct", 0) if quote else 0
+            pe = quote.get("pe", 0) if quote else 0
+
+            # Quick scoring (same logic as quick-verdict)
+            tech = 50
+            if len(prices) >= 10:
+                ma5 = sum(prices[-5:]) / 5
+                ma10 = sum(prices[-10:]) / 10
+                if price > ma5 > ma10: tech = 75
+                elif price > ma10: tech = 60
+                elif price < ma5 < ma10: tech = 30
+                elif price < ma10: tech = 40
+                if len(prices) >= 5:
+                    mom = (prices[-1] - prices[-5]) / prices[-5] * 100
+                    if mom > 3: tech = min(90, tech + 15)
+                    elif mom < -3: tech = max(20, tech - 15)
+
+            val_score = 75 if 0 < pe < 20 else (35 if pe > 50 else 50)
+            flow = 70 if chg > 2 else (30 if chg < -2 else 50)
+            sent = 75 if chg > 3 else (25 if chg < -3 else 50)
+            overall = int((tech + val_score + flow + sent) / 4)
+
+            if overall >= 70:
+                action, action_icon, action_color = "关注买入", "🟢", "green"
+            elif overall >= 50:
+                action, action_icon, action_color = "持有观望", "🟡", "yellow"
+            else:
+                action, action_icon, action_color = "建议回避", "🔴", "red"
+
+            reason_parts = []
+            if tech >= 70: reason_parts.append("技术面偏强")
+            elif tech <= 35: reason_parts.append("技术面偏弱")
+            if val_score >= 70: reason_parts.append("估值合理")
+            elif val_score <= 35: reason_parts.append("估值偏高")
+            if flow >= 65: reason_parts.append("资金流入")
+            elif flow <= 35: reason_parts.append("资金流出")
+            reason = "，".join(reason_parts) if reason_parts else "多空交织"
+
+            plan.append({
+                "code": code, "name": name, "price": price, "change_pct": round(chg, 2),
+                "action": action, "action_icon": action_icon, "action_color": action_color,
+                "score": overall, "reason": reason,
+                "technical": tech, "fundamental": val_score, "capital": flow, "sentiment": sent,
+            })
+        except Exception:
+            plan.append({"code": code, "name": name, "action": "数据异常", "action_icon": "❓", "action_color": "gray", "score": 0, "reason": "获取失败"})
+
+    # Sort: buy > hold > avoid
+    order = {"关注买入": 0, "持有观望": 1, "建议回避": 2}
+    plan.sort(key=lambda x: order.get(x["action"], 3))
+
+    return jsonify({
+        "has_watchlist": True,
+        "plan": plan,
+        "updated": datetime.now().strftime("%H:%M:%S"),
+        "tip": "基于你的自选股，AI综合技术面/基本面/资金/情绪生成"
+    })
 
 
 # ==========================================================
@@ -4241,6 +4691,24 @@ def save_push_uid():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/wxpusher/callback", methods=["GET", "POST"])
+def wxpusher_callback():
+    """WxPusher 扫码关注回调 — 自动绑定用户UID"""
+    data = request.json or request.args or {}
+    wx_uid = data.get("uid", "")
+    extra = data.get("extra", "")  # Our user_id
+    if wx_uid and extra:
+        try:
+            conn = auth_db.get_db()
+            cur = conn.cursor()
+            cur.execute("UPDATE users SET push_token=? WHERE id=?", (wx_uid, int(extra)))
+            conn.commit()
+            conn.close()
+            print(f"[WxPusher] Auto-bound uid={wx_uid} to user_id={extra}")
+        except Exception as e:
+            print(f"[WxPusher] Callback failed: {e}")
+    return jsonify({"success": True})
+
 @app.route("/api/auth/push-token", methods=["GET"])
 @login_required
 def get_push_uid():
@@ -4261,28 +4729,52 @@ def get_push_uid():
 
 
 # ==========================================================
-# 模拟组合 (Virtual Portfolio)
+# 模拟组合 (Virtual Portfolio) — SQLite持久化，多worker安全
 # ==========================================================
-_portfolios = {}  # uid -> {stocks: [{code,name,price,shares,added_at}], cash: 100000}
+
+def _pf_from_rows(rows):
+    """Convert DB rows to portfolio dict"""
+    stocks = []
+    for r in rows:
+        added = r[4] if len(r) > 4 else ''
+        stocks.append({"code": r[0], "name": r[1], "price": r[2], "shares": r[3], "added_at": added})
+    return stocks
+
+def _pf_save_stock(uid, code, name, price, shares, added_at):
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS portfolio (user_id INTEGER, code TEXT, name TEXT, price REAL, shares INTEGER, added_at TEXT, PRIMARY KEY(user_id, code))")
+    if shares <= 0:
+        cur.execute("DELETE FROM portfolio WHERE user_id=? AND code=?", (uid, code))
+    else:
+        cur.execute("INSERT OR REPLACE INTO portfolio VALUES (?,?,?,?,?,?)", (uid, code, name, price, shares, added_at))
+    conn.commit()
+    conn.close()
 
 @app.route("/api/portfolio", methods=["GET"])
 def get_portfolio():
-    uid = current_user_id() or "anon"
-    pf = _portfolios.get(uid, {"stocks": [], "cash": 100000, "initial": 100000})
-    # Calculate current value
-    total_value = pf["cash"]
-    for s in pf["stocks"]:
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"stocks": [], "cash": 100000, "initial": 100000, "total_value": 100000, "pnl": 0, "pnl_pct": 0})
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS portfolio (user_id INTEGER, code TEXT, name TEXT, price REAL, shares INTEGER, added_at TEXT, PRIMARY KEY(user_id, code))")
+    cur.execute("SELECT code, name, price, shares, added_at FROM portfolio WHERE user_id=?", (uid,))
+    rows = cur.fetchall()
+    conn.close()
+    stocks = _pf_from_rows(rows)
+    cash = 100000
+    total_value = cash
+    for s in stocks:
         try:
             q = fetch_cn_quote(s["code"])
             s["current_price"] = q.get("price", s["price"]) if q else s["price"]
-            s["change_pct"] = q.get("change_pct", 0) if q else 0
-            total_value += s["current_price"] * s["shares"]
         except Exception:
             s["current_price"] = s["price"]
-    pf["total_value"] = round(total_value, 2)
-    pf["pnl"] = round(total_value - pf["initial"], 2)
-    pf["pnl_pct"] = round((total_value / pf["initial"] - 1) * 100, 2)
-    return jsonify(pf)
+        total_value += s["current_price"] * s["shares"]
+    total_value = round(total_value, 2)
+    pnl = round(total_value - 100000, 2)
+    return jsonify({"stocks": stocks, "cash": cash, "initial": 100000, "total_value": total_value, "pnl": pnl, "pnl_pct": round(pnl / 1000, 2)})
 
 @app.route("/api/portfolio/trade", methods=["POST"])
 def portfolio_trade():
@@ -4292,45 +4784,115 @@ def portfolio_trade():
     data = request.json or {}
     code = data.get("code", "").strip()
     name = data.get("name", "")
-    action = data.get("action", "buy")  # buy or sell
+    action = data.get("action", "buy")
     shares = int(data.get("shares", 0))
     price = float(data.get("price", 0))
     if not code or shares <= 0 or price <= 0:
         return jsonify({"error": "参数不完整"}), 400
-    pf = _portfolios.get(uid, {"stocks": [], "cash": 100000, "initial": 100000})
+
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS portfolio (user_id INTEGER, code TEXT, name TEXT, price REAL, shares INTEGER, added_at TEXT, PRIMARY KEY(user_id, code))")
+    cur.execute("SELECT code, name, price, shares FROM portfolio WHERE user_id=?", (uid,))
+    rows = cur.fetchall()
+    conn.close()
+    stocks = _pf_from_rows(rows)
+    cash = 100000 - sum(s["price"] * s["shares"] for s in stocks)
+
     if action == "buy":
         cost = price * shares
-        if cost > pf["cash"]:
-            return jsonify({"error": f"现金不足（需要{cost:.0f}，可用{pf['cash']:.0f}）"}), 400
-        pf["cash"] -= cost
-        existing = next((s for s in pf["stocks"] if s["code"] == code), None)
+        if cost > cash:
+            return jsonify({"error": f"现金不足（需要{cost:.0f}，可用{cash:.0f}）"}), 400
+        existing = next((s for s in stocks if s["code"] == code), None)
         if existing:
             total_shares = existing["shares"] + shares
-            existing["price"] = (existing["price"] * existing["shares"] + price * shares) / total_shares
-            existing["shares"] = total_shares
+            avg_price = (existing["price"] * existing["shares"] + price * shares) / total_shares
+            _pf_save_stock(uid, code, name, avg_price, total_shares, existing["added_at"])
         else:
-            pf["stocks"].append({"code": code, "name": name, "price": price, "shares": shares, "added_at": datetime.now().strftime("%m-%d %H:%M")})
+            _pf_save_stock(uid, code, name, price, shares, datetime.now().strftime("%m-%d %H:%M"))
     elif action == "sell":
-        existing = next((s for s in pf["stocks"] if s["code"] == code), None)
+        existing = next((s for s in stocks if s["code"] == code), None)
         if not existing or existing["shares"] < shares:
             return jsonify({"error": "持仓不足"}), 400
-        pf["cash"] += price * shares
-        existing["shares"] -= shares
-        if existing["shares"] <= 0:
-            pf["stocks"].remove(existing)
-    pf["total_value"] = round(pf["cash"] + sum(s.get("current_price", s["price"]) * s["shares"] for s in pf["stocks"]), 2)
-    pf["pnl"] = round(pf["total_value"] - pf["initial"], 2)
-    pf["pnl_pct"] = round(pf["pnl"] / pf["initial"] * 100, 2)
-    _portfolios[uid] = pf
-    return jsonify({"success": True, **pf})
+        remaining = existing["shares"] - shares
+        _pf_save_stock(uid, code, name, existing["price"], remaining, existing["added_at"])
+
+    return jsonify({"success": True})
 
 @app.route("/api/portfolio/reset", methods=["POST"])
 def portfolio_reset():
     uid = current_user_id()
     if not uid:
         return jsonify({"error": "请先登录"}), 401
-    _portfolios[uid] = {"stocks": [], "cash": 100000, "initial": 100000}
-    return jsonify({"success": True, **_portfolios[uid]})
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM portfolio WHERE user_id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+# ---- 真实持仓 ----
+@app.route("/api/portfolio/real", methods=["GET"])
+def get_real_portfolio():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"holdings": [], "total_cost": 0, "total_value": 0, "pnl": 0})
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS real_holdings (user_id INTEGER, code TEXT, name TEXT, shares INTEGER, cost_price REAL, added_at TEXT, PRIMARY KEY(user_id, code))")
+    cur.execute("SELECT code, name, shares, cost_price, added_at FROM real_holdings WHERE user_id=?", (uid,))
+    rows = cur.fetchall()
+    conn.close()
+    holdings = []
+    total_cost = 0
+    total_value = 0
+    for r in rows:
+        try:
+            q = fetch_cn_quote(r[0])
+            cur_price = q.get("price", r[3]) if q else r[3]
+        except Exception:
+            cur_price = r[3]
+        holdings.append({"code": r[0], "name": r[1], "shares": r[2], "cost_price": r[3], "current_price": cur_price, "added_at": r[4]})
+        total_cost += r[2] * r[3]
+        total_value += r[2] * cur_price
+    pnl = round(total_value - total_cost, 2)
+    pnl_pct = round(pnl / total_cost * 100, 2) if total_cost > 0 else 0
+    return jsonify({"holdings": holdings, "total_cost": round(total_cost, 2), "total_value": round(total_value, 2), "pnl": pnl, "pnl_pct": pnl_pct})
+
+@app.route("/api/portfolio/real", methods=["POST"])
+def save_real_holding():
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "请先登录"}), 401
+    data = request.json or {}
+    code = data.get("code", "").strip()
+    name = data.get("name", "")
+    shares = int(data.get("shares", 0))
+    cost_price = float(data.get("cost_price", 0))
+    if not code or shares <= 0 or cost_price <= 0:
+        return jsonify({"error": "请填写完整信息"}), 400
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS real_holdings (user_id INTEGER, code TEXT, name TEXT, shares INTEGER, cost_price REAL, added_at TEXT, PRIMARY KEY(user_id, code))")
+    if shares > 0:
+        cur.execute("INSERT OR REPLACE INTO real_holdings VALUES (?,?,?,?,?,?)", (uid, code, name, shares, cost_price, datetime.now().strftime("%m-%d %H:%M")))
+    else:
+        cur.execute("DELETE FROM real_holdings WHERE user_id=? AND code=?", (uid, code))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
+
+@app.route("/api/portfolio/real/<code>", methods=["DELETE"])
+def delete_real_holding(code):
+    uid = current_user_id()
+    if not uid:
+        return jsonify({"error": "请先登录"}), 401
+    conn = auth_db.get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM real_holdings WHERE user_id=? AND code=?", (uid, code))
+    conn.commit()
+    conn.close()
+    return jsonify({"success": True})
 
 
 # ==========================================================
