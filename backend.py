@@ -2037,6 +2037,43 @@ def anomaly_live():
     except Exception:
         pass
 
+    # Fallback: use Tencent API when Eastmoney returns no data
+    if not anomalies:
+        fb = _fetch_movers_tencent_fallback()
+        if fb:
+            for s in fb:
+                chg_pct = s["change_pct"]
+                if abs(chg_pct) >= 2:
+                    atype = "放量拉升" if chg_pct >= 3 else "放量跳水" if chg_pct <= -3 else "异动"
+                    anomalies.append({
+                        "code": s["code"], "name": s["name"],
+                        "price": s["price"],
+                        "change_pct": round(chg_pct, 2),
+                        "volume_ratio": 1.0,
+                        "turnover": 0,
+                        "anomaly_type": atype, "severity": "high" if abs(chg_pct) >= 5 else "medium",
+                    })
+    # Fallback 2: use cached gainers from market cache
+    if not anomalies:
+        cache = _load_market_cache()
+        gainers_entry = cache.get("gainers", {})
+        if gainers_entry and gainers_entry.get("data"):
+            diff = gainers_entry["data"].get("data", {}).get("diff", [])
+            if diff:
+                for item in diff[:20]:
+                    chg_pct = float(item.get("f3", 0) or 0)
+                    vol_ratio = float(item.get("f10", 1) or 1)
+                    if chg_pct >= 2 or chg_pct <= -2:
+                        atype = "放量拉升" if chg_pct >= 3 else "放量跳水" if chg_pct <= -3 else "异动"
+                        anomalies.append({
+                            "code": item.get("f12", ""), "name": item.get("f14", ""),
+                            "price": item.get("f2", 0) or 0,
+                            "change_pct": round(chg_pct, 2),
+                            "volume_ratio": round(vol_ratio, 1),
+                            "turnover": 0,
+                            "anomaly_type": atype, "severity": "high" if abs(chg_pct) >= 5 else "medium",
+                        })
+
     result = {
         "anomalies": anomalies[:30], "count": len(anomalies),
         "updated": datetime.now().strftime("%H:%M:%S"),
@@ -2133,6 +2170,40 @@ def risk_radar():
         risks.sort(key=lambda x: {"high": 0, "medium": 1, "low": 2}[x["severity"]])
     except Exception:
         pass
+
+    # Fallback: use Tencent API losers when Eastmoney returns no data
+    if not risks:
+        fb = _fetch_movers_tencent_fallback()
+        if fb:
+            fb.sort(key=lambda x: x["change_pct"])  # worst first
+            for s in fb[:15]:
+                chg = s["change_pct"]
+                if chg < 0:
+                    sev = "high" if chg <= -5 else "medium" if chg <= -2 else "low"
+                    risks.append({
+                        "code": s["code"], "name": s["name"],
+                        "price": s["price"],
+                        "change_pct": round(chg, 2),
+                        "risk_type": "下跌预警", "severity": sev,
+                        "reason": f"跌幅{abs(chg):.1f}%",
+                    })
+    # Fallback 2: use cached losers from market cache
+    if not risks:
+        cache = _load_market_cache()
+        losers_entry = cache.get("losers", {})
+        if losers_entry and losers_entry.get("data"):
+            diff = losers_entry["data"].get("data", {}).get("diff", [])
+            if diff:
+                for item in diff[:15]:
+                    chg = float(item.get("f3", 0) or 0)
+                    sev = "high" if chg <= -7 else "medium" if chg <= -3 else "low"
+                    risks.append({
+                        "code": item.get("f12", ""), "name": item.get("f14", ""),
+                        "price": item.get("f2", 0) or 0,
+                        "change_pct": round(chg, 2),
+                        "risk_type": "下跌预警", "severity": sev,
+                        "reason": f"跌幅{abs(chg):.1f}%",
+                    })
 
     result = {
         "risks": risks, "count": len(risks),
@@ -3709,7 +3780,7 @@ def get_snapshots():
 
 @app.route("/api/market/trending")
 def trending_stocks():
-    """热门关注 — 全市场最受关注的股票。休市时回落快照数据。"""
+    """热门关注 — 全市场最受关注的股票。休市时回落快照/缓存数据。"""
     try:
         url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f5,f12,f14,f20"
         data = fetch_eastmoney(url, timeout=8)
@@ -3724,12 +3795,31 @@ def trending_stocks():
                     "volume_hands": item.get("f5", 0) or 0,
                     "market_cap": item.get("f20", 0) or 0,
                 })
-        # Fallback to snapshot data if empty (weekend/holiday)
+        # Fallback 1: Tencent API (works from Railway)
+        if not stocks:
+            fb = _fetch_movers_tencent_fallback()
+            if fb:
+                fb.sort(key=lambda x: x["change_pct"], reverse=True)
+                stocks = fb[:10]
+        # Fallback 2: market cache (gainers from dashboard)
+        if not stocks:
+            cache = _load_market_cache()
+            gainers_entry = cache.get("gainers", {})
+            if gainers_entry and gainers_entry.get("data"):
+                diff = gainers_entry["data"].get("data", {}).get("diff", [])
+                if diff:
+                    stocks = [{
+                        "code": item.get("f12", ""), "name": item.get("f14", ""),
+                        "price": item.get("f2", 0) or 0,
+                        "change_pct": round(float(item.get("f3", 0) or 0), 2),
+                        "volume_hands": item.get("f5", 0) or 0,
+                        "market_cap": item.get("f20", 0) or 0,
+                    } for item in diff[:10]]
+        # Fallback 3: snapshot data
         if not stocks:
             snaps = auth_db.get_daily_snapshots(3)
             if snaps:
                 snap = snaps[0]
-                # Try top_movers first, then limit_ups
                 snap_stocks = snap.get("data", {}).get("top_movers", [])
                 if not snap_stocks:
                     snap_stocks = snap.get("data", {}).get("limit_ups", [])
