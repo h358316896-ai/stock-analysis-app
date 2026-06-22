@@ -820,13 +820,15 @@ function drawCanvasPlaceholders() {
 document.addEventListener('DOMContentLoaded', () => {
   drawCanvasPlaceholders();
   checkLogin();
-  loadAllMarketData();  // dashboard: indices + sectors + concepts + movers in ONE call
-  loadDashboard();      // NEW: 今日必看仪表盘
+  loadAllMarketData().then(function() {
+    loadDashboard();      // 今日必看仪表盘 — after cache is warm
+  });
   setInterval(function() {
-    loadAllMarketData();
-    if (document.getElementById('panel-dashboard').style.display !== 'none') {
-      loadDashboard();
-    }
+    loadAllMarketData().then(function() {
+      if (document.getElementById('panel-dashboard').style.display !== 'none') {
+        loadDashboard();
+      }
+    });
   }, 60000);
 
   document.getElementById('stock搜索').addEventListener('keydown', e => { if (e.key === 'Enter') searchStock(); });
@@ -1230,6 +1232,8 @@ function closePaymentModal() {
 async function loadAllMarketData() {
   try {
     var r = await fetch('/api/dashboard'); var d = await r.json();
+    // Cache for individual dashboard cards
+    _dashboardCache = d;
     state.indices = d.indices || [];
     state.globalData = null;
 
