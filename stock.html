@@ -3368,11 +3368,21 @@ async function loadSmartMoneyDash() {
         });
       }
     } else {
-      // Fallback to snapshot indices
-      await fallbackToSnapshot(list, 'smartmoney', function(s) {
-        return '<div class="smartmoney-item"><div class="sm-name">' + s + '</div></div>';
-      }, '📅 最近交易日指数快照');
-      return;
+      // Fallback: use dashboard sectors data
+      var db = await _loadDashboardCache();
+      if (db && db.sectors && db.sectors.length) {
+        var topSectors = db.sectors.slice(0, 6);
+        html += '<div class="smartmoney-summary" style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">板块资金热度（按涨幅）</div>';
+        topSectors.forEach(function(s) {
+          var isUp = s.change_pct >= 0;
+          html += '<div class="smartmoney-item"><div class="sm-name">' + s.name + ' <span style="font-size:9px;color:var(--text-tertiary)">' + (s.code||'') + '</span></div><div class="sm-flow ' + (isUp ? 'text-green' : 'text-red') + '">' + (isUp ? '+' : '') + s.change_pct.toFixed(2) + '%</div></div>';
+        });
+      } else {
+        await fallbackToSnapshot(list, 'smartmoney', function(s) {
+          return '<div class="smartmoney-item"><div class="sm-name">' + s + '</div></div>';
+        }, '指数快照');
+        return;
+      }
     }
     list.innerHTML = html;
   } catch(e) { console.warn('SmartMoneyDash:', e); }
@@ -3477,11 +3487,26 @@ async function loadSnapshotReview() {
       }
       html += '</div>';
     }
-    // If snapshot is thin, add dashboard market overview
+    // If snapshot is thin, enrich with dashboard data
     if (!s.data.limit_up_count && !s.data.limit_down_count) {
       var db = await _loadDashboardCache();
-      if (db && db.indices && db.indices.length) {
-        html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)">市场状态: ' + (s.data.market_status || '未知') + '</div>';
+      if (db) {
+        // Show market status + top gainers/losers
+        if (db.indices && db.indices.length) {
+          html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle)">' + (s.data.market_status || '') + '</div>';
+        }
+        if (db.gainers && db.gainers.length) {
+          var top3 = db.gainers.slice(0, 3);
+          html += '<div style="margin-top:6px"><span style="font-size:10px;color:var(--text-tertiary)">领涨:</span> ' + top3.map(function(x) {
+            return '<span style="font-size:11px;cursor:pointer;color:var(--text-secondary)" onclick="quickSearch(\'' + x.code + '\',\'cn\')">' + x.name + ' <span class="text-green">+' + x.change_pct.toFixed(1) + '%</span></span>';
+          }).join(' ') + '</div>';
+        }
+        if (db.losers && db.losers.length) {
+          var bot3 = db.losers.slice(0, 3);
+          html += '<div style="margin-top:2px"><span style="font-size:10px;color:var(--text-tertiary)">领跌:</span> ' + bot3.map(function(x) {
+            return '<span style="font-size:11px;cursor:pointer;color:var(--text-secondary)" onclick="quickSearch(\'' + x.code + '\',\'cn\')">' + x.name + ' <span class="text-red">' + x.change_pct.toFixed(1) + '%</span></span>';
+          }).join(' ') + '</div>';
+        }
       }
     }
     list.innerHTML = html;

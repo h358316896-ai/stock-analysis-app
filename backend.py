@@ -2102,7 +2102,6 @@ def smart_money():
                 parts = line.split(",")
                 if len(parts) >= 4:
                     flows.append(float(parts[3]))
-            # Net of last 5 days
             total = sum(flows) if flows else 0
             result["north_flow_5d"] = round(total, 1)
 
@@ -2114,11 +2113,26 @@ def smart_money():
                 result["hot_sectors"].append({
                     "name": item.get("f14", ""),
                     "code": item.get("f12", ""),
-                    "net_flow": round((item.get("f62", 0) or 0) / 10000, 1),  # 万元→亿
+                    "net_flow": round((item.get("f62", 0) or 0) / 10000, 1),
                 })
     except Exception:
         pass
 
+    # Fallback: use dashboard sectors + indices when Eastmoney fails
+    if not result["hot_sectors"]:
+        cache = _load_market_cache()
+        sectors_entry = cache.get("sectors", {})
+        if sectors_entry and sectors_entry.get("data"):
+            diff = sectors_entry["data"].get("data", {}).get("diff", [])
+            if diff:
+                # Sort by change_pct desc (hot money flows into rising sectors)
+                sorted_sectors = sorted(diff, key=lambda x: float(x.get("f3", 0) or 0), reverse=True)
+                for item in sorted_sectors[:6]:
+                    result["hot_sectors"].append({
+                        "name": item.get("f14", ""),
+                        "code": item.get("f12", ""),
+                        "net_flow": round(float(item.get("f3", 0) or 0), 1),
+                    })
     _DASHBOARD_CACHE["smartmoney"] = {"data": result, "ts": now_ts}
     return jsonify(result)
 
