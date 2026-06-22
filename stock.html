@@ -65,6 +65,8 @@ function pwaDismissBar() {
 .market-card .mc-sparkline { margin-top: 6px; height: 28px; }
 /* Active nav indicator */
 .top-nav a.active { position: relative; }
+/* Hide scrollbar for tab-nav on WebKit */
+.tab-nav::-webkit-scrollbar { display: none; }
 
 /* Mobile: collapse movers 2-col → 1-col, prevent image overlap */
 @media (max-width: 600px) {
@@ -262,7 +264,7 @@ function pwaDismissBar() {
     <summary style="padding:12px 18px;font-size:14px;font-weight:700;cursor:pointer;color:var(--text-secondary);user-select:none">🔧 专业工具（点击收起）</summary>
     <div style="padding:0 12px 8px">
   <div class="tab-nav" style="overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none">
-    <style>.tab-nav::-webkit-scrollbar{display:none}</style>
+
     <button class="active" data-panel="heatmap">🔥 热力图</button>
     <button data-panel="movers">📈 涨跌幅</button>
     <button data-panel="caprank">💰 市值排行</button>
@@ -561,7 +563,7 @@ function pwaDismissBar() {
           <button onclick="document.getElementById('cardPortfolio').scrollIntoView({behavior:'smooth',block:'center'});loadPortfolio()" style="display:none;padding:8px 12px;background:transparent;color:var(--text-secondary);border:1px solid var(--border-default);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)" id="pfViewBtn">📋 持仓</button>
         </div>
         <!-- Quick Nav Anchors -->
-        <div class="quick-nav" id="quickNav" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle);display:flex;gap:6px;flex-wrap:wrap">
+        <div class="quick-nav" id="quickNav" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle);gap:6px;flex-wrap:wrap">
           <a href="#cp-kline" style="font-size:10px;color:var(--accent);text-decoration:none;padding:3px 8px;background:rgba(59,130,246,0.1);border-radius:10px">📈 K线图</a>
           <a href="#analysisBox" style="font-size:10px;color:var(--accent);text-decoration:none;padding:3px 8px;background:rgba(59,130,246,0.1);border-radius:10px">📊 AI分析</a>
           <a href="#cp-moneyflow" style="font-size:10px;color:var(--accent);text-decoration:none;padding:3px 8px;background:rgba(59,130,246,0.1);border-radius:10px">💰 资金流向</a>
@@ -3506,8 +3508,6 @@ setInterval(function() {
   if (el) { if (refreshCounter <= 1) { refreshCounter = 60; } else { refreshCounter--; } el.textContent = refreshCounter; }
 }, 1000);
 </script>
-
-
 <!-- PWA Install Bar -->
 <div id="pwaInstallBar" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(180deg,rgba(15,18,37,0.98),rgba(6,6,8,0.98));border-top:1px solid rgba(59,130,246,0.3);padding:10px 14px calc(10px + env(safe-area-inset-bottom));justify-content:space-between;align-items:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-family:var(--font)">
   <div style="display:flex;align-items:center;gap:10px">
