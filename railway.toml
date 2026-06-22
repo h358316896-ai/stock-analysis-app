@@ -10,6 +10,7 @@ buildCommand = "pip install -r requirements.txt"
 
 [build.buildArgs]
 NIXPACKS_PROVIDERS = "python"
+NIXPACKS_NO_CACHE = "1"
 
 [deploy]
 numReplicas = 1

@@ -3,10 +3,43 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#060608">
+<meta name="theme-color" content="#06080e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
+<!-- Baidu Analytics -->
+<script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?537ad9b521fa975bec0ecd5b8aad87af";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s)})();</script>
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
+<meta name="apple-mobile-web-app-title" content="StockAI">
+<!-- PWA Install + Service Worker -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  });
+}
+var _pwaDeferredPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaDeferredPrompt = e;
+  var b = document.getElementById('pwaInstallBtn');
+  if (b) b.style.display = 'flex';
+});
+function pwaInstall() {
+  if (_pwaDeferredPrompt) {
+    _pwaDeferredPrompt.prompt();
+    _pwaDeferredPrompt.userChoice.then(function(r) {
+      if (r.outcome === 'accepted') {
+        document.getElementById('pwaInstallBtn').style.display = 'none';
+      }
+    });
+  }
+}
+function pwaDismiss() {
+  document.getElementById('pwaInstallBtn').style.display = 'none';
+}
+</script>
 <script>
 // API proxy: route /api/* to the Railway backend on any static host (incl. kunhuang.top).
 (function(){
@@ -25,386 +58,1386 @@
 </script>
 <title>StockAI — 专业A股智能分析平台 | 实时行情·主力追踪·AI选股</title>
 <meta name="description" content="StockAI 提供A股实时行情、资金流向、主力追踪、龙虎榜、涨停复盘、智能选股等专业投资工具。覆盖沪深港美股，AI驱动深度分析。">
+<meta property="og:title" content="StockAI — A股智能分析平台">
+<meta property="og:description" content="AI驱动的A股实时行情，智能选股，主力资金追踪。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kunhuang.top">
+<meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "StockAI",
+  "applicationCategory": "FinanceApplication",
+  "operatingSystem": "Web",
+  "description": "AI驱动的A股智能分析平台，提供实时行情、技术分析、主力追踪、智能选股等专业投资工具。",
+  "offers": {
+    "@type": "Offer",
+    "price": "39.00",
+    "priceCurrency": "CNY",
+    "description": "月费订阅"
+  }
+}
+</script>
 <style>
+/* ============================================================
+   StockAI — "DATA CATHEDRAL" Design System
+   Financial terminal meets atmospheric depth
+   ============================================================ */
+
+/* ----- DESIGN TOKENS ----- */
 :root {
-  --bg-primary: #050510; --bg-secondary: #0a0a1a; --bg-card: #0f0f22;
-  --bg-elevated: #161630; --border-subtle: rgba(255,255,255,0.05);
-  --border-default: rgba(255,255,255,0.08); --border-strong: rgba(255,255,255,0.12);
-  --text-primary: #f2f2f8; --text-secondary: #9d9db8; --text-tertiary: #606080;
-  --accent: #4f8cff; --accent-glow: rgba(79,140,255,0.2);
-  --gold: #f0b90b; --green: #22c55e; --red: #ef4444; --orange: #f97316; --purple: #a855f7;
-  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --bg-deep: #06080e;
+  --bg-primary: #080a14;
+  --bg-secondary: #0c0f1d;
+  --bg-card: #0f1225;
+  --bg-elevated: #151832;
+  --bg-glass: rgba(15,18,37,0.7);
+  --border-subtle: rgba(255,255,255,0.04);
+  --border-default: rgba(255,255,255,0.07);
+  --border-strong: rgba(255,255,255,0.11);
+  --border-glow: rgba(79,140,255,0.15);
+  --text-primary: #edecf1;
+  --text-secondary: #9493a8;
+  --text-tertiary: #5c5b72;
+  --accent: #4f8cff;
+  --accent-bright: #6ba0ff;
+  --accent-glow: rgba(79,140,255,0.18);
+  --accent-glow-strong: rgba(79,140,255,0.35);
+  --gold: #f0b90b;
+  --gold-glow: rgba(240,185,11,0.15);
+  --green: #22c55e;
+  --green-glow: rgba(34,197,94,0.15);
+  --red: #ef4444;
+  --red-glow: rgba(239,68,68,0.15);
+  --orange: #f97316;
+  --purple: #a855f7;
+  --purple-glow: rgba(168,85,247,0.15);
+  --font-cn: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', 'Source Han Sans CN', sans-serif;
+  --font-num: 'SF Mono', 'JetBrains Mono', 'Cascadia Code', 'Consolas', monospace;
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
   --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px; --radius-xl: 28px;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
-  --shadow-lg: 0 8px 40px rgba(0,0,0,0.6);
-  --shadow-glow: 0 0 30px rgba(79,140,255,0.15);
+  --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-2xl: 32px;
+  --shadow-card: 0 1px 2px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.3);
+  --shadow-elevated: 0 1px 2px rgba(0,0,0,0.5), 0 8px 32px rgba(0,0,0,0.5);
+  --shadow-glow-blue: 0 0 40px rgba(79,140,255,0.12), 0 0 80px rgba(79,140,255,0.05);
+  --shadow-glow-purple: 0 0 40px rgba(168,85,247,0.12), 0 0 80px rgba(168,85,247,0.05);
+  --shadow-glow-gold: 0 0 30px rgba(240,185,11,0.1);
 }
 
-* { margin:0; padding:0; box-sizing:border-box; }
-html { font-size:15px; scroll-behavior:smooth; }
-body { font-family:var(--font); background:linear-gradient(180deg, #080818 0%, #050510 100%); color:var(--text-primary); -webkit-font-smoothing:antialiased; line-height:1.6; letter-spacing:-0.01em; min-height:100vh; }
-::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:2px; }
+/* ----- RESET & BASE ----- */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:15px; scroll-behavior:smooth; -webkit-text-size-adjust:100%; }
+body {
+  font-family: var(--font-cn);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
 
-/* ========== NAV ========== */
+/* ----- SCROLLBAR ----- */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+
+/* ============================================================
+   ATMOSPHERIC BACKGROUND SYSTEM
+   ============================================================ */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(ellipse 1200px 800px at 50% -20%, rgba(79,140,255,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 600px 600px at 80% 40%, rgba(168,85,247,0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 500px 500px at 20% 70%, rgba(240,185,11,0.02) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle dot grid on body */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.03) 0.5px, transparent 0.5px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.4) 15%, rgba(0,0,0,0.6) 50%, rgba(0,0,0,0.4) 85%, transparent 100%);
+}
+
+/* ============================================================
+   NAVIGATION — Glass-morphism sticky bar
+   ============================================================ */
 .top-bar {
-  background:rgba(8,8,24,0.85); border-bottom:1px solid var(--border-subtle);
-  height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 20px;
-  position:-webkit-sticky; position:sticky; top:0; z-index:1000;
-  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+  position: sticky; top: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 54px; padding: 0 24px;
+  background: rgba(8,10,20,0.82);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.logo-area { display:flex; align-items:center; gap:10px; }
-.logo-icon { width:32px; height:32px; background:linear-gradient(135deg, var(--accent), #7c3aed); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:16px; color:white; box-shadow:0 0 24px var(--accent-glow); }
-.logo-text { font-weight:800; font-size:17px; letter-spacing:-0.02em; }
-.logo-text span { background:linear-gradient(135deg, var(--accent), #7c3aed); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+.top-bar::after {
+  content: '';
+  position: absolute; bottom: -1px; left: 5%; right: 5%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(79,140,255,0.2), rgba(168,85,247,0.2), transparent);
+}
+.logo-area { display:flex; align-items:center; gap:10px; position:relative; z-index:1; }
+.logo-icon {
+  width: 30px; height: 30px;
+  background: linear-gradient(135deg, #4f8cff 0%, #6366f1 100%);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 15px; color: white;
+  box-shadow: 0 0 20px rgba(79,140,255,0.3), 0 0 40px rgba(79,140,255,0.1);
+  position: relative;
+}
+.logo-icon::after {
+  content: '';
+  position: absolute; inset: -2px; border-radius: 10px;
+  background: linear-gradient(135deg, rgba(79,140,255,0.4), transparent, rgba(99,102,241,0.4));
+  z-index: -1; opacity: 0.6;
+}
+.logo-text { font-weight: 800; font-size: 16px; letter-spacing: -0.02em; }
+.logo-text span {
+  background: linear-gradient(135deg, #4f8cff 0%, #a78bfa 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 .top-nav { display:flex; gap:2px; }
-.top-nav a { color:var(--text-secondary); text-decoration:none; padding:8px 14px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; transition:var(--transition); }
-.top-nav a:hover, .top-nav a.active { color:var(--text-primary); background:rgba(79,140,255,0.08); }
-.btn-sign { padding:8px 18px; border-radius:20px; background:linear-gradient(135deg, var(--accent), #6366f1); color:white; border:none; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--font); box-shadow:0 0 24px var(--accent-glow); transition:var(--transition); text-decoration:none; }
-.btn-sign:hover { transform:translateY(-1px); box-shadow:0 4px 30px rgba(79,140,255,0.3); }
+.top-nav a {
+  color: var(--text-secondary); text-decoration: none;
+  padding: 7px 15px; border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500; letter-spacing: 0.01em;
+  transition: var(--transition-fast); position: relative;
+}
+.top-nav a:hover { color: var(--text-primary); background: rgba(79,140,255,0.06); }
+.top-nav a.active {
+  color: var(--text-primary);
+  background: rgba(79,140,255,0.08);
+}
+.top-nav a.active::after {
+  content: '';
+  position: absolute; bottom: 2px; left: 50%; transform: translateX(-50%);
+  width: 16px; height: 2px; background: var(--accent);
+  border-radius: 1px;
+}
+.btn-sign {
+  padding: 8px 20px; border-radius: 20px;
+  background: linear-gradient(135deg, #4f8cff 0%, #6366f1 100%);
+  color: white; border: none;
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  font-family: var(--font-cn); letter-spacing: 0.01em;
+  text-decoration: none;
+  box-shadow: 0 2px 12px rgba(79,140,255,0.3), 0 0 30px rgba(79,140,255,0.1);
+  transition: all var(--transition);
+  position: relative; overflow: hidden;
+}
+.btn-sign::before {
+  content: '';
+  position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+  transition: left 0.5s;
+}
+.btn-sign:hover::before { left: 100%; }
+.btn-sign:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(79,140,255,0.4), 0 0 50px rgba(79,140,255,0.15);
+}
 
-/* ========== SECTIONS ========== */
-.section { padding:80px 24px; }
-.section-inner { max-width:1100px; margin:0 auto; }
-.section-tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.1em; color:var(--accent); margin-bottom:12px; }
-.section-h2 { font-size:36px; font-weight:800; line-height:1.2; margin-bottom:16px; letter-spacing:-0.02em; }
-.section-p { color:var(--text-secondary); font-size:17px; max-width:600px; line-height:1.7; }
+/* ============================================================
+   HERO — Atmospheric data cathedral
+   ============================================================ */
+.hero {
+  position: relative; z-index: 1;
+  padding: 100px 24px 80px;
+  text-align: center;
+  overflow: hidden;
+  isolation: isolate;
+}
+/* Animated floating data particles */
+.hero-particles {
+  position: absolute; inset: 0; pointer-events: none; z-index: 0;
+}
+.hero-particle {
+  position: absolute;
+  width: 2px; height: 2px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: floatUp 8s ease-in infinite;
+  opacity: 0;
+}
+.hero-particle:nth-child(odd) { background: var(--purple); animation-duration: 10s; }
+.hero-particle:nth-child(3n) { background: var(--gold); animation-duration: 12s; }
+.hero-particle:nth-child(5n+2) { width: 1px; height: 1px; animation-duration: 7s; }
 
-/* ========== HERO ========== */
-.hero { padding:80px 24px 60px; text-align:center; position:relative; overflow:hidden; }
-.hero::before { content:''; position:absolute; top:-250px; left:50%; transform:translateX(-50%); width:800px; height:800px; background:radial-gradient(ellipse, rgba(79,140,255,0.06) 0%, rgba(168,85,247,0.04) 40%, transparent 70%); pointer-events:none; }
-.hero::after { content:''; position:absolute; bottom:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg, transparent, rgba(79,140,255,0.3), rgba(168,85,247,0.3), transparent); }
-.hero-badge { display:inline-block; padding:6px 18px; border-radius:20px; background:rgba(240,185,11,0.1); color:var(--gold); font-size:12px; font-weight:700; margin-bottom:28px; border:1px solid rgba(240,185,11,0.2); letter-spacing:0.02em; }
-.hero h1 { font-size:clamp(32px, 6vw, 56px); font-weight:900; line-height:1.15; margin-bottom:20px; letter-spacing:-0.03em; max-width:750px; margin-left:auto; margin-right:auto; }
-.hero h1 span { background:linear-gradient(135deg, var(--accent) 0%, #a855f7 50%, var(--gold) 100%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
-.hero p { color:var(--text-secondary); font-size:clamp(14px, 2vw, 17px); max-width:520px; margin:0 auto 36px; line-height:1.8; }
-.hero-actions { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
-.btn-primary { padding:15px 36px; border-radius:50px; background:linear-gradient(135deg, var(--accent), #6366f1); color:white; font-size:15px; font-weight:700; text-decoration:none; transition:var(--transition); box-shadow:0 4px 24px rgba(79,140,255,0.25); display:inline-block; letter-spacing:0.02em; }
-.btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 32px rgba(79,140,255,0.4); }
-.btn-outline { padding:15px 36px; border-radius:50px; background:transparent; color:var(--text-primary); font-size:15px; font-weight:600; text-decoration:none; border:1px solid var(--border-strong); transition:var(--transition); display:inline-block; }
-.btn-outline:hover { border-color:var(--gold); color:var(--gold); }
+@keyframes floatUp {
+  0% { transform: translateY(100vh) scale(0); opacity: 0; }
+  10% { opacity: 0.8; }
+  90% { opacity: 0.2; }
+  100% { transform: translateY(-10vh) scale(1.5); opacity: 0; }
+}
 
-/* ========== LIVE TICKER STRIP ========== */
-.ticker-strip { background:var(--bg-card); border-top:1px solid var(--border-subtle); border-bottom:1px solid var(--border-subtle); padding:12px 0; overflow:hidden; }
-.ticker-strip .scroll { display:flex; animation:tk 80s linear infinite; white-space:nowrap; }
-.ticker-strip .scroll:hover { animation-play-state:paused; }
+/* Hero ambient glow */
+.hero-ambiance {
+  position: absolute; z-index: 0; pointer-events: none;
+}
+.hero-ambiance-top {
+  top: -300px; left: 50%; transform: translateX(-50%);
+  width: 900px; height: 900px;
+  background: radial-gradient(ellipse, rgba(79,140,255,0.07) 0%, rgba(168,85,247,0.04) 30%, transparent 65%);
+}
+.hero-ambiance-bottom {
+  bottom: -100px; left: 50%; transform: translateX(-50%);
+  width: 600px; height: 200px;
+  background: radial-gradient(ellipse, rgba(240,185,11,0.04) 0%, transparent 70%);
+}
+.hero-line {
+  position: absolute; bottom: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(79,140,255,0.3), rgba(168,85,247,0.3), rgba(240,185,11,0.2), transparent);
+}
+
+.hero-content { position: relative; z-index: 1; max-width: 800px; margin: 0 auto; }
+
+.hero-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 5px 16px;
+  border-radius: 20px;
+  background: rgba(240,185,11,0.08);
+  border: 1px solid rgba(240,185,11,0.15);
+  color: var(--gold);
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em;
+  margin-bottom: 32px;
+  animation: badgePulse 3s ease-in-out infinite;
+}
+.hero-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--gold);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--gold);
+  animation: dotBlink 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240,185,11,0.1); }
+  50% { box-shadow: 0 0 20px 0 rgba(240,185,11,0.2); }
+}
+@keyframes dotBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.hero h1 {
+  font-size: clamp(36px, 5.5vw, 60px);
+  font-weight: 900;
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+}
+.hero h1 .gradient-text {
+  background: linear-gradient(135deg, #4f8cff 0%, #818cf8 30%, #a855f7 60%, #f0b90b 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero p {
+  color: var(--text-secondary);
+  font-size: clamp(14px, 1.8vw, 17px);
+  max-width: 500px;
+  margin: 0 auto 40px;
+  line-height: 1.8;
+}
+
+.hero-actions {
+  display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 15px 34px;
+  border-radius: 50px;
+  background: linear-gradient(135deg, #4f8cff 0%, #6366f1 100%);
+  color: white; font-size: 15px; font-weight: 700;
+  text-decoration: none; letter-spacing: 0.01em;
+  box-shadow: 0 4px 24px rgba(79,140,255,0.3), 0 0 60px rgba(79,140,255,0.1);
+  transition: all var(--transition);
+  position: relative; overflow: hidden;
+}
+.btn-primary::after {
+  content: '';
+  position: absolute; top: 0; left: -100%; width: 100%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transition: left 0.6s;
+}
+.btn-primary:hover::after { left: 100%; }
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 32px rgba(79,140,255,0.4), 0 0 80px rgba(79,140,255,0.15);
+}
+
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 15px 34px;
+  border-radius: 50px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 15px; font-weight: 600;
+  text-decoration: none;
+  border: 1px solid rgba(255,255,255,0.12);
+  transition: all var(--transition);
+}
+.btn-outline:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  box-shadow: var(--shadow-glow-gold);
+}
+
+/* ============================================================
+   LIVE TICKER STRIP
+   ============================================================ */
+.ticker-strip {
+  position: relative; z-index: 1;
+  background: linear-gradient(180deg, rgba(15,18,37,0.9), rgba(12,15,29,0.95));
+  border-top: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding: 10px 0;
+  overflow: hidden;
+}
+.ticker-strip::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 60px;
+  background: linear-gradient(90deg, var(--bg-secondary), transparent);
+  z-index: 2; pointer-events: none;
+}
+.ticker-strip::after {
+  content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 60px;
+  background: linear-gradient(270deg, var(--bg-secondary), transparent);
+  z-index: 2; pointer-events: none;
+}
+.ticker-strip .scroll {
+  display: flex; animation: tk 80s linear infinite; white-space: nowrap;
+}
+.ticker-strip .scroll:hover { animation-play-state: paused; }
 @keyframes tk { 0%{transform:translateX(0)} 100%{transform:translateX(-50%)} }
-.ticker-strip .item { display:inline-flex; align-items:center; gap:8px; padding:0 20px; font-size:13px; font-family:var(--font); }
-.ticker-strip .item .sym { font-weight:600; }
-.ticker-strip .item .divider { width:1px; height:14px; background:var(--border-strong); }
+.ticker-strip .item {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 22px; font-size: 12px; font-family: var(--font-cn);
+}
+.ticker-strip .item .sym { font-weight: 600; letter-spacing: 0.02em; }
+.ticker-strip .item .divider {
+  width: 1px; height: 12px;
+  background: rgba(255,255,255,0.06);
+}
 
-/* ========== STATS BAR ========== */
-.stats-bar { padding:48px 24px; position:relative; }
-.stats-bar::before { content:''; position:absolute; top:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent); }
-.stats-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:0; max-width:900px; margin:0 auto; text-align:center; }
-@media (max-width:768px) { .stats-grid { grid-template-columns:repeat(2, 1fr); gap:20px; } }
-.stat-item { padding:10px; position:relative; }
-.stat-item:not(:last-child)::after { content:''; position:absolute; right:0; top:20%; height:60%; width:1px; background:var(--border-subtle); }
-.stat-item .stat-num { font-size:clamp(28px, 4vw, 42px); font-weight:900; background:linear-gradient(135deg, var(--accent), #a855f7); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
-.stat-item .stat-label { font-size:12px; color:var(--text-tertiary); letter-spacing:0.08em; margin-top:6px; font-weight:500; }
+/* ============================================================
+   STATS BAR
+   ============================================================ */
+.stats-bar {
+  position: relative; z-index: 1;
+  padding: 56px 24px;
+}
+.stats-bar::before {
+  content: ''; position: absolute; top: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+}
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  max-width: 900px; margin: 0 auto;
+  text-align: center;
+}
+.stat-item {
+  padding: 16px;
+  position: relative;
+}
+.stat-item:not(:last-child)::after {
+  content: ''; position: absolute; right: 0; top: 25%; height: 50%; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(255,255,255,0.06), transparent);
+}
+.stat-item .stat-num {
+  font-size: clamp(30px, 4vw, 44px);
+  font-weight: 900;
+  font-family: var(--font-num);
+  background: linear-gradient(180deg, #e2e8f0 0%, #94a3b8 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+.stat-item .stat-label {
+  font-size: 12px; color: var(--text-tertiary);
+  letter-spacing: 0.06em; margin-top: 8px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
 
-/* ========== PRODUCT CARDS ========== */
-.products { padding:80px 24px; }
-.products-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:24px; max-width:1100px; margin:48px auto 0; }
+/* ============================================================
+   PRODUCT CARDS — Glass premium cards
+   ============================================================ */
+.products {
+  position: relative; z-index: 1;
+  padding: 100px 24px;
+}
+.products::before {
+  content: '';
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+  width: 500px; height: 500px;
+  background: radial-gradient(ellipse, rgba(79,140,255,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.section-header {
+  text-align: center; margin-bottom: 56px;
+}
+.section-tag {
+  font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.section-h2 {
+  font-size: clamp(28px, 4vw, 38px);
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 16px;
+  letter-spacing: -0.02em;
+}
+.section-p {
+  color: var(--text-secondary);
+  font-size: 16px; max-width: 500px;
+  margin: 0 auto; line-height: 1.7;
+}
+
+.products-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
 .prod-card {
-  background:linear-gradient(180deg, rgba(15,15,34,0.9) 0%, rgba(10,10,26,0.95) 100%); border:1px solid var(--border-subtle); border-radius:var(--radius-xl);
-  padding:40px 30px; text-decoration:none; color:var(--text-primary); transition:var(--transition);
-  position:relative; overflow:hidden; box-shadow:var(--shadow-sm);
+  position: relative;
+  background: linear-gradient(180deg, rgba(15,18,37,0.95) 0%, rgba(12,15,29,0.98) 100%);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: var(--radius-xl);
+  padding: 36px 28px 28px;
+  text-decoration: none; color: var(--text-primary);
+  transition: all var(--transition-slow);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
 }
-.prod-card::before { content:''; position:absolute; top:0; left:0; width:100%; height:3px; transition:var(--transition); }
-.prod-card:hover { border-color:rgba(255,255,255,0.12); transform:translateY(-6px); box-shadow:var(--shadow-lg), var(--shadow-glow); }
-.prod-card:nth-child(1)::before { background:linear-gradient(90deg, var(--accent), #6366f1); }
-.prod-card:nth-child(2)::before { background:linear-gradient(90deg, #22c55e, #10b981); }
-.prod-card:nth-child(3)::before { background:linear-gradient(90deg, #a855f7, #7c3aed); }
-.prod-card .pc-icon { width:56px; height:56px; border-radius:14px; margin-bottom:16px; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:700; color:white; }
-.pc-icon-stock { background:linear-gradient(135deg,#3b82f6,#2563eb); }
-.pc-icon-media { background:linear-gradient(135deg,#a855f7,#7c3aed); }
-.pc-icon-dev { background:linear-gradient(135deg,#f97316,#ea580c); }
-.prod-card h3 { font-size:22px; font-weight:700; margin-bottom:8px; }
-.prod-card p { color:var(--text-secondary); font-size:14px; line-height:1.7; margin-bottom:16px; }
-.prod-card .pc-features { list-style:none; margin-bottom:20px; }
-.prod-card .pc-features li { color:var(--text-secondary); font-size:13px; padding:4px 0; padding-left:20px; position:relative; }
-.prod-card .pc-features li::before { content:'✓'; position:absolute; left:0; color:var(--green); font-weight:700; }
-.prod-card .pc-bottom { display:flex; justify-content:space-between; align-items:center; padding-top:16px; border-top:1px solid var(--border-subtle); }
-.prod-card .pc-price { font-size:24px; font-weight:800; color:var(--accent); }
-.prod-card .pc-cta { font-size:13px; color:var(--accent); font-weight:600; }
+.prod-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  transition: all var(--transition-slow);
+}
+.prod-card:nth-child(1)::before {
+  background: linear-gradient(90deg, #4f8cff, #6366f1);
+}
+.prod-card:nth-child(2)::before {
+  background: linear-gradient(90deg, #a855f7, #7c3aed);
+}
+.prod-card:nth-child(3)::before {
+  background: linear-gradient(90deg, #f97316, #ea580c);
+}
 
-/* ========== FEATURE SHOWCASE ========== */
-.showcase { padding:80px 24px; }
-.showcase-item { display:grid; grid-template-columns:1fr 1fr; gap:60px; align-items:center; max-width:1100px; margin:0 auto 80px; }
-.showcase-item:last-child { margin-bottom:0; }
-.showcase-item.reverse { direction:rtl; }
-.showcase-item.reverse .sc-text { direction:ltr; }
-.sc-preview { background:linear-gradient(135deg,var(--bg-card),var(--bg-elevated)); border:1px solid var(--border-default); border-radius:var(--radius-xl); padding:32px 24px; height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text-secondary); font-size:13px; position:relative; overflow:hidden; }
-.sc-preview::after { content:''; position:absolute; bottom:0; left:10%; right:10%; height:1px; background:linear-gradient(90deg,transparent,var(--border-strong),transparent); }
-.sc-preview-chart { width:100%; height:80px; display:flex; align-items:end; gap:6px; justify-content:center; margin-bottom:16px; }
-.sc-preview-bar { width:18px; border-radius:3px 3px 0 0; min-height:8px; }
-.sc-preview-dot { display:inline-block;width:10px;height:10px;border-radius:50%;margin:2px; }
-.sc-text h3 { font-size:28px; font-weight:800; margin-bottom:12px; letter-spacing:-0.02em; }
-.sc-text p { color:var(--text-secondary); font-size:15px; line-height:1.7; margin-bottom:20px; }
-.sc-list { list-style:none; }
-.sc-list li { font-size:14px; padding:8px 0; padding-left:24px; position:relative; color:var(--text-secondary); }
-.sc-list li::before { content:'→'; position:absolute; left:0; color:var(--accent); font-weight:700; }
-@media (max-width:768px) { .showcase-item { grid-template-columns:1fr; gap:30px; } }
+/* Card ambient glow */
+.prod-card::after {
+  content: '';
+  position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+  opacity: 0;
+  transition: opacity var(--transition-slow);
+  pointer-events: none;
+}
+.prod-card:nth-child(1)::after {
+  background: radial-gradient(circle at 50% 0%, rgba(79,140,255,0.08) 0%, transparent 50%);
+}
+.prod-card:nth-child(2)::after {
+  background: radial-gradient(circle at 50% 0%, rgba(168,85,247,0.08) 0%, transparent 50%);
+}
+.prod-card:nth-child(3)::after {
+  background: radial-gradient(circle at 50% 0%, rgba(249,115,22,0.08) 0%, transparent 50%);
+}
 
-/* ========== FAQ ========== */
-.faq { padding:80px 24px; }
-.faq-grid { max-width:800px; margin:40px auto 0; display:flex; flex-direction:column; gap:12px; }
-.faq-item { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:20px 24px; cursor:pointer; transition:var(--transition); }
-.faq-item:hover { border-color:var(--border-default); }
-.faq-item .faq-q { font-size:15px; font-weight:600; display:flex; justify-content:space-between; align-items:center; }
-.faq-item .faq-q span { color:var(--text-tertiary); font-size:18px; transition:var(--transition); }
-.faq-item.open .faq-q span { transform:rotate(45deg); }
-.faq-item .faq-a { color:var(--text-secondary); font-size:14px; line-height:1.7; margin-top:12px; display:none; }
-.faq-item.open .faq-a { display:block; }
+.prod-card:hover {
+  transform: translateY(-8px);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: var(--shadow-elevated), var(--shadow-glow-blue);
+}
+.prod-card:hover::after { opacity: 1; }
 
-/* ========== CTA BANNER ========== */
+.prod-card .pc-icon {
+  width: 50px; height: 50px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; font-weight: 800; color: white;
+  position: relative; z-index: 1;
+}
+.pc-icon-stock {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  box-shadow: 0 4px 16px rgba(59,130,246,0.3);
+}
+.pc-icon-media {
+  background: linear-gradient(135deg, #a855f7, #7c3aed);
+  box-shadow: 0 4px 16px rgba(168,85,247,0.3);
+}
+.pc-icon-dev {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  box-shadow: 0 4px 16px rgba(249,115,22,0.3);
+}
+
+.prod-card h3 {
+  font-size: 20px; font-weight: 700;
+  margin-bottom: 8px; position: relative; z-index: 1;
+  letter-spacing: -0.01em;
+}
+.prod-card p {
+  color: var(--text-secondary);
+  font-size: 13px; line-height: 1.7;
+  margin-bottom: 20px; position: relative; z-index: 1;
+}
+
+.prod-card .pc-features {
+  list-style: none; margin-bottom: 24px;
+  position: relative; z-index: 1;
+}
+.prod-card .pc-features li {
+  color: var(--text-secondary);
+  font-size: 12px; padding: 5px 0 5px 20px;
+  position: relative;
+}
+.prod-card .pc-features li::before {
+  content: '';
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 5px; height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+}
+.prod-card:nth-child(2) .pc-features li::before { background: var(--purple); }
+.prod-card:nth-child(3) .pc-features li::before { background: var(--orange); }
+
+.prod-card .pc-bottom {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  position: relative; z-index: 1;
+}
+.prod-card .pc-price {
+  font-size: 28px; font-weight: 800;
+  font-family: var(--font-num);
+  letter-spacing: -0.02em;
+}
+.prod-card:nth-child(1) .pc-price { color: #6ba0ff; }
+.prod-card:nth-child(2) .pc-price { color: #c084fc; }
+.prod-card:nth-child(3) .pc-price { color: #fb923c; }
+
+.prod-card .pc-cta {
+  font-size: 13px; font-weight: 600;
+  color: var(--accent);
+  transition: all var(--transition-fast);
+}
+.prod-card:hover .pc-cta { color: var(--accent-bright); letter-spacing: 0.02em; }
+
+/* ============================================================
+   FEATURE SHOWCASE
+   ============================================================ */
+.showcase {
+  position: relative; z-index: 1;
+  padding: 100px 24px;
+}
+.showcase-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 64px;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto 80px;
+}
+.showcase-item:last-child { margin-bottom: 0; }
+.showcase-item.reverse { direction: rtl; }
+.showcase-item.reverse .sc-text { direction: ltr; }
+
+.sc-preview {
+  position: relative;
+  background: var(--bg-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-xl);
+  padding: 36px 28px;
+  min-height: 240px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow: hidden;
+}
+.sc-preview::before {
+  content: '';
+  position: absolute; bottom: 0; left: 15%; right: 15%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+.sc-preview-chart {
+  width: 100%; height: 70px;
+  display: flex; align-items: flex-end;
+  gap: 5px; justify-content: center;
+  margin-bottom: 16px;
+}
+.sc-preview-bar {
+  width: 16px; border-radius: 3px 3px 0 0;
+  min-height: 6px;
+  transition: height 0.6s ease;
+}
+.sc-preview-dot {
+  display: inline-block;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  margin: 2px;
+  box-shadow: 0 0 6px currentColor;
+}
+
+.sc-text h3 {
+  font-size: 28px; font-weight: 800;
+  margin-bottom: 14px;
+  letter-spacing: -0.02em;
+}
+.sc-text p {
+  color: var(--text-secondary);
+  font-size: 15px; line-height: 1.7;
+  margin-bottom: 22px;
+}
+.sc-list { list-style: none; }
+.sc-list li {
+  font-size: 14px; padding: 8px 0 8px 22px;
+  position: relative; color: var(--text-secondary);
+  transition: color var(--transition-fast);
+}
+.sc-list li::before {
+  content: '';
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  width: 6px; height: 6px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+.sc-list li:hover { color: var(--text-primary); }
+
+/* ============================================================
+   FAQ
+   ============================================================ */
+.faq {
+  position: relative; z-index: 1;
+  padding: 100px 24px;
+}
+.faq-grid {
+  max-width: 760px; margin: 48px auto 0;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.faq-item {
+  background: rgba(15,18,37,0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.faq-item:hover {
+  border-color: rgba(255,255,255,0.08);
+  background: rgba(15,18,37,0.9);
+}
+.faq-item .faq-q {
+  font-size: 15px; font-weight: 600;
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 16px;
+}
+.faq-item .faq-q span {
+  color: var(--text-tertiary);
+  font-size: 18px; font-weight: 300;
+  transition: transform var(--transition);
+  flex-shrink: 0;
+}
+.faq-item.open .faq-q span { transform: rotate(45deg); color: var(--accent); }
+.faq-item .faq-a {
+  color: var(--text-secondary);
+  font-size: 14px; line-height: 1.7;
+  margin-top: 0; max-height: 0; overflow: hidden;
+  transition: all var(--transition);
+}
+.faq-item.open .faq-a { margin-top: 14px; max-height: 300px; }
+
+/* ============================================================
+   CTA BANNER
+   ============================================================ */
 .cta-banner {
-  max-width:900px; margin:0 auto 80px;
-  background:linear-gradient(135deg, rgba(59,130,246,0.1), rgba(168,85,247,0.1));
-  border:1px solid rgba(59,130,246,0.2); border-radius:var(--radius-xl);
-  padding:60px 40px; text-align:center;
+  position: relative; z-index: 1;
+  max-width: 860px; margin: 0 auto 100px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(168,85,247,0.08));
+  border: 1px solid rgba(59,130,246,0.15);
+  border-radius: var(--radius-2xl);
+  padding: 64px 40px;
+  text-align: center;
+  overflow: hidden;
 }
-.cta-banner h2 { font-size:32px; font-weight:800; margin-bottom:12px; }
-.cta-banner p { color:var(--text-secondary); font-size:16px; margin-bottom:24px; }
+.cta-banner::before {
+  content: '';
+  position: absolute; top: -80px; left: 50%; transform: translateX(-50%);
+  width: 400px; height: 400px;
+  background: radial-gradient(ellipse, rgba(79,140,255,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+.cta-banner h2 {
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 800; margin-bottom: 14px;
+  position: relative; z-index: 1;
+}
+.cta-banner p {
+  color: var(--text-secondary);
+  font-size: 16px; margin-bottom: 28px;
+  position: relative; z-index: 1;
+}
 
-/* ========== FOOTER ========== */
-.footer { background:var(--bg-secondary); border-top:1px solid var(--border-subtle); padding:48px 24px 24px; }
-.footer-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; gap:40px; max-width:1100px; margin:0 auto; }
-@media (max-width:768px) { .footer-grid { grid-template-columns:1fr 1fr; } }
-.footer-col h4 { font-size:13px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; margin-bottom:16px; color:var(--text-primary); }
-.footer-col a { display:block; color:var(--text-tertiary); text-decoration:none; font-size:13px; padding:4px 0; transition:var(--transition); }
-.footer-col a:hover { color:var(--text-primary); }
-.footer-bottom { max-width:1100px; margin:32px auto 0; padding-top:24px; border-top:1px solid var(--border-subtle); display:flex; justify-content:space-between; color:var(--text-tertiary); font-size:12px; }
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer {
+  position: relative; z-index: 1;
+  background: rgba(8,10,20,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255,255,255,0.04);
+  padding: 56px 24px 28px;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 40px;
+  max-width: 1100px; margin: 0 auto;
+}
+.footer-col h4 {
+  font-size: 12px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 18px; color: var(--text-primary);
+}
+.footer-col a {
+  display: block; color: var(--text-tertiary);
+  text-decoration: none; font-size: 13px;
+  padding: 5px 0; transition: color var(--transition-fast);
+}
+.footer-col a:hover { color: var(--text-primary); }
+.footer-col .brand-desc {
+  color: var(--text-secondary);
+  font-size: 13px; line-height: 1.7;
+}
+.footer-bottom {
+  max-width: 1100px; margin: 36px auto 0;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  display: flex; justify-content: space-between;
+  color: var(--text-tertiary); font-size: 12px;
+}
+
+/* ============================================================
+   LIVE MARKET ENTRY SECTION
+   ============================================================ */
+.live-entry {
+  position: relative; z-index: 1;
+  padding: 60px 24px 80px;
+  text-align: center;
+}
+.live-entry h2 {
+  font-size: 26px; font-weight: 800;
+  margin-bottom: 12px;
+}
+.live-entry .features-line {
+  color: var(--text-secondary);
+  font-size: 15px; margin-bottom: 6px;
+}
+.live-entry .features-sub {
+  color: var(--text-tertiary);
+  font-size: 13px; margin-bottom: 28px;
+}
+
+/* Feature icon grid */
+.feature-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  max-width: 700px;
+  margin: 0 auto 36px;
+}
+.fi-card {
+  background: rgba(15,18,37,0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius-lg);
+  padding: 18px 12px;
+  text-align: center;
+  transition: all var(--transition);
+}
+.fi-card:hover {
+  border-color: rgba(79,140,255,0.2);
+  background: rgba(15,18,37,0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.fi-card .fi-icon { font-size: 28px; margin-bottom: 8px; }
+.fi-card .fi-label { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 2px; }
+.fi-card .fi-desc { font-size: 11px; color: var(--text-tertiary); }
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+/* --- iPad / Tablet (≤1024px) --- */
+@media (max-width: 1024px) {
+  .section { padding: 60px 20px; }
+  .section-h2 { font-size: 30px; }
+  .products-grid { gap: 16px; }
+  .showcase-item { gap: 40px; }
+}
+
+/* --- Tablet Portrait / Large Phone (≤768px) --- */
+@media (max-width: 768px) {
+  html { font-size: 14px; }
+  .hero { padding: 60px 20px 50px; }
+  .hero h1 { font-size: clamp(28px, 6vw, 40px); }
+  .hero p { font-size: 15px; }
+  .hero-actions { flex-direction: column; align-items: center; }
+  .btn-primary, .btn-outline { width: 100%; max-width: 320px; justify-content: center; }
+
+  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 20px; }
+  .stat-item:nth-child(2)::after { display: none; }
+  .stat-item .stat-num { font-size: clamp(24px, 5vw, 36px); }
+
+  .products-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .prod-card { padding: 32px 24px 24px; }
+
+  .showcase-item { grid-template-columns: 1fr; gap: 32px; margin-bottom: 56px; }
+  .showcase-item.reverse { direction: ltr; }
+  .sc-preview { min-height: 200px; }
+  .sc-text h3 { font-size: 24px; }
+
+  .footer-grid { grid-template-columns: 1fr 1fr; gap: 32px; }
+  .cta-banner { margin: 0 20px 60px; padding: 48px 28px; }
+
+  .top-nav a { padding: 8px 12px; font-size: 12px; min-height: 36px; display: flex; align-items: center; }
+  .btn-sign { padding: 8px 18px; font-size: 12px; }
+
+  /* Reduce particles on mobile for performance */
+  .hero-particle:nth-child(n+9) { display: none; }
+}
+
+/* --- Phone (≤480px) --- */
+@media (max-width: 480px) {
+  html { font-size: 13px; }
+  .top-bar { padding: 0 8px; height: 46px; }
+  .logo-icon { width: 28px; height: 28px; font-size: 13px; border-radius: 6px; }
+  .logo-text { font-size: 14px; }
+  .top-nav { gap: 1px; }
+  .top-nav a { padding: 6px 8px; font-size: 11px; min-height: 32px; }
+  .btn-sign { padding: 7px 14px; font-size: 11px; }
+
+  .hero { padding: 44px 14px 40px; }
+  .hero-badge { font-size: 10px; margin-bottom: 24px; }
+  .hero h1 { font-size: 26px; }
+  .hero p { font-size: 13px; margin-bottom: 28px; }
+  .btn-primary, .btn-outline { padding: 14px 24px; font-size: 14px; }
+
+  .ticker-strip { padding: 8px 0; }
+  .ticker-strip .item { font-size: 11px; padding: 0 14px; }
+
+  .live-snapshot { padding: 0 14px !important; margin-bottom: 20px !important; }
+  .live-snapshot > div { grid-template-columns: 1fr !important; }
+
+  .stats-bar { padding: 36px 16px; }
+  .stats-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-item { padding: 10px; }
+  .stat-item:nth-child(2)::after { display: none; }
+  .stat-item:nth-child(3)::after { display: none; }
+
+  .products { padding: 50px 14px; }
+  .section-h2 { font-size: 24px; }
+  .prod-card { padding: 24px 18px 20px; border-radius: var(--radius-lg); }
+  .prod-card .pc-features li { font-size: 11px; }
+  .prod-card .pc-price { font-size: 24px; }
+
+  .showcase { padding: 50px 14px; }
+  .sc-text h3 { font-size: 20px; }
+  .sc-preview { padding: 24px 16px; min-height: 160px; }
+
+  .faq { padding: 50px 14px; }
+  .faq-item { padding: 16px 16px; border-radius: var(--radius-md); }
+  .faq-item .faq-q { font-size: 13px; gap: 8px; }
+
+  .footer-grid { grid-template-columns: 1fr; gap: 28px; }
+  .footer-bottom { flex-direction: column; gap: 6px; text-align: center; }
+  .cta-banner { padding: 40px 20px; margin: 0 14px 48px; border-radius: var(--radius-xl); }
+  .cta-banner h2 { font-size: 22px; }
+
+  .live-entry { padding: 40px 14px 50px; }
+  .live-entry h2 { font-size: 22px; }
+  .feature-icon-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .fi-card { padding: 14px 8px; }
+  .fi-card .fi-icon { font-size: 24px; }
+
+  /* Touch-friendly improvements */
+  button, a, [onclick], .faq-item, .prod-card, .showcase-item {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+  .showcase { padding: 60px 16px; }
+  .live-entry { padding: 40px 16px 60px; }
+}
 </style>
 </head>
 <body>
 
-<!-- NAV -->
-<div class="top-bar">
+<!-- ============================================================
+     NAVIGATION
+     ============================================================ -->
+<header class="top-bar">
   <div class="logo-area">
     <div class="logo-icon">S</div>
     <div class="logo-text">Stock<span>AI</span></div>
   </div>
-  <div class="top-nav">
+  <nav class="top-nav">
     <a href="/" class="active">首页</a>
     <a href="/stock">行情</a>
+    <a href="/bottleneck">瓶颈扫描</a>
     <a href="/media">自媒体</a>
     <a href="/services">定制服务</a>
-  </div>
+  </nav>
   <a href="/stock" class="btn-sign">免费使用 →</a>
-</div>
+</header>
 
-<!-- HERO -->
-<div class="hero">
-  <div class="hero-badge">AI 驱动的专业投资平台</div>
-  <h1>专业市场分析<span>化繁为简</span></h1>
-  <p>实时全球行情、AI深度分析、专业级投资工具，一站式平台。为交易者、创作者和开发者打造。</p>
-  <div class="hero-actions">
-    <a href="/stock" class="btn-primary">进入行情终端 →</a>
-    <a href="#products" class="btn-outline">了解更多</a>
+<!-- ============================================================
+     HERO
+     ============================================================ -->
+<section class="hero">
+  <!-- Animated particles -->
+  <div class="hero-particles" aria-hidden="true">
+    <div class="hero-particle" style="left:5%;animation-delay:0s"></div>
+    <div class="hero-particle" style="left:12%;animation-delay:1.2s"></div>
+    <div class="hero-particle" style="left:18%;animation-delay:2.4s"></div>
+    <div class="hero-particle" style="left:25%;animation-delay:0.6s"></div>
+    <div class="hero-particle" style="left:30%;animation-delay:3.1s"></div>
+    <div class="hero-particle" style="left:38%;animation-delay:1.8s"></div>
+    <div class="hero-particle" style="left:44%;animation-delay:4.2s"></div>
+    <div class="hero-particle" style="left:50%;animation-delay:0.3s"></div>
+    <div class="hero-particle" style="left:56%;animation-delay:2.7s"></div>
+    <div class="hero-particle" style="left:62%;animation-delay:5.1s"></div>
+    <div class="hero-particle" style="left:70%;animation-delay:1.5s"></div>
+    <div class="hero-particle" style="left:78%;animation-delay:3.8s"></div>
+    <div class="hero-particle" style="left:84%;animation-delay:0.9s"></div>
+    <div class="hero-particle" style="left:92%;animation-delay:2.1s"></div>
+    <div class="hero-particle" style="left:48%;animation-delay:6.3s"></div>
+    <div class="hero-particle" style="left:15%;animation-delay:4.8s"></div>
+    <div class="hero-particle" style="left:68%;animation-delay:7.2s"></div>
+    <div class="hero-particle" style="left:33%;animation-delay:5.7s"></div>
+    <div class="hero-particle" style="left:88%;animation-delay:3.4s"></div>
+    <div class="hero-particle" style="left:55%;animation-delay:6.9s"></div>
   </div>
-</div>
 
-<!-- TICKER STRIP -->
+  <!-- Ambient glows -->
+  <div class="hero-ambiance hero-ambiance-top" aria-hidden="true"></div>
+  <div class="hero-ambiance hero-ambiance-bottom" aria-hidden="true"></div>
+  <div class="hero-line" aria-hidden="true"></div>
+
+  <div class="hero-content">
+    <div class="hero-badge">🆓 免费使用 · AI选股 · 微信通知</div>
+    <h1>每天3分钟<br><span class="gradient-text">AI帮你搞定A股</span></h1>
+    <p>不懂股票也能看懂——大盘方向、涨停复盘、避雷指南，AI替你分析。<br>同花顺给你数据，<b>StockAI 给你结论</b>。</p>
+    <div class="hero-actions">
+      <a href="/stock" class="btn-primary">
+        <span>进入行情终端</span>
+        <span style="font-size:16px">→</span>
+      </a>
+      <a href="#products" class="btn-outline">探索产品</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     LIVE TICKER STRIP
+     ============================================================ -->
 <div class="ticker-strip">
   <div class="scroll" id="tickerEl">
-    <span style="padding:0 20px;color:var(--text-tertiary)">正在加载实时行情...</span>
+    <span style="padding:0 20px;color:var(--text-tertiary)">正在加载实时行情数据...</span>
   </div>
 </div>
 
-<!-- STATS -->
-<div class="stats-bar">
-  <div class="section-inner">
-    <div class="stats-grid">
-      <div class="stat-item"><div class="stat-num">5,500+</div><div class="stat-label">覆盖A股</div></div>
-      <div class="stat-item"><div class="stat-num">7</div><div class="stat-label">全球指数</div></div>
-      <div class="stat-item"><div class="stat-num">3</div><div class="stat-label">交易市场</div></div>
-      <div class="stat-item"><div class="stat-num">实时</div><div class="stat-label">数据刷新</div></div>
+<!-- ============================================================
+     LIVE MARKET SNAPSHOT — 实时行情快报
+     ============================================================ -->
+<section class="live-snapshot" id="liveSnapshot" style="max-width:1280px;margin:0 auto 30px;padding:0 24px">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <!-- 实时指数 -->
+    <div class="glass" style="padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px">📊 实时行情</div>
+      <div id="homeIndices" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div style="color:var(--text-tertiary);font-size:12px">加载中...</div>
+      </div>
+      <div id="homeMarketNote" style="font-size:10px;color:var(--text-tertiary);margin-top:8px"></div>
+    </div>
+    <!-- AI简报片段 -->
+    <div class="glass" style="padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text-secondary);margin-bottom:10px;display:flex;justify-content:space-between">
+        <span>🤖 AI今日简报</span>
+        <span id="homeBriefingTime" style="font-size:10px;color:var(--text-tertiary);font-weight:400"></span>
+      </div>
+      <div id="homeBriefing" style="font-size:12px;line-height:1.9;color:var(--text-secondary)">
+        <div style="color:var(--text-tertiary)">AI分析师正在解读今日行情...</div>
+      </div>
+      <a href="/stock" style="display:inline-block;margin-top:10px;font-size:11px;color:var(--accent);font-weight:600;text-decoration:none">查看完整仪表盘 →</a>
     </div>
   </div>
-</div>
+</section>
 
-<!-- PRODUCT CARDS -->
-<div class="products" id="products">
-  <div class="section-inner">
+<script>
+// Load live market data on homepage
+(async function() {
+  var base = window.API_BASE || '';
+  try {
+    // Load indices
+    var r = await fetch(base + '/api/market/indices');
+    var d = await r.json();
+    var indices = d.indices || [];
+    var html = '';
+    for (var i = 0; i < Math.min(indices.length, 6); i++) {
+      var idx = indices[i];
+      var up = idx.change_pct >= 0;
+      html += '<div style="display:flex;justify-content:space-between"><span style="font-size:11px;color:var(--text-secondary)">' + idx.name + '</span><span style="font-size:11px;font-weight:600;color:' + (up ? 'var(--green)' : 'var(--red)') + '">' + idx.price.toFixed(2) + ' <span style="font-size:10px">' + (up ? '+' : '') + idx.change_pct.toFixed(2) + '%</span></span></div>';
+    }
+    document.getElementById('homeIndices').innerHTML = html || '暂无数据';
+
+    // Market note
+    var now = new Date();
+    var h = now.getHours(), d2 = now.getDay();
+    var note = (d2 === 0 || d2 === 6) ? '📅 周末休市中' : (h < 9 || h >= 15) ? '⏸ 已收盘，以下为最新数据' : '🟢 盘中实时数据';
+    document.getElementById('homeMarketNote').textContent = note;
+  } catch(e) {}
+
+  try {
+    // Load AI briefing
+    var r2 = await fetch(base + '/api/market/daily-briefing', { method:'POST' });
+    var d2 = await r2.json();
+    var text = d2.briefing_text || '';
+    if (text && text.length > 10) {
+      text = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      text = text.replace(/【(.+?)】/g, '<b style="color:var(--accent-bright)">$1</b> ');
+      text = text.replace(/\n/g, '<br>');
+      document.getElementById('homeBriefing').innerHTML = text;
+      document.getElementById('homeBriefingTime').textContent = d2.generated_at || '';
+    }
+  } catch(e) { document.getElementById('homeBriefing').innerHTML = 'AI分析暂不可用，<a href="/stock">进入行情页</a>查看'; }
+})();
+</script>
+
+<!-- ============================================================
+     STATS BAR
+     ============================================================ -->
+<section class="stats-bar">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-num">5,500<span style="font-size:0.5em;font-weight:600">+</span></div>
+      <div class="stat-label">覆盖 A 股</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">7</div>
+      <div class="stat-label">全球指数</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">3</div>
+      <div class="stat-label">交易市场</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">30<span style="font-size:0.5em;font-weight:600">s</span></div>
+      <div class="stat-label">数据刷新</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PRODUCT CARDS
+     ============================================================ -->
+<section class="products" id="products">
+  <div class="section-header">
     <div class="section-tag">核心产品</div>
-    <div class="section-h2">三大核心工具<br>一站式平台</div>
-    <div class="section-p">覆盖金融分析、内容创作、定制开发的全方位解决方案。</div>
-    <div class="products-grid">
-      <a href="/stock" class="prod-card">
-        <div class="pc-icon pc-icon-stock">S</div>
-        <h3>A股智能分析</h3>
-        <p>实时沪深港美股行情，AI驱动深度分析，K线图表，专业PDF报告一键导出。</p>
-        <ul class="pc-features">
-          <li>全球指数实时追踪 & 板块热力图</li>
-          <li>技术指标 (MACD/RSI/KDJ/布林带)</li>
-          <li>北向资金 & 主力资金流向监控</li>
-          <li>智能选股 & 多股对比</li>
-          <li>龙虎榜 & 游资追踪</li>
-        </ul>
-        <div class="pc-bottom"><span class="pc-price">¥39<span style="font-size:13px;font-weight:400">/月</span></span><span class="pc-cta">立即使用 →</span></div>
-      </a>
-      <a href="/media" class="prod-card">
-        <div class="pc-icon pc-icon-media">M</div>
-        <h3>自媒体AI助手</h3>
-        <p>AI内容生成、热点追踪、视频脚本创作、配音制作，一站式自媒体创作工具。</p>
-        <ul class="pc-features">
-          <li>双引擎AI (DeepSeek + Claude)</li>
-          <li>爆款内容模仿 & 模板库</li>
-          <li>视频脚本 & 配音自动生成</li>
-          <li>热点话题趋势发现</li>
-          <li>多平台内容优化分发</li>
-        </ul>
-        <div class="pc-bottom"><span class="pc-price">¥29<span style="font-size:13px;font-weight:400">/月</span></span><span class="pc-cta">立即使用 →</span></div>
-      </a>
-      <a href="/services" class="prod-card">
-        <div class="pc-icon pc-icon-dev">D</div>
-        <h3>定制AI开发</h3>
-        <p>量身定制的AI解决方案、自动化工具和全栈应用开发，服务企业与个人。</p>
-        <ul class="pc-features">
-          <li>AI工具MVP快速开发</li>
-          <li>全栈Web应用搭建</li>
-          <li>金融数据系统定制</li>
-          <li>自动化 & 数据采集</li>
-          <li>微信小程序开发</li>
-        </ul>
-        <div class="pc-bottom"><span class="pc-price">¥500+<span style="font-size:13px;font-weight:400">/项目起</span></span><span class="pc-cta">获取报价 →</span></div>
-      </a>
-    </div>
+    <h2 class="section-h2">三大引擎，一站覆盖</h2>
+    <p class="section-p">从行情分析到内容创作，从工具使用到定制开发 — 全栈 AI 解决方案。</p>
   </div>
-</div>
+  <div class="products-grid">
+    <!-- Product 1: Stock Analysis -->
+    <a href="/stock" class="prod-card">
+      <div class="pc-icon pc-icon-stock">📈</div>
+      <h3>A 股智能分析</h3>
+      <p>实时沪深港美股行情，AI 深度分析引擎，专业 K 线图表，一键导出 PDF 报告。</p>
+      <ul class="pc-features">
+        <li>全球指数追踪 & 板块热力图</li>
+        <li>MACD / RSI / KDJ / 布林带</li>
+        <li>北向资金 & 主力资金流向</li>
+        <li>智能选股 & 多股对比</li>
+        <li>龙虎榜 & 游资追踪</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-price">¥39<span style="font-size:12px;font-weight:400;margin-left:2px">/月</span></span>
+        <span class="pc-cta">立即使用 →</span>
+      </div>
+    </a>
+    <!-- Product 2: Media AI -->
+    <a href="/media" class="prod-card">
+      <div class="pc-icon pc-icon-media">✍️</div>
+      <h3>自媒体 AI 助手</h3>
+      <p>AI 内容生成、热点追踪、视频脚本到配音制作，内容创作者的超级工具箱。</p>
+      <ul class="pc-features">
+        <li>双引擎 AI（DeepSeek + Claude）</li>
+        <li>爆款模仿 & 模板库</li>
+        <li>视频脚本 & 配音自动生成</li>
+        <li>热点趋势智能发现</li>
+        <li>多平台内容优化分发</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-price">¥29<span style="font-size:12px;font-weight:400;margin-left:2px">/月</span></span>
+        <span class="pc-cta">立即使用 →</span>
+      </div>
+    </a>
+    <!-- Product 3: Custom Dev -->
+    <a href="/services" class="prod-card">
+      <div class="pc-icon pc-icon-dev">⚡</div>
+      <h3>定制 AI 开发</h3>
+      <p>量身打造的 AI 解决方案与全栈应用开发，从 MVP 到生产级系统。</p>
+      <ul class="pc-features">
+        <li>AI 工具 MVP 快速开发</li>
+        <li>全栈 Web 应用搭建</li>
+        <li>金融数据系统定制</li>
+        <li>自动化 & 数据采集</li>
+        <li>微信小程序开发</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-price">¥500<span style="font-size:12px;font-weight:400;margin-left:2px">+</span></span>
+        <span class="pc-cta">获取报价 →</span>
+      </div>
+    </a>
+  </div>
+</section>
 
-<!-- SHOWCASE -->
-<div class="showcase">
-  <div class="section-inner" style="text-align:center;margin-bottom:60px">
+<!-- ============================================================
+     FEATURE SHOWCASE
+     ============================================================ -->
+<section class="showcase">
+  <div class="section-header" style="margin-bottom:64px">
     <div class="section-tag">核心优势</div>
-    <div class="section-h2">为什么交易者选择 StockAI</div>
+    <h2 class="section-h2">为什么交易者选择 StockAI</h2>
   </div>
+
+  <!-- Showcase 1 -->
   <div class="showcase-item">
     <div class="sc-text">
       <h3>实时全球市场数据</h3>
-      <p>覆盖沪深A股、港股、美股、欧亚市场，每30秒自动刷新。商品期货和加密货币同步监控。</p>
+      <p>覆盖沪深 A 股、港股、美股及全球主要市场。商品期货与加密货币同步监控，每 30 秒自动刷新。</p>
       <ul class="sc-list">
-        <li>7大全球指数 + 行业概念热力图</li>
+        <li>7 大全球指数 + 行业概念热力图</li>
         <li>北向资金可视化追踪</li>
-        <li>实时滚动行情条</li>
+        <li>实时滚动行情条，异动秒级提醒</li>
       </ul>
     </div>
     <div class="sc-preview">
       <div class="sc-preview-chart">
-        <div class="sc-preview-bar" style="height:35px;background:var(--accent)"></div>
-        <div class="sc-preview-bar" style="height:50px;background:var(--accent)"></div>
-        <div class="sc-preview-bar" style="height:28px;background:#ef4444"></div>
-        <div class="sc-preview-bar" style="height:60px;background:var(--accent)"></div>
-        <div class="sc-preview-bar" style="height:42px;background:var(--accent)"></div>
-        <div class="sc-preview-bar" style="height:55px;background:#22c55e"></div>
-        <div class="sc-preview-bar" style="height:38px;background:var(--accent)"></div>
-        <div class="sc-preview-bar" style="height:65px;background:#22c55e"></div>
+        <div class="sc-preview-bar" style="height:32px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:48px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:26px;background:#ef4444"></div>
+        <div class="sc-preview-bar" style="height:58px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:40px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:52px;background:#22c55e"></div>
+        <div class="sc-preview-bar" style="height:36px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:62px;background:#22c55e"></div>
       </div>
-      <strong>实时大盘指数</strong>
-      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">上证 +0.8% • 深证 +1.2% • 创业板 +2.1%</span>
+      <strong style="color:var(--text-primary)">实时大盘指数</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">上证 +0.8% &nbsp;深证 +1.2% &nbsp;创业板 +2.1%</span>
     </div>
   </div>
+
+  <!-- Showcase 2 -->
   <div class="showcase-item reverse">
     <div class="sc-text">
       <h3>专业级技术分析</h3>
-      <p>K线蜡烛图叠加均线系统，MACD动量指标，RSI超买超卖信号，为专业交易者打造。</p>
+      <p>K 线蜡烛图叠加多周期均线，MACD 动量指标，RSI 超买超卖信号，布林带通道 — 为专业交易者打造。</p>
       <ul class="sc-list">
-        <li>K线 + MA5/MA10/MA20/MA60均线</li>
-        <li>MACD柱状图 + DIF/DEA金叉死叉</li>
-        <li>RSI(14)超买超卖 + 30/70警戒线</li>
+        <li>K 线 + MA5 / MA10 / MA20 / MA60</li>
+        <li>MACD 金叉死叉 + 柱状图</li>
+        <li>RSI(14) 超买超卖 30/70 警戒</li>
       </ul>
     </div>
     <div class="sc-preview">
-      <div style="display:flex;align-items:end;gap:4px;height:60px;margin-bottom:12px">
-        <div style="width:8px;height:30px;background:#ef4444;border-radius:2px"></div>
-        <div style="width:8px;height:45px;background:#22c55e;border-radius:2px"></div>
-        <div style="width:8px;height:25px;background:#ef4444;border-radius:2px"></div>
-        <div style="width:8px;height:50px;background:#22c55e;border-radius:2px"></div>
-        <div style="width:8px;height:20px;background:#22c55e;border-radius:2px"></div>
-        <div style="width:8px;height:40px;background:#ef4444;border-radius:2px"></div>
-        <div style="width:8px;height:55px;background:#22c55e;border-radius:2px"></div>
-        <div style="width:8px;height:35px;background:#22c55e;border-radius:2px"></div>
-        <div style="width:8px;height:48px;background:#ef4444;border-radius:2px"></div>
-        <div style="width:8px;height:28px;background:#22c55e;border-radius:2px"></div>
+      <div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-bottom:12px">
+        <div style="width:7px;height:28px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:42px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:22px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:48px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:18px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:38px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:52px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:32px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:45px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:25px;background:#22c55e;border-radius:1px"></div>
       </div>
-      <strong>K线图 + MACD指标</strong>
-      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">MA5·MA10·MA20·MA60 • RSI • 布林带</span>
+      <strong style="color:var(--text-primary)">K 线图 + MACD 指标</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">MA5 · MA10 · MA20 · MA60 · RSI · 布林带</span>
     </div>
   </div>
+
+  <!-- Showcase 3 -->
   <div class="showcase-item">
     <div class="sc-text">
-      <h3>AI驱动深度分析</h3>
-      <p>从综合评估到风险预警，7个分析维度全覆盖。DeepSeek大模型驱动，秒级生成专业洞察。</p>
+      <h3>AI 驱动七维分析</h3>
+      <p>综合评估到风险预警，七大维度全覆盖。DeepSeek 大模型驱动，秒级生成专业分析洞察与操作建议。</p>
       <ul class="sc-list">
-        <li>综合/技术面/基本面/估值分析</li>
-        <li>新闻事件/行业对比/风险评级</li>
+        <li>综合 / 技术面 / 基本面 / 估值</li>
+        <li>新闻事件 / 行业对比 / 风险评级</li>
         <li>具体操作建议 + 目标价区间</li>
       </ul>
     </div>
     <div class="sc-preview">
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <span class="sc-preview-dot" style="background:var(--accent)"></span>
-        <span class="sc-preview-dot" style="background:var(--purple)"></span>
-        <span class="sc-preview-dot" style="background:var(--green)"></span>
-        <span class="sc-preview-dot" style="background:var(--orange)"></span>
-        <span class="sc-preview-dot" style="background:var(--red)"></span>
-        <span class="sc-preview-dot" style="background:var(--yellow)"></span>
-        <span class="sc-preview-dot" style="background:var(--accent)"></span>
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <span class="sc-preview-dot" style="background:#4f8cff;color:#4f8cff"></span>
+        <span class="sc-preview-dot" style="background:#a855f7;color:#a855f7"></span>
+        <span class="sc-preview-dot" style="background:#22c55e;color:#22c55e"></span>
+        <span class="sc-preview-dot" style="background:#f97316;color:#f97316"></span>
+        <span class="sc-preview-dot" style="background:#ef4444;color:#ef4444"></span>
+        <span class="sc-preview-dot" style="background:#f0b90b;color:#f0b90b"></span>
+        <span class="sc-preview-dot" style="background:#4f8cff;color:#4f8cff"></span>
       </div>
-      <strong>7维度AI深度分析</strong>
-      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">7个分析视角 • PDF报告 • 历史记录</span>
+      <strong style="color:var(--text-primary)">七维 AI 深度分析</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">7 个视角 · PDF 报告 · 历史记录</span>
     </div>
   </div>
-</div>
+</section>
 
-<!-- FAQ -->
-<div class="faq">
-  <div class="section-inner" style="text-align:center">
+<!-- ============================================================
+     FAQ
+     ============================================================ -->
+<section class="faq">
+  <div class="section-header">
     <div class="section-tag">常见问题</div>
-    <div class="section-h2">Frequently asked questions</div>
+    <h2 class="section-h2">快速了解 StockAI</h2>
   </div>
   <div class="faq-grid">
     <div class="faq-item" onclick="this.classList.toggle('open')">
       <div class="faq-q">StockAI 覆盖哪些市场？ <span>+</span></div>
-      <div class="faq-a">沪深A股、港股（港交所）、美股（纽交所+纳斯达克）。同时覆盖日本、韩国、印度、欧洲等全球主要指数，以及商品期货和加密货币行情。</div>
+      <div class="faq-a">沪深 A 股、港股（港交所）、美股（纽交所 + 纳斯达克）。同时覆盖日本、韩国、印度、欧洲等全球主要指数，以及商品期货和加密货币行情。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
-      <div class="faq-q">AI分析是如何工作的？ <span>+</span></div>
-      <div class="faq-a">系统获取实时行情和近期K线数据，通过多引擎AI架构（DeepSeek V4 + Claude Opus 4.8 + GPT-4o）进行多维度深度分析。7个分析视角包括：综合评估、技术面分析（MACD/RSI/KDJ）、基本面分析（PE/PB/ROE）、估值对比、新闻事件驱动、行业赛道对比、风险评估。所有AI模型并行工作、交叉验证，确保分析结果的专业性和准确性。</div>
+      <div class="faq-q">AI 分析如何工作？ <span>+</span></div>
+      <div class="faq-a">系统获取实时行情和近期 K 线数据，通过多引擎 AI 架构（DeepSeek V4 + Claude Opus 4.8）进行七维深度分析：综合评估、技术面（MACD / RSI / KDJ）、基本面（PE / PB / ROE）、估值对比、新闻事件驱动、行业赛道对比、风险评估。所有 AI 模型并行工作、交叉验证，确保专业性和准确性。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
       <div class="faq-q">数据是实时的吗？ <span>+</span></div>
-      <div class="faq-a">是的。系统接入全球主流交易所权威数据源，A股、港股、美股、欧亚指数实时同步更新，刷新频率达30秒/次。美股数据遵循交易所合规要求（标准延迟）。所有数据经过多源交叉校验，确保准确性和稳定性。全球7大指数+商品期货+加密货币一站式覆盖。</div>
+      <div class="faq-a">是的。系统接入全球主流交易所权威数据源，A 股、港股、美股、欧亚指数实时同步更新，刷新频率达 30 秒/次。美股数据遵循交易所合规要求（标准延迟）。所有数据经过多源交叉校验，确保准确稳定。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
       <div class="faq-q">可以保存分析和追踪股票吗？ <span>+</span></div>
-      <div class="faq-a">完全可以。注册免费账户即可享受：① 自选股管理（免费10只/VIP50只/SVIP200只）；② 智能价格提醒（突破价/跌破价/涨跌幅触发/主力资金异动）；③ AI分析历史云端保存+一键导出PDF报告；④ 资金流向追踪记录自动累积；⑤ 多设备数据同步。所有分析记录永久保存，随时复盘回顾。</div>
+      <div class="faq-a">注册免费账户即可：① 自选股管理（免费 10 只 / VIP 50 只 / SVIP 200 只）；② 智能价格提醒（突破 / 跌破 / 涨跌幅 / 资金异动）；③ AI 分析历史云端保存 + 一键导出 PDF；④ 资金流向追踪自动累积；⑤ 多设备数据同步。所有记录永久保存。</div>
     </div>
   </div>
-</div>
+</section>
 
-<!-- CTA BANNER -->
-<div class="cta-banner">
+<!-- ============================================================
+     CTA BANNER
+     ============================================================ -->
+<section class="cta-banner">
   <h2>准备好提升交易水平了吗？</h2>
-  <p>加入数千名交易者，使用 StockAI 进行专业市场分析。</p>
-  <a href="/stock" class="btn-primary" style="display:inline-block">免费开始使用 →</a>
-</div>
+  <p>加入数千名交易者，使用 StockAI 进行专业市场分析。免费开始，随时升级。</p>
+  <a href="/stock" class="btn-primary" style="display:inline-flex">免费开始使用 →</a>
+</section>
 
-<!-- FOOTER -->
-<div class="footer">
+<!-- ============================================================
+     LIVE MARKET ENTRY
+     ============================================================ -->
+<section class="live-entry">
+  <h2>实时行情终端</h2>
+
+  <!-- Feature icon grid -->
+  <div class="feature-icon-grid">
+    <div class="fi-card">
+      <div class="fi-icon">📊</div>
+      <div class="fi-label">实时指数</div>
+      <div class="fi-desc">7大全球指数</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🔥</div>
+      <div class="fi-label">板块热力图</div>
+      <div class="fi-desc">行业概念轮动</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">💰</div>
+      <div class="fi-label">资金流向</div>
+      <div class="fi-desc">主力散户追踪</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">📈</div>
+      <div class="fi-label">K线图表</div>
+      <div class="fi-desc">MACD·RSI·KDJ</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🤖</div>
+      <div class="fi-label">AI分析引擎</div>
+      <div class="fi-desc">7维深度分析</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🐉</div>
+      <div class="fi-label">龙虎榜</div>
+      <div class="fi-desc">游资动向追踪</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🎯</div>
+      <div class="fi-label">智能选股</div>
+      <div class="fi-desc">AI量化筛选</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">📋</div>
+      <div class="fi-label">PDF报告</div>
+      <div class="fi-desc">一键导出分析</div>
+    </div>
+  </div>
+
+  <a href="/stock" class="btn-primary" style="padding:16px 44px;font-size:16px;display:inline-flex">进入实时行情 →</a>
+</section>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="footer">
   <div class="footer-grid">
     <div class="footer-col">
       <h4>StockAI</h4>
-      <a style="color:var(--text-secondary);font-size:13px;line-height:1.6;padding:0">专业市场智能分析平台。AI驱动深度分析，实时行情数据，为现代交易者和创作者打造的专业工具。</a>
+      <p class="brand-desc">专业市场智能分析平台。AI 驱动深度分析，实时行情数据，为现代交易者和创作者打造的专业工具。</p>
     </div>
     <div class="footer-col">
       <h4>产品</h4>
-      <a href="/stock">A股智能分析</a>
-      <a href="/media">自媒体助手</a>
-      <a href="/services">定制开发</a>
+      <a href="/stock">A 股智能分析</a>
+      <a href="/media">自媒体 AI 助手</a>
+      <a href="/services">定制 AI 开发</a>
     </div>
     <div class="footer-col">
       <h4>资源</h4>
@@ -420,36 +1453,47 @@ body { font-family:var(--font); background:linear-gradient(180deg, #080818 0%, #
     </div>
   </div>
   <div class="footer-bottom">
-    <span>© 2026 StockAI. 版权所有.</span>
-    <span>AI驱动 · Railway部署</span>
+    <span>© 2026 StockAI. All rights reserved.</span>
+    <span>AI 驱动 · Railway 部署 · kunhuang.top</span>
   </div>
-</div>
+</footer>
 
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
 <script>
-// Live ticker
+// Live ticker — fetch from backend and render
 (async function ticker() {
   try {
     const r = await fetch('/api/market/indices');
     const d = await r.json();
     if (!d.indices) return;
-    const labels = { 'sh000001':'上证指数','sz399001':'深证成指','sz399006':'创业板指','hk800000':'恒生指数','us.INX':'标普500','us.IXIC':'纳斯达克','us.DJI':'道琼斯' };
-    const all = [...d.indices, ...d.indices]; // duplicate for seamless loop
+    const labels = {
+      'sh000001':'上证指数','sz399001':'深证成指','sz399006':'创业板指',
+      'hk800000':'恒生指数','us.INX':'标普500','us.IXIC':'纳斯达克','us.DJI':'道琼斯'
+    };
+    const all = [...d.indices, ...d.indices]; // duplicate for seamless scroll
     document.getElementById('tickerEl').innerHTML = all.map(i => {
-      const up = i.change_pct >= 0, c = up ? '#22c55e' : '#ef4444', a = up ? '↑ ' : '↓ ';
-      return `<span class="item"><span class="sym">${labels[i.code]||i.name}</span><span>${i.price.toFixed(2)}</span><span style="color:${c};font-size:12px">${a}${Math.abs(i.change_pct).toFixed(2)}%</span><span class="divider"></span></span>`;
+      const up = i.change_pct >= 0, c = up ? '#22c55e' : '#ef4444', a = up ? '↑' : '↓';
+      return `<span class="item"><span class="sym">${labels[i.code]||i.name}</span><span>${i.price.toFixed(2)}</span><span style="color:${c};font-size:11px;font-weight:600">${a} ${Math.abs(i.change_pct).toFixed(2)}%</span><span class="divider"></span></span>`;
     }).join('');
-  } catch(e) {}
+  } catch(e) {
+    document.getElementById('tickerEl').innerHTML = '<span style="padding:0 20px;color:var(--text-tertiary)">行情数据加载中，请稍后刷新...</span>';
+  }
 })();
 </script>
-<!-- LIVE MARKET ENTRY -->
-<div class="section" style="padding:60px 24px;text-align:center">
-  <div class="section-inner">
-    <h2 style="font-size:28px;font-weight:800;margin-bottom:12px">实时行情终端</h2>
-    <p style="color:var(--text-secondary);font-size:16px;margin-bottom:8px">K线图表 · 资金流向 · 北向资金 · 龙虎榜 · 涨停复盘 · 概念轮动</p>
-    <p style="color:var(--text-tertiary);font-size:13px;margin-bottom:28px">主力追踪 · 智能选股 · 异动预警 · 筹码集中度 · 技术形态</p>
-    <a href="/stock" class="btn-primary" style="font-size:16px;padding:16px 40px;display:inline-block">进入实时行情 →</a>
+
+<!-- PWA Install Prompt -->
+<div id="pwaInstallBtn" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(180deg,rgba(15,18,37,0.98),rgba(6,6,8,0.98));border-top:1px solid rgba(59,130,246,0.3);padding:12px 16px calc(12px + env(safe-area-inset-bottom));justify-content:space-between;align-items:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:28px">📈</span>
+    <div><div style="font-weight:700;font-size:14px;color:#fff">StockAI — 专业行情终端</div><div style="font-size:11px;color:var(--text-tertiary)">添加到桌面，随时随地看盘</div></div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button onclick="pwaDismiss()" style="padding:8px 14px;background:transparent;border:1px solid var(--border-default);border-radius:20px;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font)">稍后</button>
+    <button onclick="pwaInstall()" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:20px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:var(--font);box-shadow:0 4px 16px rgba(59,130,246,0.3)">立即安装</button>
   </div>
 </div>
 
 </body>
-</html><!-- deploy Sun Jun  7 16:49:28     2026 -->
+</html>

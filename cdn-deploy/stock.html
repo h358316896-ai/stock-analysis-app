@@ -15,6 +15,8 @@
 <meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="/manifest.json">
+<!-- Baidu Analytics -->
+<script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?537ad9b521fa975bec0ecd5b8aad87af";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s)})();</script>
 <link rel="apple-touch-icon" href="/static/icon-192.png">
 <link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
 <title>StockAI v2 — 专业行情分析平台</title>
@@ -3263,20 +3265,31 @@ async function fallbackToSnapshot(listEl, type, renderFn, title) {
     }
     var snap = _snapshotCache;
     var items = [];
+    var snapDate = '';
     if (snap && snap.has_data && snap.snapshot && snap.snapshot.data) {
       var data = snap.snapshot.data;
-      if (type === 'anomaly' && data.limit_ups) { items = data.limit_ups.slice(0, 8); }
-      else if (type === 'risk' && data.limit_downs) { items = data.limit_downs.slice(0, 8); }
+      snapDate = snap.snapshot.date || '';
+      if (type === 'anomaly' && data.limit_ups && data.limit_ups.length) { items = data.limit_ups.slice(0, 8); }
+      else if (type === 'risk' && data.limit_downs && data.limit_downs.length) { items = data.limit_downs.slice(0, 8); }
       else if (type === 'smartmoney') { items = (data.indices || '').split(';').slice(0, 5); }
     }
+    var dateLabel = snapDate ? ' (' + snapDate.slice(5) + ')' : '';
     if (items.length) {
-      var html = '<div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">' + title + '</div>';
+      var html = '<div style=\"font-size:10px;color:var(--text-tertiary);margin-bottom:4px\">' + title + dateLabel + '</div>';
       html += items.map(function(s) { return renderFn(s); }).join('');
       listEl.innerHTML = html;
     } else {
-      listEl.innerHTML = '<div class="dash-empty">暂无数据</div>';
+      // Show indices snapshot as fallback
+      if (snap && snap.has_data && snap.snapshot && snap.snapshot.data) {
+        var indices = snap.snapshot.data.indices || '';
+        var idxItems = indices.split(';').slice(0, 4);
+        listEl.innerHTML = '<div style=\"font-size:10px;color:var(--text-tertiary);margin-bottom:4px\">'+title+dateLabel+'</div>' +
+          idxItems.map(function(s){ return '<div style=\"font-size:11px;color:var(--text-secondary);padding:2px 0\">'+s.trim()+'</div>'; }).join('');
+      } else {
+        listEl.innerHTML = '<div class=\"dash-empty\">暂无数据<br><span style=\"font-size:10px;color:var(--text-tertiary)\">交易日盘中自动更新</span></div>';
+      }
     }
-  } catch(e) { listEl.innerHTML = '<div class="dash-empty">暂无数据</div>'; }
+  } catch(e) { listEl.innerHTML = '<div class=\"dash-empty\">暂无数据</div>'; }
 }
 
 var _anomalyTypeEmoji = { '放量拉升': '🚀', '放量跳水': '💥', '巨量异动': '⚡', '高换手': '🔄', '剧烈震荡': '🌊' };
@@ -3360,7 +3373,12 @@ async function loadTrendingStocks() {
     var list = document.getElementById('trendingList');
     var time = document.getElementById('trendingTime');
     if (time) time.textContent = d.updated || '';
-    if (!d.stocks || !d.stocks.length) { list.innerHTML = '<div class="dash-empty">暂无数据</div>'; return; }
+    if (!d.stocks || !d.stocks.length) {
+      await fallbackToSnapshot(list, 'trending', function(s) {
+        return '<div class=\"smartmoney-item\" onclick=\"quickSearch(\'' + (s.code||'') + '\',\'cn\')\"><div class=\"sm-name\">' + (s.name||s) + '</div></div>';
+      }, '最近交易日快照');
+      return;
+    }
     list.innerHTML = d.stocks.map(function(s) {
       var isUp = s.change_pct >= 0;
       return '<div class="smartmoney-item" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +

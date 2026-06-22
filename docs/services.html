@@ -5,53 +5,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#060608">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="定制AI开发服务 — 构建AI驱动的Web应用、金融科技工具、自动化系统和微信小程序。Flask、React、大模型集成。">
+<meta property="og:title" content="定制AI开发 — StockAI 服务">
+<meta property="og:description" content="定制的AI解决方案、自动化工具和全栈应用，服务于企业和个人。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kunhuang.top/services">
+<meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="/manifest.json">
-<script>
-// API proxy: route /api/* to the Railway backend on any static host (incl. kunhuang.top).
-(function(){
-  var host = window.location.hostname;
-  var isLocalBackend = (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0');
-  if (!isLocalBackend) {
-    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
-    var orig = window.fetch;
-    window.fetch = function(url, opts) {
-      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
-      return orig.call(this, url, opts);
-    };
-    try { orig.call(window, window.API_BASE + '/health', { mode: 'no-cors', cache: 'no-store' }).catch(function(){}); } catch(e){}
-  } else { window.API_BASE = ''; }
-})();
-</script>
-<title>定制AI开发 — StockAI | 金融系统·自动化·小程序</title>
+<title>定制AI开发 — StockAI</title>
+<link rel="stylesheet" href="/css/style.css">
 <style>
+/* ========== SERVICES PAGE SPECIFIC ========== */
+/* Purple accent override */
 :root {
-  --bg-primary: #060608; --bg-secondary: #0c0c14; --bg-card: #111118;
-  --bg-elevated: #1a1a28; --border-subtle: rgba(255,255,255,0.04);
-  --border-default: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.1);
-  --text-primary: #f0f0f5; --text-secondary: #9090a8; --text-tertiary: #585870;
-  --accent: #a855f7; --accent-glow: rgba(168,85,247,0.15); --green: #22c55e;
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px; --radius-xl: 20px;
-  --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+  --accent: #a855f7;
+  --accent-glow: rgba(168,85,247,0.15);
 }
-* { margin:0; padding:0; box-sizing:border-box; }
-html { font-size:15px; }
-body { font-family:var(--font); background:var(--bg-primary); color:var(--text-primary); -webkit-font-smoothing:antialiased; line-height:1.6; }
-::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:3px; }
 
-/* Nav */
-.top-bar { background:var(--bg-secondary); border-bottom:1px solid var(--border-subtle); height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:1000; }
-.logo-area { display:flex; align-items:center; gap:10px; }
-.logo-icon { width:30px; height:30px; background:var(--accent); border-radius:7px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:15px; color:white; box-shadow:0 0 20px var(--accent-glow); }
-.logo-text { font-weight:700; font-size:17px; } .logo-text span { color:var(--accent); }
-.top-nav { display:flex; gap:4px; }
-.top-nav a { color:var(--text-secondary); text-decoration:none; padding:7px 16px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; transition:var(--transition); }
-.top-nav a:hover, .top-nav a.active { color:var(--text-primary); background:rgba(255,255,255,0.04); }
-.btn-sign { padding:8px 20px; border-radius:var(--radius-sm); background:var(--accent); color:white; border:none; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--font); transition:var(--transition); text-decoration:none; }
-.btn-sign:hover { opacity:0.85; }
+.logo-icon { background:var(--accent); width:30px; height:30px; font-size:15px; box-shadow:0 0 20px var(--accent-glow); }
+.logo-text span { color:var(--accent); }
+.top-bar { height:56px; }
+.logo-text { font-size:17px; }
+.btn-sign { background:var(--accent); box-shadow:none; }
+.btn-sign:hover { opacity:0.85; background:var(--accent); transform:none; }
 
-.container { max-width:1000px; margin:0 auto; padding:24px; }
+.container { max-width:1000px; }
 
 /* Hero */
 .hero { text-align:center; padding:56px 0 40px; position:relative; }
@@ -133,217 +112,252 @@ body { font-family:var(--font); background:var(--bg-primary); color:var(--text-p
 .faq-item:hover { border-color:var(--border-default); }
 .faq-item .faq-q { font-size:14px; font-weight:600; display:flex; justify-content:space-between; }
 .faq-item.open .faq-q span { transform:rotate(45deg); }
-.faq-item .faq-a { color:var(--text-secondary); font-size:13px; margin-top:10px; display:none; line-height:1.7; }
-.faq-item.open .faq-a { display:block; }
+.faq-item .faq-a { color:var(--text-secondary); font-size:13px; margin-top:10px; max-height:0; overflow:hidden; transition:max-height 0.3s ease; line-height:1.7; }
+.faq-item.open .faq-a { max-height:500px; }
 
 /* Footer */
 .footer { background:var(--bg-secondary); border-top:1px solid var(--border-subtle); padding:32px 24px; text-align:center; color:var(--text-tertiary); font-size:12px; margin-top:40px; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .hero h1 { font-size: 32px; }
+  .hero p { font-size: 14px; }
+  .hero { padding: 40px 16px 32px; }
+  .svc-grid { grid-template-columns: 1fr; max-width: 400px; margin-left: auto; margin-right: auto; }
+  .portfolio { grid-template-columns: 1fr; }
+  .testimonials { grid-template-columns: 1fr; }
+  .process { grid-template-columns: repeat(2, 1fr); }
+  .section-title h2 { font-size: 24px; }
+}
+@media (max-width: 480px) {
+  .hero h1 { font-size: 26px; }
+  .process { grid-template-columns: 1fr; }
+  .skills { gap: 4px; }
+  .skills span { padding: 5px 10px; font-size: 11px; }
+  .contact { padding: 0 12px; }
+  .svc-card { padding: 24px 16px; }
+}
 </style>
 </head>
 <body>
 
 <div class="top-bar">
   <div class="logo-area">
-    <div class="logo-icon">D</div>
-    <div class="logo-text">Stock<span>AI</span> / 定制服务</div>
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">Stock<span>AI</span> / 服务</div>
   </div>
   <div class="top-nav">
-    <a href="/">首页</a><a href="/stock">行情</a><a href="/media">自媒体</a><a href="/services" class="active">定制服务</a>
+    <a href="/">首页</a><a href="/stock">行情</a><a href="/media">自媒体</a><a href="/services" class="active">服务</a>
   </div>
   <a href="#contact" class="btn-sign">获取报价 →</a>
 </div>
 
 <div class="container">
   <div class="hero">
-    <div class="tag">定制AI开发</div>
+    <div class="tag">定制开发</div>
     <h1>打造你需要的<span>AI工具</span></h1>
-    <p>从MVP原型到生产级应用。专注金融科技、内容工具和自动化系统开发。</p>
+    <p>从MVP原型到生产级应用。专注金融科技、内容工具和自动化系统。</p>
   </div>
 
   <!-- Skills -->
   <div class="skills">
-    <span>Python / Flask</span><span>Node.js / React</span><span>AI / LLM Integration</span>
-    <span>Financial Data Systems</span><span>Content Generation</span><span>Web Scraping</span>
-    <span>REST API Development</span><span>WeChat Mini-Programs</span><span>PDF Report Generation</span>
-    <span>Data Dashboards</span><span>Automation Scripts</span><span>Database Design</span>
-    <span>Cloud Deployment</span><span>UI/UX Design</span><span>Prompt Engineering</span>
+    <span>Python / Flask</span><span>Node.js / React</span><span>AI / 大模型集成</span>
+    <span>金融数据系统</span><span>内容生成</span><span>数据采集</span>
+    <span>REST API 开发</span><span>微信小程序</span><span>PDF报告生成</span>
+    <span>数据看板</span><span>自动化脚本</span><span>数据库设计</span>
+    <span>云部署</span><span>UI/UX 设计</span><span>提示词工程</span>
   </div>
 
   <!-- Process -->
-  <div class="section-title"><div class="st">合作流程</div><h2>简单四步，轻松交付</h2></div>
+  <div class="section-title"><div class="st">工作流程</div><h2>简单的四步流程</h2></div>
   <div class="process">
     <div class="process-step">
       <div class="ps-num">1</div>
       <h3>需求沟通</h3>
-      <p>讨论你的需求、目标和时间规划。免费咨询，无任何义务。</p>
+      <p>讨论你的需求、目标和时间线。免费咨询，无任何义务。</p>
     </div>
     <div class="process-step">
       <div class="ps-num">2</div>
       <h3>方案报价</h3>
-      <p>24小时内提供详细范围、时间表和固定价格报价。</p>
+      <p>24小时内收到详细范围、时间线和固定价格报价。</p>
     </div>
     <div class="process-step">
       <div class="ps-num">3</div>
-      <h3>敏捷开发</h3>
-      <p>敏捷迭代开发，定期更新进度。每一步都可见、可控。</p>
+      <h3>开发迭代</h3>
+      <p>敏捷开发，定期更新。每一步都能看到进展。</p>
     </div>
     <div class="process-step">
       <div class="ps-num">4</div>
       <h3>上线支持</h3>
-      <p>部署上线、完整文档，含30天售后支持服务。</p>
+      <p>包含部署、文档和30天上线后支持。</p>
     </div>
   </div>
 
   <!-- Service Packages -->
-  <div class="section-title"><div class="st">服务套餐</div><h2>选择适合你的方案</h2></div>
+  <div class="section-title"><div class="st">套餐方案</div><h2>选择你的需求范围</h2></div>
   <div class="svc-grid">
     <div class="svc-card">
       <h3>MVP 极速版</h3>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">快速原型 / 单功能应用</p>
-      <div class="sc-price">¥500<span class="per">起</span></div>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">快速原型或单功能应用</p>
+      <div class="sc-price">¥500<span class="per">+</span></div>
       <ul class="sc-feat">
-        <li>单页面AI Web应用</li>
-        <li>基础AI/LLM集成</li>
-        <li>精美UI设计</li>
-        <li>部署上线协助</li>
+        <li>单页AI Web应用</li>
+        <li>基础AI/大模型集成</li>
+        <li>包含清爽UI设计</li>
+        <li>部署协助</li>
         <li>1轮修改</li>
         <li>3-5天交付</li>
       </ul>
-      <a href="#contact" class="btn-contact">开始MVP →</a>
+      <a href="#contact" class="btn-contact">启动 MVP →</a>
     </div>
     <div class="svc-card featured">
       <div class="sc-badge">最受欢迎</div>
       <h3>完整产品</h3>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">多功能完整应用</p>
-      <div class="sc-price">¥2,000<span class="per">起</span></div>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">完整多功能应用</p>
+      <div class="sc-price">¥2,000<span class="per">+</span></div>
       <ul class="sc-feat">
         <li>多页面Web应用</li>
-        <li>高级AI能力集成</li>
+        <li>高级AI功能</li>
         <li>用户认证系统</li>
-        <li>数据库集成 (SQLite/Postgres)</li>
-        <li>支付集成（可选）</li>
+        <li>数据库集成（SQLite/Postgres）</li>
+        <li>支付集成（如需）</li>
         <li>管理后台</li>
         <li>3轮修改</li>
         <li>1-3周交付</li>
       </ul>
-      <a href="#contact" class="btn-contact">开发产品 →</a>
+      <a href="#contact" class="btn-contact">开始开发 →</a>
     </div>
     <div class="svc-card">
-      <h3>企业定制</h3>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">复杂系统 & 长期维护</p>
-      <div class="sc-price">¥5,000<span class="per">起</span></div>
+      <h3>企业版</h3>
+      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:8px">复杂系统与持续支持</p>
+      <div class="sc-price">¥5,000<span class="per">+</span></div>
       <ul class="sc-feat">
         <li>复杂多服务架构</li>
-        <li>高可用部署方案</li>
+        <li>高可用部署</li>
         <li>定制ML模型集成</li>
-        <li>高级安全合规</li>
+        <li>高级安全与合规</li>
         <li>性能优化</li>
-        <li>团队培训 + 文档</li>
-        <li>长期维护计划</li>
-        <li>交付周期：按需定制</li>
+        <li>团队培训与文档</li>
+        <li>持续维护计划</li>
+        <li>交付时间：定制</li>
       </ul>
       <a href="#contact" class="btn-contact">联系我们 →</a>
     </div>
   </div>
 
   <!-- Portfolio -->
-  <div class="section-title"><div class="st">案例展示</div><h2>我们构建的产品</h2></div>
+  <div class="section-title"><div class="st">我们的作品</div><h2>我们做过什么</h2></div>
   <div class="portfolio">
     <div class="pf-card">
-      <div class="pf-icon">S</div>
-      <h4>StockAI 行情终端</h4>
-      <p>实时多市场分析平台，AI驱动研究报告、K线图表、板块热力图和智能选股系统。</p>
+      <div class="pf-icon">📈</div>
+      <h4>StockAI Market Terminal</h4>
+      <p>实时多市场分析平台，AI研报、K线图表、板块热力图、智能选股。</p>
     </div>
     <div class="pf-card">
-      <div class="pf-icon">M</div>
+      <div class="pf-icon">✍️</div>
       <h4>自媒体AI助手</h4>
-      <p>内容创作工作室，多引擎AI、风格模仿、视频脚本生成、配音优化一站式平台。</p>
+      <p>内容生成工作室，多引擎AI、风格模仿、视频脚本、配音优化。</p>
     </div>
     <div class="pf-card">
       <div class="pf-icon">🤖</div>
       <h4>定制AI聊天机器人</h4>
-      <p>领域专用聊天机器人，RAG知识库、多轮对话处理、通过API与业务系统集成。</p>
+      <p>垂直领域聊天机器人，RAG知识库、多轮对话、业务系统API集成。</p>
     </div>
     <div class="pf-card">
-      <div class="pf-icon">D</div>
+      <div class="pf-icon">📊</div>
       <h4>数据看板系统</h4>
-      <p>实时数据可视化看板，自动化ETL管道、交互式图表、可导出PDF报告。</p>
+      <p>实时数据可视化看板，自动ETL管道、交互图表、可导出PDF报告。</p>
     </div>
     <div class="pf-card">
-      <div class="pf-icon">W</div>
+      <div class="pf-icon">🔄</div>
       <h4>工作流自动化</h4>
-      <p>端到端自动化脚本和机器人，覆盖数据采集、处理、报告和跨平台通知。</p>
+      <p>端到端自动化脚本与机器人，跨平台数据采集、处理、报告与通知。</p>
     </div>
     <div class="pf-card">
-      <div class="pf-icon">W</div>
+      <div class="pf-icon">📱</div>
       <h4>微信小程序</h4>
-      <p>定制AI功能小程序，支付集成、云端后台——从概念到提交审核全程服务。</p>
+      <p>定制小程序，AI功能、支付集成、云后端——从概念到上架。</p>
     </div>
   </div>
 
   <!-- Testimonials -->
-  <div class="section-title"><div class="st">客户评价</div><h2>值得信赖的合作伙伴</h2></div>
+  <div class="section-title"><div class="st">客户评价</div><h2>深受客户信赖 <span style="font-size:12px;color:var(--text-tertiary);font-weight:400">（示例评价）</span></h2></div>
   <div class="testimonials">
     <div class="tm-card">
       <div class="tm-stars">★★★★★</div>
-      <div class="tm-text">"从零搭建了我们的股票分析平台，实时数据集成和AI分析功能超出预期，还提前交付了。"</div>
+      <div class="tm-text">"从零搭建了我们整个股票分析平台。实时数据集成和AI分析功能超出预期。提前交付。"</div>
       <div class="tm-author">张伟</div>
       <div class="tm-role">金融科技创业公司创始人</div>
     </div>
     <div class="tm-card">
       <div class="tm-stars">★★★★★</div>
-      <div class="tm-text">"为市场团队定制了内容生成工具。DeepSeek加Claude的双引擎方案非常出色，中文和英文内容都能兼顾。"</div>
-      <div class="tm-author">陈芳</div>
+      <div class="tm-text">"为市场团队需要一个内容生成工具。DeepSeek和Claude多引擎AI方案非常出色——中英文内容的最佳组合。"</div>
+      <div class="tm-author">陈莎拉</div>
       <div class="tm-role">科技公司市场总监</div>
     </div>
     <div class="tm-card">
       <div class="tm-stars">★★★★★</div>
-      <div class="tm-text">"自动化工作非常出色。搭建的数据管道每周节省团队15+小时。整个过程沟通专业高效。"</div>
-      <div class="tm-author">刘明</div>
+      <div class="tm-text">"出色的自动化工作。他们构建的数据管道每周为团队节省15+小时。整个项目沟通非常专业。"</div>
+      <div class="tm-author">刘迈克</div>
       <div class="tm-role">电商运营经理</div>
     </div>
   </div>
 
   <!-- FAQ -->
-  <div class="section-title"><div class="st">常见问题</div><h2>常见问题解答</h2></div>
+  <div class="section-title"><div class="st">FAQ</div><h2>常见问题</h2></div>
   <div class="faq-grid">
     <div class="faq-item" onclick="this.classList.toggle('open')">
-      <div class="faq-q">一个项目通常需要多长时间？ <span>+</span></div>
-      <div class="faq-a">MVP项目：3-5天。完整产品：1-3周。企业系统：按需定制周期。我们在方案阶段会给出明确的预计交付日期。</div>
+      <div class="faq-q">典型项目需要多长时间？ <span>+</span></div>
+      <div class="faq-a">MVP项目：3-5天。完整产品：1-3周。企业系统：定制时间。我们在方案阶段就会提供预估交付日期。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
-      <div class="faq-q">报价包含哪些内容？ <span>+</span></div>
-      <div class="faq-a">所有套餐均包含：开发、UI/UX设计、测试、部署上线、完整文档和30天售后支持。无隐藏费用——报价即实付金额。</div>
+      <div class="faq-q">价格包含哪些内容？ <span>+</span></div>
+      <div class="faq-a">所有套餐包含：开发、UI/UX设计、测试、部署、文档和30天上线后Bug修复支持。无隐藏费用——报价即实付。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
-      <div class="faq-q">上线后提供维护服务吗？ <span>+</span></div>
-      <div class="faq-a">是的！我们提供长期维护计划，¥200/月起，包含托管、更新和小功能迭代。企业方案含优先支持和SLA保障。</div>
+      <div class="faq-q">上线后提供维护吗？ <span>+</span></div>
+      <div class="faq-a">是的！我们提供持续维护计划，¥200/月起，包含托管、更新和小功能添加。企业版含优先支持和SLA保障。</div>
     </div>
     <div class="faq-item" onclick="this.classList.toggle('open')">
-      <div class="faq-q">如果我不确定具体需求怎么办？ <span>+</span></div>
-      <div class="faq-a">完全没关系！需求沟通阶段就是为了帮你理清思路。我们会通过专业提问，根据你的目标和预算推荐最佳技术方案。</div>
+      <div class="faq-q">如果我不确定需要什么怎么办？ <span>+</span></div>
+      <div class="faq-a">完全没问题！需求沟通阶段就是为此设计的。我们会问对的问题，根据你的目标和预算推荐最佳技术方案。</div>
     </div>
   </div>
 
   <!-- Contact Form -->
   <div class="contact" id="contact">
-    <h2>开启你的项目</h2>
-    <div class="form-group"><label>服务类型</label><select id="svcType"><option value="">请选择服务...</option><option value="mvp">MVP极速版 — ¥500起</option><option value="full">完整产品 — ¥2,000起</option><option value="enterprise">企业定制 — ¥5,000起</option><option value="other">其他 / 不确定</option></select></div>
-    <div class="form-group"><label>项目描述</label><textarea id="svcDesc" placeholder="描述你需要开发的内容。越详细越好。包括：目标、功能需求、时间要求、预算范围和任何技术偏好。"></textarea></div>
-    <div class="form-group"><label>联系邮箱或微信</label><input type="text" id="svcContact" placeholder="如何联系到你？"></div>
-    <button class="btn-submit" id="submitBtn" onclick="submitInquiry()">提交需求 →</button>
-    <div class="success-msg" id="successMsg">✅ 需求已收到！我们将在24小时内与你联系。</div>
+    <h2>启动你的项目</h2>
+    <div class="form-group"><label>服务类型</label><select id="svcType"><option value="">选择服务...</option><option value="mvp">MVP 极速版 — ¥500 起</option><option value="full">完整产品 — ¥2,000+</option><option value="enterprise">企业版 — ¥5,000+</option><option value="other">其他 / 不确定</option></select></div>
+    <div class="form-group"><label>项目描述</label><textarea id="svcDesc" placeholder="详细描述你的需求。越详细报价越精准。包括：目标、功能、时间线、预算范围以及任何技术偏好。"></textarea></div>
+    <div class="form-group"><label>联系邮箱或微信</label><input type="text" id="svcContact" placeholder="如何联系你？"></div>
+    <input type="text" name="website" style="display:none" tabindex="-1" autocomplete="off">
+    <button class="btn-submit" id="submitBtn" onclick="submitInquiry()">发送咨询 →</button>
+    <div class="success-msg" id="successMsg">✅ 咨询已收到！我们会在24小时内联系你。</div>
   </div>
 </div>
 
-<div class="footer">© 2026 StockAI. 为创造者打造，由创造者驱动。</div>
+<div class="footer">© 2026 StockAI。为创造者而生，由创造者所建。</div>
 
 <script>
+// CDN API proxy — 仅非本地时启用
+(function(){
+  var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('172.16.');
+  if (!isLocal) {
+    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    var orig = window.fetch;
+    window.fetch = function(url, opts) {
+      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
+      return orig.call(this, url, opts);
+    };
+  }
+})();
+
 async function submitInquiry() {
   const type = document.getElementById('svcType').value;
   const desc = document.getElementById('svcDesc').value.trim();
   const contact = document.getElementById('svcContact').value.trim();
-  if (!desc) { alert('请描述你的项目需求'); return; }
+  if (!type) { alert('请选择服务类型'); return; }
+  if (!desc) { alert('请描述你的项目'); return; }
   if (!contact) { alert('请提供联系方式'); return; }
 
   const btn = document.getElementById('submitBtn');
@@ -360,9 +374,10 @@ async function submitInquiry() {
       document.getElementById('svcType').value = '';
       document.getElementById('svcDesc').value = '';
       document.getElementById('svcContact').value = '';
+      setTimeout(function() { document.getElementById('successMsg').classList.remove('show'); }, 8000);
     }
-  } catch(e) { alert('Network error. Please try again.'); }
-  finally { btn.disabled = false; btn.textContent = 'Send Inquiry →'; }
+  } catch(e) { alert('网络错误，请重试。'); }
+  finally { btn.disabled = false; btn.textContent = '发送咨询 →'; }
 }
 </script>
 </body>

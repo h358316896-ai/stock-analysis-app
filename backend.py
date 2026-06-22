@@ -498,8 +498,20 @@ def video_ad_cn_page():
 
 @app.route("/bottleneck")
 def bottleneck_page():
-    # Always redirect to the main Railway domain where the full page lives
-    return '<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=https://stock-analysis-app-production-da60.up.railway.app/bottleneck\"></head><body><p>跳转中... <a href=\"https://stock-analysis-app-production-da60.up.railway.app/bottleneck\">点击进入瓶颈扫描</a></p></body></html>', 200, {"Content-Type":"text/html;charset=utf-8"}
+    host = request.host
+    # Only redirect from custom domain, serve full page on main domain
+    if 'kunhuang.top' in host:
+        from flask import redirect
+        return redirect("https://stock-analysis-app-production-da60.up.railway.app/bottleneck", code=302)
+    bp = os.path.join(BASE_DIR, "bottleneck.html")
+    if os.path.exists(bp):
+        with open(bp, "r", encoding="utf-8") as f:
+            return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
+    sp = os.path.join(STATIC_DIR, "bottleneck.html")
+    if os.path.exists(sp):
+        with open(sp, "r", encoding="utf-8") as f:
+            return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
+    return send_file(os.path.join(STATIC_DIR, "bottleneck.html"), mimetype="text/html")
 
 # CDN-compatible asset routes (serve /css/style.css and /manifest.json from static/)
 @app.route("/css/<path:filename>")

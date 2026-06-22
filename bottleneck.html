@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="theme-color" content="#06080e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>产业链瓶颈扫描 — StockAI</title>
+<meta name="description" content="AI驱动的产业链瓶颈扫描工具。找到离了它就转不动的环节，锁定A股核心标的。断链推演→瓶颈锁定→子瓶颈拆解→终极标的→破裂预警。">
+<meta property="og:title" content="产业链瓶颈扫描 — StockAI">
+<meta property="og:description" content="AI驱动的产业链瓶颈扫描工具。断链推演→瓶颈锁定→A股标的。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://kunhuang.top/bottleneck">
+<meta property="og:image" content="https://kunhuang.top/static/icon-192.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="/css/style.css">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="apple-touch-icon" sizes="512x512" href="/static/icon-512.png">
+<!-- Baidu Analytics -->
+<script>var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?537ad9b521fa975bec0ecd5b8aad87af";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s)})();</script>
+<style>
+.bn-container { max-width:960px; margin:0 auto; padding:20px 24px 60px; }
+.bn-hero { text-align:center; padding:40px 20px 30px; }
+.bn-hero h1 { font-size:clamp(26px,5vw,40px); font-weight:300; color:#fff; margin-bottom:8px; }
+.bn-hero h1 strong { font-weight:700; color:var(--gold); }
+.bn-hero p { color:var(--text-secondary); font-size:14px; max-width:500px; margin:0 auto; }
+.bn-input-wrap { display:flex; gap:8px; max-width:520px; margin:0 auto 40px; }
+.bn-input-wrap input { flex:1; padding:14px 18px; background:var(--bg-card); border:1px solid var(--border-default); border-radius:12px; color:#fff; font-size:16px; font-family:var(--font); outline:none; }
+.bn-input-wrap input:focus { border-color:var(--gold); box-shadow:0 0 20px rgba(240,185,11,.1); }
+.bn-input-wrap button { padding:14px 28px; background:linear-gradient(135deg,#f0b90b,#d4a017); color:#0a0c14; border:none; border-radius:12px; font-weight:700; font-size:16px; cursor:pointer; font-family:var(--font); white-space:nowrap; }
+.bn-preset { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; margin-bottom:30px; }
+.bn-preset button { padding:6px 16px; background:var(--bg-card); border:1px solid var(--border-default); border-radius:20px; color:var(--text-secondary); font-size:12px; cursor:pointer; font-family:var(--font); transition:var(--transition); }
+.bn-preset button:hover { border-color:var(--gold); color:var(--gold); }
+.bn-result { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:24px; display:none; }
+.bn-result h3 { font-size:16px; font-weight:700; color:var(--accent); margin:20px 0 10px; border-bottom:1px solid var(--border-subtle); padding-bottom:6px; }
+.bn-result h3:first-child { margin-top:0; }
+.bn-result p { font-size:14px; line-height:2; color:var(--text-secondary); }
+.bn-result .tier4 { background:rgba(240,185,11,0.05); border:1px solid rgba(240,185,11,0.15); border-radius:10px; padding:16px; margin:16px 0; }
+.bn-result .tier4 strong { color:var(--gold); }
+.bn-loading { text-align:center; padding:40px; display:none; }
+.bn-loading .spinner { margin:0 auto 12px; }
+.bn-share { text-align:center; margin-top:20px; }
+.bn-share button { padding:8px 20px; background:rgba(7,193,96,0.1); border:1px solid rgba(7,193,96,0.2); border-radius:20px; color:#07c160; font-size:12px; cursor:pointer; font-family:var(--font); }
+.foot { text-align:center; padding:20px; font-size:10px; color:var(--text-tertiary); border-top:1px solid var(--border-subtle); margin-top:40px; }
+.foot a { color:var(--accent); text-decoration:none; }
+@media (max-width:600px) {
+  .bn-input-wrap { flex-direction:column; }
+  .bn-container { padding:12px; }
+  .bn-result { padding:16px; }
+}
+</style>
+</head>
+<body>
+
+<header class="top-bar">
+  <a href="/" class="logo-area"><div class="logo-icon">S</div><div class="logo-text">StockAI</div></a>
+  <div class="top-nav">
+    <a href="/stock">行情</a><a href="/">首页</a><a href="/bottleneck" class="active">瓶颈扫描</a><a href="/media">自媒体</a><a href="/services">服务</a>
+  </div>
+  <div class="top-right"><a href="/stock" class="btn-sign">进入终端</a></div>
+</header>
+
+<div class="bn-container">
+  <div class="bn-hero">
+    <h1>瓶颈才是 <strong>王道</strong></h1>
+    <p>找到产业链中那个"离了它就转不动"的环节。<br>扩产需要2年以上 · 全球不超过5家能做 · 下游没有任何替代方案。<br>断链推演 → 瓶颈锁定 → 子瓶颈拆解 → 终极A股标的 → 破裂预警</p>
+  </div>
+
+  <div class="bn-input-wrap">
+    <input type="text" id="bnIndustry" placeholder="输入产业链名称 — 如 AI算力、光伏、半导体、新能源汽车..." onkeydown="if(event.key==='Enter')runBottleneck()">
+    <button onclick="runBottleneck()">🔍 扫描瓶颈</button>
+  </div>
+
+  <div class="bn-preset">
+    <button onclick="quickScan('AI算力')">AI算力</button>
+    <button onclick="quickScan('光伏产业')">光伏产业</button>
+    <button onclick="quickScan('新能源汽车')">新能源汽车</button>
+    <button onclick="quickScan('半导体芯片')">半导体芯片</button>
+    <button onclick="quickScan('人形机器人')">人形机器人</button>
+    <button onclick="quickScan('低空经济')">低空经济</button>
+    <button onclick="quickScan('创新药')">创新药</button>
+    <button onclick="quickScan('储能')">储能</button>
+  </div>
+
+  <div class="bn-loading" id="bnLoading">
+    <div class="spinner"></div>
+    <div style="color:var(--text-tertiary);font-size:13px">AI正在扫描产业链瓶颈...</div>
+  </div>
+
+  <!-- Chain Diagram -->
+  <div id="chainDiagram" style="display:none;margin-bottom:20px;overflow-x:auto;padding:20px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg)"></div>
+
+  <div class="bn-result" id="bnResult"></div>
+
+  <div class="bn-share" id="bnShare" style="display:none">
+    <button onclick="shareBottleneck()">📤 分享到微信</button>
+  </div>
+</div>
+
+<!-- Devil's Advocate -->
+<div style="max-width:600px;margin:40px auto 0">
+  <div class="glass" style="padding:20px;border:1px solid rgba(192,57,43,0.15)">
+    <h3 style="font-size:15px;font-weight:700;color:#c0392b;margin-bottom:4px">😈 AI 魔鬼代言人</h3>
+    <p style="font-size:11px;color:var(--text-tertiary);margin-bottom:12px">让AI从空头角度攻击你的投资逻辑，找出你没想到的盲区。Serenity说：先做反方表，再下单。</p>
+    <input type="text" id="daCode" placeholder="股票代码（如 600519）" style="width:100%;padding:10px 14px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:8px;color:#fff;font-size:14px;font-family:var(--font);margin-bottom:8px">
+    <textarea id="daThesis" placeholder="你的投资逻辑是什么？例如：我买茅台是因为它是A股唯一奢侈品，毛利率90%+，无人能替代..." style="width:100%;height:80px;padding:10px 14px;background:var(--bg-secondary);border:1px solid var(--border-default);border-radius:8px;color:#fff;font-size:13px;font-family:var(--font);margin-bottom:8px;resize:vertical"></textarea>
+    <button onclick="runDevilsAdvocate()" style="width:100%;padding:12px;background:linear-gradient(135deg,rgba(192,57,43,0.8),rgba(192,57,43,0.6));color:#fff;border:1px solid rgba(192,57,43,0.3);border-radius:8px;font-weight:700;font-size:14px;cursor:pointer;font-family:var(--font)">🔱 攻击我的逻辑</button>
+    <div id="daResult" style="display:none;margin-top:16px;padding:16px;background:rgba(192,57,43,0.04);border:1px solid rgba(192,57,43,0.1);border-radius:10px;font-size:13px;line-height:2;color:var(--text-secondary)"></div>
+    <div id="daLoading" style="display:none;text-align:center;padding:20px"><div class="spinner"></div><div style="color:var(--text-tertiary);font-size:12px;margin-top:8px">空头正在寻找你的逻辑漏洞...</div></div>
+  </div>
+</div>
+
+<script>
+async function runDevilsAdvocate() {
+  var code = document.getElementById('daCode').value.trim();
+  var thesis = document.getElementById('daThesis').value.trim();
+  if (!code) { alert('请先输入股票代码'); return; }
+  document.getElementById('daResult').style.display = 'none';
+  document.getElementById('daLoading').style.display = 'block';
+  try {
+    var r = await fetch('/api/stock/devils-advocate', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({code:code, thesis:thesis})
+    });
+    var d = await r.json();
+    document.getElementById('daLoading').style.display = 'none';
+    document.getElementById('daResult').innerHTML = d.attack_html;
+    document.getElementById('daResult').style.display = 'block';
+    document.getElementById('daResult').scrollIntoView({behavior:'smooth'});
+  } catch(e) {
+    document.getElementById('daLoading').style.display = 'none';
+    document.getElementById('daResult').innerHTML = '<p style="color:var(--red)">分析暂不可用，请重试</p>';
+    document.getElementById('daResult').style.display = 'block';
+  }
+}
+</script>
+
+<div class="foot">
+  瓶颈分析由 AI 生成，仅供参考 · 不构成投资建议 · <a href="https://kunhuang.top">kunhuang.top</a>
+</div>
+
+<script>
+// Restore last scan on page load
+(function() {
+  var saved = localStorage.getItem('bn_last_scan');
+  if (saved) {
+    try {
+      var d = JSON.parse(saved);
+      if (d.chain_data && d.chain_data.layers) renderChainDiagram(d.chain_data);
+      if (d.report_html) {
+        document.getElementById('bnResult').innerHTML = d.report_html;
+        document.getElementById('bnResult').style.display = 'block';
+        document.getElementById('bnShare').style.display = 'block';
+      }
+      document.getElementById('bnIndustry').value = d.industry || '';
+    } catch(e) {}
+  }
+})();
+
+function renderChainDiagram(data) {
+  var container = document.getElementById('chainDiagram');
+  container.style.display = 'block';
+
+  var layerColors = {'上游':'#3b82f6','中游':'#22c55e','下游':'#f0b90b'};
+  var html = '<div style=\"text-align:center;font-size:14px;font-weight:700;color:#fff;margin-bottom:16px\">' + data.industry + ' 产业链全景图</div>';
+  html += '<div style=\"display:flex;gap:8px;justify-content:center;flex-wrap:wrap\">';
+
+  data.layers.forEach(function(layer, li) {
+    var lc = layerColors[layer.name] || '#6b6b80';
+    html += '<div style=\"flex:1;min-width:160px;max-width:280px\">';
+    html += '<div style=\"text-align:center;font-size:12px;font-weight:700;padding:8px;background:' + lc + ';color:#fff;border-radius:8px 8px 0 0;letter-spacing:.08em\">' + layer.name + '</div>';
+
+    layer.nodes.forEach(function(node) {
+      var isBottleneck = node.bottleneck;
+      var score = node.bottleneck_score || 0;
+      var borderColor = isBottleneck ? '#f0b90b' : 'rgba(255,255,255,0.06)';
+      var bgColor = isBottleneck ? 'rgba(240,185,11,0.08)' : 'rgba(255,255,255,0.02)';
+      var starHtml = '';
+      if (isBottleneck && score >= 8) starHtml = '<span style=\"color:#f0b90b;font-size:11px;margin-left:4px\">' + '★'.repeat(Math.min(5,Math.ceil(score/2))) + '</span>';
+      var badgeHtml = isBottleneck ? '<div style=\"display:inline-block;padding:1px 6px;border-radius:3px;font-size:8px;font-weight:700;background:rgba(240,185,11,0.2);color:#f0b90b;margin-left:6px;vertical-align:middle\">瓶颈 ' + score + '/10</div>' : '';
+
+      html += '<div style=\"padding:10px 12px;border-left:2px solid ' + borderColor + ';border-bottom:1px solid rgba(255,255,255,0.04);background:' + bgColor + ';transition:all .2s\">';
+      html += '<div style=\"font-size:13px;font-weight:600;color:#fff;margin-bottom:2px\">' + node.name + badgeHtml + starHtml + '</div>';
+
+      if (node.note) {
+        html += '<div style=\"font-size:10px;color:var(--text-tertiary);margin-bottom:3px\">' + node.note + '</div>';
+      }
+
+      if (node.companies && node.companies.length) {
+        html += '<div style=\"display:flex;flex-wrap:wrap;gap:3px\">';
+        node.companies.forEach(function(c) {
+          html += '<span style=\"font-size:9px;padding:2px 6px;background:rgba(255,255,255,0.04);border-radius:3px;color:var(--text-secondary)\">' + c + '</span>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+
+    html += '</div>';
+  });
+
+  html += '</div>';
+
+  // Legend
+  html += '<div style=\"display:flex;gap:16px;justify-content:center;margin-top:12px;font-size:10px;color:var(--text-tertiary)\">';
+  html += '<span>⭐ 瓶颈评分越高越不可替代</span>';
+  html += '<span style=\"color:#f0b90b\">■ 瓶颈环节</span>';
+  html += '</div>';
+
+  container.innerHTML = html;
+}
+
+function quickScan(industry) {
+  document.getElementById('bnIndustry').value = industry;
+  runBottleneck();
+}
+
+async function runBottleneck() {
+  var industry = document.getElementById('bnIndustry').value.trim();
+  if (!industry) return;
+
+  document.getElementById('bnResult').style.display = 'none';
+  document.getElementById('bnLoading').style.display = 'block';
+  document.getElementById('bnShare').style.display = 'none';
+
+  try {
+    var r = await fetch('/api/stock/bottleneck-scan', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({industry:industry})
+    });
+    var d = await r.json();
+    document.getElementById('bnLoading').style.display = 'none';
+    if (d.success) {
+      // Save to localStorage for refresh persistence
+      localStorage.setItem('bn_last_scan', JSON.stringify({
+        industry: industry,
+        chain_data: d.chain_data,
+        report_html: d.report_html
+      }));
+      // Render chain diagram if available
+      if (d.chain_data && d.chain_data.layers) {
+        renderChainDiagram(d.chain_data);
+      }
+      var html = d.report_html;
+      // Highlight tier 4 (ultimate picks section)
+      html = html.replace(/<h3[^>]*>第四层[^<]*<\/h3>/g, '<h3 style=\"color:var(--gold);font-size:18px\">$&</h3>');
+      html = html.replace(/(<h3[^>]*>第四层[^<]*<\/h3>[\s\S]*?)(?=<h3|$)/, function(m){ return '<div class=\"tier4\">'+m+'</div>'; });
+      document.getElementById('bnResult').innerHTML = html;
+      document.getElementById('bnResult').style.display = 'block';
+      document.getElementById('bnShare').style.display = 'block';
+      document.getElementById('bnResult').scrollIntoView({behavior:'smooth'});
+    }
+  } catch(e) {
+    document.getElementById('bnLoading').style.display = 'none';
+    document.getElementById('bnResult').innerHTML = '<p style="color:var(--red);text-align:center">分析暂不可用，请重试</p>';
+    document.getElementById('bnResult').style.display = 'block';
+  }
+}
+
+function shareBottleneck() {
+  var url = location.origin + '/bottleneck';
+  if (navigator.share) {
+    navigator.share({title:'产业链瓶颈扫描 - StockAI',url:url});
+  } else {
+    var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    alert('链接已复制，可分享给朋友');
+  }
+}
+
+// CDN API proxy — route /api/* to Railway backend
+(function(){
+  var host = location.hostname;
+  if (host !== 'localhost' && host !== '127.0.0.1') {
+    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    var orig = window.fetch;
+    window.fetch = function(url, opts) {
+      opts = opts || {};
+      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
+      opts.credentials = 'include';
+      var token = localStorage.getItem('stockai_token');
+      if (token) {
+        opts.headers = opts.headers || {};
+        if (!opts.headers['Authorization']) opts.headers['Authorization'] = 'Bearer ' + token;
+      }
+      return orig.call(this, url, opts);
+    };
+  }
+})();
+</script>
+</body>
+</html>

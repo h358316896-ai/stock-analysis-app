@@ -1,22 +1,56 @@
 {
-  "name": "StockAI - 专业A股智能分析",
+  "name": "StockAI — 专业A股智能分析平台",
   "short_name": "StockAI",
-  "description": "实时行情·主力追踪·AI选股·龙虎榜·涨停复盘",
+  "description": "实时行情 · 主力追踪 · AI选股 · 龙虎榜 · 涨停复盘 · 资金流向",
   "start_url": "/stock",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
   "orientation": "any",
   "background_color": "#060608",
-  "theme_color": "#3b82f6",
+  "theme_color": "#060608",
+  "lang": "zh-CN",
+  "categories": ["finance", "productivity", "business"],
   "icons": [
     {
       "src": "/static/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/static/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/screenshot-stock.png",
+      "sizes": "1080x2340",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "行情分析主界面"
+    },
+    {
+      "src": "/static/screenshot-stock.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "桌面版行情终端"
     }
   ]
 }

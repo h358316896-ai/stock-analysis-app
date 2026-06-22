@@ -288,10 +288,14 @@ def init_db():
         created_at TEXT DEFAULT (datetime('now', 'localtime'))
     )
     """)
-    # Migration: add membership columns if missing (for existing DB)
+    # Migration: add columns if missing
     try: cur.execute("ALTER TABLE users ADD COLUMN membership TEXT DEFAULT 'free'")
     except: pass
     try: cur.execute("ALTER TABLE users ADD COLUMN membership_expires TEXT DEFAULT ''")
+    except: pass
+    try: cur.execute("ALTER TABLE users ADD COLUMN push_token TEXT DEFAULT ''")
+    except: pass
+    try: cur.execute("ALTER TABLE users ADD COLUMN email TEXT DEFAULT ''")
     except: pass
     # 自选股表
     cur.execute("""
@@ -338,8 +342,77 @@ def init_db():
         FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
     """)
+    # 支付订单表（持久化，防重启丢失）
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS payment_orders (
+        out_trade_no TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        tier TEXT NOT NULL DEFAULT 'vip',
+        months INTEGER NOT NULL DEFAULT 1,
+        amount_yuan REAL NOT NULL DEFAULT 0,
+        xunhu_order_id TEXT DEFAULT '',
+        status TEXT DEFAULT 'pending',
+        paid_fee REAL DEFAULT 0,
+        created_at REAL DEFAULT 0,
+        paid_at REAL DEFAULT 0,
+        FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+    """)
     conn.commit()
     conn.close()
+
+# ---- Payment Orders DB operations ----
+def create_payment_order(out_trade_no, user_id, tier, months, amount_yuan, xunhu_order_id=""):
+    """Persist a new payment order to SQLite + return success"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT OR REPLACE INTO payment_orders
+            (out_trade_no, user_id, tier, months, amount_yuan, xunhu_order_id, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
+        """, (out_trade_no, user_id, tier, months, amount_yuan, xunhu_order_id, time.time()))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[auth_db] create_payment_order failed: {e}")
+        return False
+
+def get_payment_order(out_trade_no):
+    """Get a payment order by out_trade_no, or None"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM payment_orders WHERE out_trade_no = ?", (out_trade_no,))
+        row = cur.fetchone()
+        conn.close()
+        if row:
+            return {
+                "out_trade_no": row[0], "user_id": row[1], "tier": row[2],
+                "months": row[3], "amount_yuan": row[4], "xunhu_order_id": row[5],
+                "status": row[6], "paid_fee": row[7], "created_at": row[8], "paid_at": row[9]
+            }
+        return None
+    except Exception as e:
+        print(f"[auth_db] get_payment_order failed: {e}")
+        return None
+
+def mark_payment_completed(out_trade_no, paid_fee):
+    """Mark a payment order as completed"""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            UPDATE payment_orders SET status = 'completed', paid_fee = ?, paid_at = ?
+            WHERE out_trade_no = ?
+        """, (paid_fee, time.time(), out_trade_no))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[auth_db] mark_payment_completed failed: {e}")
+        return False
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -350,6 +423,7 @@ def get_db():
 # 用户 CRUD
 # ==========================================================
 def create_user(username: str, email: str, password: str) -> dict:
+    username = username.strip().lower()
     pwd_hash, salt = hash_password(password)
     conn = get_db()
     try:
@@ -369,6 +443,7 @@ def create_user(username: str, email: str, password: str) -> dict:
         conn.close()
 
 def verify_user(username: str, password: str) -> dict:
+    username = username.strip().lower()
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT id, username, pwd_hash, salt FROM users WHERE username = ?", (username,))
@@ -544,18 +619,20 @@ def get_membership(user_id):
     if not row: return {"membership": "free", "expires": ""}
     return {"membership": row["membership"] or "free", "expires": row["membership_expires"] or ""}
 
-def upgrade_membership(user_id, tier, months=1):
-    """升级会员"""
+def upgrade_membership(user_id, tier, months=1, expires_at=None):
+    """升级会员。expires_at: 自定义到期日 (YYYY-MM-DD)，优先于months"""
     if tier not in ("vip", "svip"):
         return {"error": "invalid tier"}
     from datetime import datetime, timedelta
-    current = get_membership(user_id)
-    if current["membership"] == tier and current["expires"]:
-        # Extend existing
-        old_exp = datetime.strptime(current["expires"], "%Y-%m-%d")
-        new_exp = old_exp + timedelta(days=30*months)
+    if expires_at:
+        new_exp = datetime.strptime(expires_at, "%Y-%m-%d")
     else:
-        new_exp = datetime.now() + timedelta(days=30*months)
+        current = get_membership(user_id)
+        if current["membership"] == tier and current["expires"]:
+            old_exp = datetime.strptime(current["expires"], "%Y-%m-%d")
+            new_exp = old_exp + timedelta(days=30*months)
+        else:
+            new_exp = datetime.now() + timedelta(days=30*months)
     expires_str = new_exp.strftime("%Y-%m-%d")
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
@@ -576,6 +653,52 @@ def get_member_count():
         if tier in result:
             result[tier] = cnt
     return result
+
+# ==========================================================
+# 每日市场快照 — 防止盘后数据丢失
+# ==========================================================
+def save_daily_snapshot(date_str, data):
+    """Save a market snapshot for the given date (YYYY-MM-DD). Overwrites if exists."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS market_snapshots (
+                date TEXT PRIMARY KEY,
+                data_json TEXT NOT NULL,
+                saved_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+        """)
+        cur.execute("""
+            INSERT OR REPLACE INTO market_snapshots (date, data_json, saved_at)
+            VALUES (?, ?, datetime('now','localtime'))
+        """, (date_str, json.dumps(data, ensure_ascii=False)))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[auth_db] save_daily_snapshot failed: {e}")
+        return False
+
+def get_daily_snapshots(days=30):
+    """Retrieve recent daily snapshots, newest first."""
+    try:
+        conn = get_db()
+        cur = conn.cursor()
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS market_snapshots (
+                date TEXT PRIMARY KEY,
+                data_json TEXT NOT NULL,
+                saved_at TEXT DEFAULT (datetime('now','localtime'))
+            )
+        """)
+        cur.execute("SELECT date, data_json, saved_at FROM market_snapshots ORDER BY date DESC LIMIT ?", (days,))
+        rows = cur.fetchall()
+        conn.close()
+        return [{"date": r[0], "data": json.loads(r[1]), "saved_at": r[2]} for r in rows]
+    except Exception as e:
+        print(f"[auth_db] get_daily_snapshots failed: {e}")
+        return []
 
 # ==========================================================
 # 启动初始化（按顺序执行）
