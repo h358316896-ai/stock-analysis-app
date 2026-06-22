@@ -498,11 +498,7 @@ def video_ad_cn_page():
 
 @app.route("/bottleneck")
 def bottleneck_page():
-    host = request.host
-    # Only redirect from custom domain, serve full page on main domain
-    if 'kunhuang.top' in host:
-        from flask import redirect
-        return redirect("https://stock-analysis-app-production-da60.up.railway.app/bottleneck", code=302)
+    # Serve bottleneck.html from static/ directory
     bp = os.path.join(BASE_DIR, "bottleneck.html")
     if os.path.exists(bp):
         with open(bp, "r", encoding="utf-8") as f:
