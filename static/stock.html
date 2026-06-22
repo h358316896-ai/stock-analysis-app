@@ -3259,6 +3259,17 @@ function isWeekend() { var d = new Date(); return d.getDay() === 0 || d.getDay()
 
 // Shared snapshot fallback — reuse snapshot data when live API is empty
 var _snapshotCache = null;
+var _dashboardCache = null;  // shared dashboard data for all 4 cards
+
+async function _loadDashboardCache() {
+  if (_dashboardCache) return _dashboardCache;
+  try {
+    var r = await fetch('/api/dashboard');
+    _dashboardCache = await r.json();
+  } catch(e) { _dashboardCache = {}; }
+  return _dashboardCache;
+}
+
 async function fallbackToSnapshot(listEl, type, renderFn, title) {
   try {
     if (!_snapshotCache) {
@@ -3302,11 +3313,33 @@ async function loadAnomalyLive() {
     var count = document.getElementById('anomalyCount');
     if (count) count.textContent = d.count || 0;
     if (!d.anomalies || !d.anomalies.length) {
-      // Fallback to snapshot limit-up data
+      // Fallback 1: use dashboard gainers/losers with large moves
+      var db = await _loadDashboardCache();
+      var allMovers = [];
+      if (db && db.gainers) allMovers = allMovers.concat(db.gainers);
+      if (db && db.losers) allMovers = allMovers.concat(db.losers);
+      // Filter for significant moves (>3%)
+      var significant = allMovers.filter(function(s) { return Math.abs(s.change_pct) >= 3; });
+      significant.sort(function(a, b) { return Math.abs(b.change_pct) - Math.abs(a.change_pct); });
+      if (significant.length) {
+        if (count) count.textContent = Math.min(significant.length, 30);
+        list.innerHTML = significant.slice(0, 12).map(function(s) {
+          var isUp = s.change_pct >= 0;
+          var sev = Math.abs(s.change_pct) >= 7 ? 'anomaly-high' : 'anomaly-medium';
+          var atype = s.change_pct >= 5 ? '放量拉升' : s.change_pct <= -5 ? '放量跳水' : '异动';
+          var emoji = s.change_pct >= 5 ? '🔥' : s.change_pct <= -5 ? '📉' : '⚠️';
+          return '<div class="anomaly-item ' + sev + '" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +
+            '<div><div class="anomaly-name">' + s.name + ' <span class="anomaly-type">' + emoji + atype + '</span></div></div>' +
+            '<div class="anomaly-price"><span class="' + (isUp ? 'text-green' : 'text-red') + '">' + (isUp ? '+' : '') + s.change_pct.toFixed(2) + '%</span>' +
+            '<span class="anomaly-vol">市值 ' + ((s.market_cap||0)/100000000).toFixed(0) + '亿</span></div></div>';
+        }).join('');
+        return;
+      }
+      // Fallback 2: snapshot
       await fallbackToSnapshot(list, 'anomaly', function(s) {
         var isUp = s.change_pct >= 0;
         return '<div class="anomaly-item" onclick="quickSearch(\'' + s.code + '\',\'cn\')"><div><div class="anomaly-name">' + s.name + '</div></div><div class="anomaly-price"><span class="' + (isUp ? 'text-green' : 'text-red') + '">' + (isUp ? '+' : '') + s.change_pct.toFixed(2) + '%</span><span class="anomaly-vol">' + (s.change_pct >= 9.5 ? '涨停' : '异动') + '</span></div></div>';
-      }, '📅 最近交易日涨停回顾');
+      }, '市场异动');
       return;
     }
     list.innerHTML = d.anomalies.map(function(s) {
@@ -3353,10 +3386,27 @@ async function loadRiskRadarDash() {
     var count = document.getElementById('riskCount');
     if (count) count.textContent = d.count || 0;
     if (!d.risks || !d.risks.length) {
+      // Fallback 1: use dashboard losers
+      var db = await _loadDashboardCache();
+      var losers = (db && db.losers) ? db.losers : [];
+      if (losers.length) {
+        var downStocks = losers.filter(function(s) { return s.change_pct < 0; });
+        if (count) count.textContent = downStocks.length;
+        list.innerHTML = downStocks.slice(0, 12).map(function(s) {
+          var sev = s.change_pct <= -5 ? 'high' : 'medium';
+          var emo = s.change_pct <= -5 ? '📉' : '⚠️';
+          return '<div class="risk-item risk-' + sev + '" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +
+            '<div class="risk-header"><span class="risk-type-badge risk-badge-' + sev + '">' + emo + ' ' + (s.change_pct <= -5 ? '大跌' : '下跌') + '</span>' +
+            '<span class="risk-name">' + s.name + '</span></div>' +
+            '<div class="risk-reason">跌幅 ' + Math.abs(s.change_pct).toFixed(1) + '% | PE ' + ((s.pe) ? s.pe.toFixed(0) : '--') + '</div></div>';
+        }).join('');
+        return;
+      }
+      // Fallback 2: snapshot
       await fallbackToSnapshot(list, 'risk', function(s) {
         var emo = s.change_pct <= -5 ? '📉' : '⚠️';
         return '<div class="risk-item risk-' + (s.change_pct <= -7 ? 'high' : 'medium') + '" onclick="quickSearch(\'' + s.code + '\',\'cn\')"><div class="risk-header"><span class="risk-type-badge risk-badge-' + (s.change_pct <= -7 ? 'high' : 'medium') + '">' + emo + ' ' + (s.change_pct <= -7 ? '跌停' : '下跌') + '</span><span class="risk-name">' + s.name + '</span></div><div class="risk-reason">' + s.change_pct.toFixed(1) + '%</div></div>';
-      }, '📅 最近交易日跌幅榜');
+      }, '市场风险');
       return;
     }
     list.innerHTML = d.risks.slice(0, 15).map(function(s) {
@@ -3376,9 +3426,23 @@ async function loadTrendingStocks() {
     var time = document.getElementById('trendingTime');
     if (time) time.textContent = d.updated || '';
     if (!d.stocks || !d.stocks.length) {
+      // Fallback 1: use dashboard gainers
+      var db = await _loadDashboardCache();
+      var gainers = (db && db.gainers) ? db.gainers : [];
+      if (gainers.length) {
+        list.innerHTML = gainers.slice(0, 8).map(function(s) {
+          var isUp = s.change_pct >= 0;
+          return '<div class="smartmoney-item" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +
+            '<div class="sm-name">' + s.name + ' <span style="font-size:10px;color:var(--text-tertiary)">' + s.code + '</span></div>' +
+            '<div class="sm-flow ' + (isUp ? 'text-green' : 'text-red') + '">' + (isUp ? '+' : '') + s.change_pct.toFixed(2) + '%</div>' +
+            '<div class="sm-source">市值 ' + ((s.market_cap||0)/100000000).toFixed(0) + '亿</div></div>';
+        }).join('');
+        return;
+      }
+      // Fallback 2: snapshot
       await fallbackToSnapshot(list, 'trending', function(s) {
         return '<div class=\"smartmoney-item\" onclick=\"quickSearch(\'' + (s.code||'') + '\',\'cn\')\"><div class=\"sm-name\">' + (s.name||s) + '</div></div>';
-      }, '最近交易日快照');
+      }, '市场关注');
       return;
     }
     list.innerHTML = d.stocks.map(function(s) {
@@ -3412,6 +3476,13 @@ async function loadSnapshotReview() {
         html += ' <span style="font-size:10px;color:var(--text-tertiary)">' + s.data.limit_downs.slice(0,3).map(function(x){return x.name;}).join(' ') + '</span>';
       }
       html += '</div>';
+    }
+    // If snapshot is thin, add dashboard market overview
+    if (!s.data.limit_up_count && !s.data.limit_down_count) {
+      var db = await _loadDashboardCache();
+      if (db && db.indices && db.indices.length) {
+        html += '<div style="font-size:10px;color:var(--text-tertiary);margin-top:8px;padding-top:6px;border-top:1px solid var(--border-subtle)">市场状态: ' + (s.data.market_status || '未知') + '</div>';
+      }
     }
     list.innerHTML = html;
   } catch(e) { console.warn('Snapshot:', e); }
