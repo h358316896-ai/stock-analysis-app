@@ -31,6 +31,8 @@ from quant_engine import (
 )
 
 app = Flask(__name__)
+app.config['SERVER_NAME'] = None  # Accept any Host header
+app.url_map.host_matching = False
 _secret_key = os.getenv("FLASK_SECRET_KEY")
 if not _secret_key:
     import secrets
@@ -486,10 +488,18 @@ def media_page():
 def services_page():
     return send_file(os.path.join(STATIC_DIR, "services.html"), mimetype="text/html")
 
+@app.route("/video-ad")
+def video_ad_page():
+    return send_file(os.path.join(STATIC_DIR, "video-ad.html"), mimetype="text/html")
+
+@app.route("/video-ad-cn")
+def video_ad_cn_page():
+    return send_file(os.path.join(STATIC_DIR, "video-ad-cn.html"), mimetype="text/html")
+
 @app.route("/bottleneck")
 def bottleneck_page():
-    # Serve straight from backend.py — no file dependency
-    return '''<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"><title>Bottleneck Scan</title><style>body{background:#0a0c14;color:#edecf1;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;margin:0}a{color:#4f8cff}</style></head><body><div><h1>🔬 产业链瓶颈扫描</h1><p style="color:#6b6b80">页面已就绪！<br>请用浏览器打开完整版。</p><a href="/stock">进入行情终端 →</a></div></body></html>'''
+    # Always redirect to the main Railway domain where the full page lives
+    return '<!DOCTYPE html><html><head><meta charset=\"UTF-8\"><meta http-equiv=\"refresh\" content=\"0;url=https://stock-analysis-app-production-da60.up.railway.app/bottleneck\"></head><body><p>跳转中... <a href=\"https://stock-analysis-app-production-da60.up.railway.app/bottleneck\">点击进入瓶颈扫描</a></p></body></html>', 200, {"Content-Type":"text/html;charset=utf-8"}
 
 # CDN-compatible asset routes (serve /css/style.css and /manifest.json from static/)
 @app.route("/css/<path:filename>")
