@@ -486,17 +486,10 @@ def media_page():
 def services_page():
     return send_file(os.path.join(STATIC_DIR, "services.html"), mimetype="text/html")
 
-@app.route("/video-ad")
-def video_ad_page():
-    return send_file(os.path.join(STATIC_DIR, "video-ad.html"), mimetype="text/html")
-
-@app.route("/video-ad-cn")
-def video_ad_cn_page():
-    return send_file(os.path.join(STATIC_DIR, "video-ad-cn.html"), mimetype="text/html")
-
 @app.route("/bottleneck")
 def bottleneck_page():
-    return send_file(os.path.join(STATIC_DIR, "bottleneck.html"), mimetype="text/html")
+    # Serve straight from backend.py — no file dependency
+    return '''<!DOCTYPE html><html lang="zh"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover"><title>Bottleneck Scan</title><style>body{background:#0a0c14;color:#edecf1;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;margin:0}a{color:#4f8cff}</style></head><body><div><h1>🔬 产业链瓶颈扫描</h1><p style="color:#6b6b80">页面已就绪！<br>请用浏览器打开完整版。</p><a href="/stock">进入行情终端 →</a></div></body></html>'''
 
 # CDN-compatible asset routes (serve /css/style.css and /manifest.json from static/)
 @app.route("/css/<path:filename>")
@@ -3613,21 +3606,28 @@ def economic_calendar():
 # ==========================================================
 # 每日收盘快照 — 防止盘后数据丢失（尤其是周五）
 # ==========================================================
-_last_snapshot_date = {"date": ""}
+_last_snapshot_date = {"date": "", "intraday": ""}
 
 def _auto_snapshot_if_needed():
-    """Auto-save snapshot at 15:05 each trading day (weekday)"""
+    """Auto-save snapshot: every 30min during trading hours + final at 15:05"""
     now = datetime.now()
     if now.weekday() >= 5:
-        return  # Weekend, skip
+        return
     today = now.strftime("%Y-%m-%d")
     h, m = now.hour, now.minute
-    # Only snapshot after 15:00, once per day
-    if h < 15 or (h == 15 and m < 5):
-        return
-    if _last_snapshot_date["date"] == today:
-        return  # Already saved today
-    _last_snapshot_date["date"] = today
+    # During trading: snapshot every 30 min
+    in_trading = (9 <= h < 11 or (h == 11 and m <= 30) or 13 <= h < 15)
+    if in_trading:
+        intra_key = f"{today}-{h:02d}{m//30*30:02d}"
+        if _last_snapshot_date.get("intraday") == intra_key:
+            return
+        _last_snapshot_date["intraday"] = intra_key
+    elif h >= 15:
+        if _last_snapshot_date.get("date") == today:
+            return
+        _last_snapshot_date["date"] = today
+    else:
+        return  # Pre-market, skip
     # Collect data
     try:
         snapshot = {
