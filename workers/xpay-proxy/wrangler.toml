@@ -1,0 +1,7 @@
+name = "xpay-proxy"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+workers_dev = true
+
+# 这个 Worker 作为公开的 CORS 代理，前端直接调它
+# 部署后 URL: https://xpay-proxy.stockai-63o.workers.dev

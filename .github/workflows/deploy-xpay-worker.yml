@@ -1,0 +1,21 @@
+name: Deploy XORPay Proxy Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'workers/xpay-proxy/**'
+      - '.github/workflows/deploy-xpay-worker.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: 91756d1d4f879a002e0765ed8b2ef145
+          workingDirectory: workers/xpay-proxy
+          command: deploy
