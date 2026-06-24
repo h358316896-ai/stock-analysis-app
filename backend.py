@@ -298,11 +298,14 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         url = f"{XORPAY_API}{XORPAY_AID}"
         logger.info(f"[XORPay] POST {url} | name={title} | price={amount_str}")
         r = requests.post(url, data=params, timeout=15)
-        raw_text = r.text[:500] if r.text else "(empty)"
+        raw_text = (r.text or "").strip()[:500]
         logger.info(f"[XORPay] HTTP {r.status_code} | body: {raw_text}")
-        if not r.text or not r.text.strip():
+        if not raw_text:
             return {"errcode": -2, "errmsg": f"XORPay 返回空响应 (HTTP {r.status_code})"}
-        result = r.json()
+        try:
+            result = r.json()
+        except Exception:
+            return {"errcode": -5, "errmsg": f"XORPay 返回非JSON (HTTP {r.status_code}): {raw_text[:300]}"}
         logger.info(f"[XORPay] parsed: {json.dumps(result, ensure_ascii=False)}")
         return result
     except requests.exceptions.Timeout:
