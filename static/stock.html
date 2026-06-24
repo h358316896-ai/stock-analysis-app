@@ -3491,7 +3491,7 @@ async function loadTrendingStocks() {
       return '<div class="smartmoney-item" onclick="quickSearch(\'' + s.code + '\',\'cn\')">' +
         '<div class="sm-name">' + s.name + ' <span style="font-size:10px;color:var(--text-tertiary)">' + s.code + '</span></div>' +
         '<div class="sm-flow ' + (isUp ? 'text-green' : 'text-red') + '">' + (isUp ? '+' : '') + s.change_pct.toFixed(2) + '%</div>' +
-        '<div class="sm-source">成交 ' + ((s.volume_hands||0)/10000).toFixed(0) + '万手</div></div>';
+        '<div class="sm-source">成交 ' + (s.volume_hands > 0 ? ((s.volume_hands/10000).toFixed(0) + '万手') : '--') + '</div></div>';
     }).join('');
   } catch(e) { console.warn('Trending:', e); }
 }

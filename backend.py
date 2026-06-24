@@ -3274,11 +3274,13 @@ def _fetch_movers_tencent_fallback():
                 pe = float(fields[39]) if len(fields) > 39 and fields[39] else 0.0
                 mkt_cap = float(fields[44]) if len(fields) > 44 and fields[44] else 0.0
                 name = fields[1] if fields[1] else m.group(1)
+                volume_hands = int(float(fields[6])) if len(fields) > 6 and fields[6] else 0
                 if price > 0:
                     stocks.append({
                         "code": m.group(1), "name": name, "price": round(price,2),
                         "change_pct": round(chg_pct,2), "market_cap": mkt_cap,
                         "pe": round(pe,2) if pe > 0 else None,
+                        "volume_hands": volume_hands,
                     })
     except Exception:
         pass
