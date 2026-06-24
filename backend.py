@@ -208,7 +208,7 @@ def add_cors_and_gzip(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, Cookie"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
     # Content-Security-Policy header
-    response.headers["Content-Security-Policy"] = "default-src 'self' https://stock-analysis-app-production-da60.up.railway.app https://stockai-63o.pages.dev; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://stock-analysis-app-production-da60.up.railway.app https://stockai-63o.pages.dev; font-src 'self'; object-src 'none'; base-uri 'self'"
+    response.headers["Content-Security-Policy"] = "default-src 'self' https://stock-analysis-app-production-da60.up.railway.app https://pay.kunhuang.top; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://stock-analysis-app-production-da60.up.railway.app https://pay.kunhuang.top; font-src 'self'; object-src 'none'; base-uri 'self'"
     # Browser caching
     req_path = request.path
     ct = response.headers.get("Content-Type") or ""
