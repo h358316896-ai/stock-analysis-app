@@ -287,7 +287,7 @@ def _xorpay_sign(name, pay_type, price, order_id, notify_url):
     return hashlib.md5(raw.encode()).hexdigest().lower()  # XORPay 要求 32位小写
 
 def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_url: str, pay_type: str = "alipay") -> dict:
-    """调用 XORPay API 创建扫码订单。pay_type: alipay(支付宝) / native(微信)"""
+    """调用 XORPay API 创建扫码订单（ECS代理自动计算签名）"""
     amount_str = f"{amount:.2f}"
     params = {
         "name": title,
@@ -296,18 +296,11 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         "order_id": out_trade_no,
         "notify_url": notify_url,
     }
-    params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
-    # 打印签名详情用于调试
-    raw_sign_str = str(title) + str(pay_type) + str(amount_str) + str(out_trade_no) + str(notify_url) + XORPAY_SECRET
-    logger.warning(f"[XORPay SIGN DEBUG] raw='{raw_sign_str}' sign='{params['sign']}'")
+    # ECS 代理会自动计算 XORPay 签名并转发请求
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
-        logger.warning(f"[XORPay] POST {url} | body={params}")
-        proxies = {}
-        if XORPAY_PROXY:
-            proxies = {"https": XORPAY_PROXY, "http": XORPAY_PROXY}
-            logger.info(f"[XORPay] using proxy: {XORPAY_PROXY}")
-        r = requests.post(url, data=params, timeout=30, proxies=proxies, verify=False)
+        logger.info(f"[XORPay] POST via ECS proxy | name={title} | price={amount_str}")
+        r = requests.post(url, data=params, timeout=30, verify=False)
         raw_text = (r.text or "").strip()[:500]
         logger.info(f"[XORPay] HTTP {r.status_code} | body: {raw_text}")
         if not raw_text:
