@@ -123,6 +123,8 @@ FEATURE_FLAGS = {
     "risk_metrics":   {"free": 0,   "vip": 20, "svip": -1},
     "backtest":       {"free": 0,   "vip": 10, "svip": -1},
     "daily_briefing": {"free": 2,   "vip": -1, "svip": -1},
+    "bottleneck":     {"free": 3,   "vip": -1, "svip": -1},
+    "devils_advocate":{"free": 3,   "vip": -1, "svip": -1},
 }
 
 _daily_usage: dict = {}  # key: "uid:feature:YYYY-MM-DD", value: count
@@ -731,6 +733,8 @@ _QUANT_BREADTH_CACHE = {"data": None, "ts": 0}
 _QUANT_TECHSIG_CACHE = {}  # per-stock: {key: {data, ts}}
 _QUANT_RISK_CACHE = {}     # per-stock: {key: {data, ts}}
 _QUANT_POOL_CACHE = {"data": None, "ts": 0}
+_BOTTLENECK_CACHE = {}   # per-industry: {"data": ..., "ts": ...} TTL 24h
+_DEVILS_ADVOCATE_CACHE = {}  # per-stock: {"data": ..., "ts": ...} TTL 1h
 _CACHE_TTL_SHORT = 60      # 1 minute for market indices
 _CACHE_TTL_LONG = 300      # 5 minutes for global indices / sectors
 
@@ -1562,6 +1566,56 @@ def deep_research():
 
 
 # ---- 产业链瓶颈扫描 ----
+def _validate_stock_codes(text):
+    """校验文本中出现的A股代码是否真实存在，标注真伪"""
+    import re as _re
+    # 匹配6位数字代码（可能带市场前缀 sh/sz）
+    found = set()
+    for m in _re.finditer(r'(?:sh|sz|SH|SZ)?(\d{6})', text):
+        code = m.group(1)
+        if code in STOCK_NAMES:
+            found.add(code)
+    return found
+
+def _inject_live_quotes(codes, max_stocks=5):
+    """批量获取实时行情，返回 {code: {name, price, change_pct, pe}}"""
+    quotes = {}
+    for code in list(codes)[:max_stocks]:
+        try:
+            q = fetch_cn_quote(code)
+            if q and "error" not in q:
+                quotes[code] = {
+                    "name": q.get("name", code),
+                    "price": q.get("price", 0),
+                    "change_pct": q.get("change_pct", 0),
+                    "pe": q.get("pe"),
+                    "market_cap": q.get("market_cap"),
+                }
+        except Exception:
+            pass
+    return quotes
+
+def _parse_chain_json_robust(report):
+    """鲁棒解析 AI 返回的 chain_json，多重 fallback"""
+    import re as _re
+    patterns = [
+        _re.compile(r'```chain_json\s*\n(.*?)\n```', _re.DOTALL),
+        _re.compile(r'```json\s*\n(.*?)\n```', _re.DOTALL),
+        _re.compile(r'\{[^{]*"industry"[^}]*"layers"[\s\S]*?\n\}', _re.DOTALL),
+    ]
+    for pat in patterns:
+        m = pat.search(report)
+        if m:
+            try:
+                raw_json = m.group(1) if pat is not patterns[2] else m.group(0)
+                # 修复常见 JSON 错误：尾逗号、单引号
+                raw_json = _re.sub(r',\s*}', '}', raw_json)
+                raw_json = _re.sub(r',\s*]', ']', raw_json)
+                return json.loads(raw_json)
+            except Exception:
+                continue
+    return None
+
 @app.route("/api/stock/bottleneck-scan", methods=["POST"])
 def bottleneck_scan():
     """扫描产业链关键瓶颈环节，找出A股相关标的"""
@@ -1570,18 +1624,39 @@ def bottleneck_scan():
     if not industry:
         return jsonify({"error": "请输入产业链名称"}), 400
 
+    # 用量控制
+    uid = current_user_id()
+    if uid:
+        allowed, limit, used = check_usage_limit(uid, "bottleneck")
+        if not allowed:
+            return jsonify({
+                "error": f"今日瓶颈扫描次数已用完（{limit}次/天）",
+                "need_upgrade": True, "limit": limit, "used": used
+            }), 403
+
+    # 缓存检查（24h TTL）
+    cache_key = industry.strip().lower()
+    now_ts = time.time()
+    if cache_key in _BOTTLENECK_CACHE:
+        entry = _BOTTLENECK_CACHE[cache_key]
+        if (now_ts - entry["ts"]) < 86400:
+            logger.info(f"[bottleneck] Cache hit: {industry}")
+            if uid:
+                increment_usage(uid, "bottleneck")
+            return jsonify(entry["data"])
+
     prompt = f"""你是顶级产业链分析师和瓶颈交易策略专家。核心理念：瓶颈才是王道——没有这个环节，整个产业链就会断链。
 
 请对"{industry}"产业链做以瓶颈为核心的深度分析。
 
-在开始正文之前，请先输出一个结构化的产业链图谱JSON，我将用它来渲染可视化图表。格式必须严格如下：
+在开始正文之前，请先输出一个结构化的产业链图谱JSON，格式必须严格如下（不要省略任何字段，每个layer至少3个nodes）：
 
 ```chain_json
 {{
   "industry": "{industry}",
   "layers": [
     {{ "name": "上游", "nodes": [
-      {{ "name": "环节名", "companies": ["公司A 代码", "公司B 代码"], "bottleneck": true/false, "bottleneck_score": 8, "note": "一句话说明" }}
+      {{ "name": "环节名", "companies": ["公司A 代码", "公司B 代码"], "bottleneck": true, "bottleneck_score": 8, "note": "一句话说明" }}
     ]}},
     {{ "name": "中游", "nodes": [...] }},
     {{ "name": "下游", "nodes": [...] }}
@@ -1589,112 +1664,91 @@ def bottleneck_scan():
 }}
 ```
 
-每个环节标记是否为瓶颈(bottleneck:true)，以及瓶颈评分(1-10)。
-
 ## 核心方法论
-瓶颈交易的精髓：找到产业链中那个"离了它就转不动"的环节。这个环节通常具有以下特征：
-1. 扩产周期极长（2年以上），短期无法通过砸钱解决
-2. 技术壁垒极高，全球能做的不超过3家
-3. 下游完全依赖它，没有替代方案
-4. 占终端产品成本极低但对性能影响极大（客户对涨价不敏感）
+瓶颈交易的精髓：找到产业链中那个"离了它就转不动"的环节。特征：扩产周期>2年、全球不超过5家能做、下游无替代、占终端成本<15%但对性能影响>50%。
+
+请按以下六层输出（每层用##标题，简洁有力）：
 
 ## 第一层：产业链地图 + 断链推演
-画出产业链全景图。然后对每个环节做"断链推演"：
-假设这个环节突然断供，下游哪些环节会立即停摆？影响多大？用具体数字说明（如：高端光模块断供 → AI训练成本飙升300% → 所有大模型公司亏损翻倍）。
+画出产业链全景图。对每个环节做"断链推演"——断供后下游停摆影响用数字量化。
 
-## 第二层：瓶颈锁定——谁是真正的主宰者
-从产业链中找出真正的瓶颈环节。标准极其严格：
-- 扩产周期 > 2年
-- 全球能做的不超过 5 家
-- 下游没有任何替代方案
-- 占终端成本 < 15% 但对性能影响 > 50%
+## 第二层：瓶颈锁定
+找出真正的瓶颈环节。给出：瓶颈指数(1-10)、全球垄断者、A股对标公司(代码+名称)、产能缺口趋势。
 
-对每个瓶颈给出：
-- 为什么它是"离了它就转不动"的环节
-- 瓶颈瓶颈指数（综合评分 1-10）：10分 = 整个行业被这一个东西卡死
-- 全球垄断者是谁
-- A股有没有对标公司（具体代码+名称+市值+毛利率）
-- 这个瓶颈正在变紧还是变松？（产能缺口是扩大还是缩小）
+## 第三层：子瓶颈拆解
+瓶颈的上游瓶颈是什么？核心技术难点？对应的A股公司？
 
-## 第三层：瓶颈的子瓶颈——再挖一层
-瓶颈环节内部还有瓶颈。继续拆解：
-- 瓶颈的上游是什么？（瓶颈的瓶颈）
-- 瓶颈的核心技术难点是什么？
-- 每个子瓶颈对应哪些A股公司？
+## 第四层：五因子评分卡
+对每只核心标的用"确定需求/受限供给/低关注度/价值捕获/催化剂"打分，综合分=五项平均。
 
-## 第四层：瓶颈五因子评分卡
-对每只核心标的，用 Serenity 五因子模型严格打分（每项1-10分）：
+## 第五层：标的池
+筛选"A股唯一或唯二"的标的，给出代码+名称+PE+毛利率+不可替代性证据+定价权分析。
 
-| 因子 | 评分 | 依据 |
-|------|------|------|
-| 确定需求 | X/10 | 下游需求确定性证据 |
-| 受限供给 | X/10 | 全球供应商数量+扩产周期 |
-| 低关注度 | X/10 | 机构覆盖数量+媒体报道密度 |
-| 价值捕获 | X/10 | 定价权+毛利率+客户锁定 |
-| 催化剂 | X/10 | 近期可能触发上涨的事件 |
+## 第六层：破裂预警
+列出技术替代/产能爆发/需求崩塌/政策突变四种场景及对应减仓动作。
 
-**综合瓶颈分 = 五项平均分**
-
-➤ 8分以上：超级瓶颈，重仓关注
-➤ 6-8分：优质瓶颈，择机配置
-➤ 4-6分：一般瓶颈，轻仓观察
-➤ 4分以下：伪瓶颈，回避
-
-## 第五层：瓶颈交易标的池
-筛选标准：必须是"这个细分领域唯一的或唯二的A股上市公司"。
-对每只标的给出：
-- 代码+名称+市值+PE+毛利率
-- 为什么它是瓶颈（不可替代性的证据）
-- 瓶颈定价权：这家公司涨价10%，客户敢不敢换供应商？
-- 产能扩张计划：未来2年产能能增加多少？
-- 机构持仓：是被抱团了还是被忽视了？
-
-## 第六层：瓶颈破裂预警——什么时候跑
-瓶颈优势不是永久的。列出可能打破瓶颈的标志性事件：
-- 技术替代（出现新路线可以绕过这个瓶颈）
-- 产能爆发（瓶颈环节突然大幅扩产）
-- 需求崩塌（下游需求消失导致瓶颈不再重要）
-- 政策突变（出口管制或补贴取消）
-
-每个事件对应一个减仓或清仓动作。
-
-要求：A股代码真实。数据具体。逻辑严密。不要泛泛而谈。"""
+要求：A股代码必须是6位数字。内容简洁有料，数据说话。字数控制在1200字以内。"""
 
     try:
         r = deepseek_chat([
-            {"role": "system", "content": "你是顶级产业链分析师，擅长识别产业瓶颈和关键节点。A股代码和公司数据必须真实准确。分析简洁有力。"},
+            {"role": "system", "content": "你是顶级产业链分析师，擅长识别产业瓶颈和关键节点。输出A股6位数字代码，代码必须真实存在。"},
             {"role": "user", "content": prompt}
-        ], temperature=0.3, max_tokens=2500)
+        ], temperature=0.3, max_tokens=4000)
         raw = r if isinstance(r, str) else ""
     except Exception:
         raw = ""
 
     report = raw or "AI分析暂不可用"
+
+    # 抽掉 JSON 块得到纯报告
+    import re as re2
+    report_clean = re2.sub(r'```(?:chain_json|json).*?```\s*\n*', '', report, flags=re2.DOTALL)
+
+    # Parse chain_json（鲁棒版）
+    chain_data = _parse_chain_json_robust(report)
+    if chain_data and chain_data.get("layers"):
+        logger.info(f"[bottleneck] Chain diagram parsed: {len(chain_data['layers'])} layers")
+
+    # 股票代码校验
+    valid_codes = _validate_stock_codes(report_clean)
+    invalid_codes = set()
+    # 对 chain_data 中的公司也做校验标注
+    if chain_data and chain_data.get("layers"):
+        for layer in chain_data["layers"]:
+            for node in layer.get("nodes", []):
+                verified = []
+                for c in node.get("companies", []):
+                    code_match = re2.search(r'(\d{6})', c)
+                    if code_match:
+                        code = code_match.group(1)
+                        if code in STOCK_NAMES:
+                            verified.append(f"{c} ✓")
+                        else:
+                            verified.append(f"{c} ⚠️待核实")
+                            invalid_codes.add(code)
+                    else:
+                        verified.append(c)
+                node["companies"] = verified
+
+    # 注入实时行情
+    quotes = {}
+    if valid_codes:
+        quotes = _inject_live_quotes(valid_codes, max_stocks=8)
+    # 将行情注入报告末尾
+    quote_html = ""
+    if quotes:
+        quote_html = '<div style="margin-top:24px;padding:16px;background:rgba(7,193,96,0.04);border:1px solid rgba(7,193,96,0.12);border-radius:10px">'
+        quote_html += '<h4 style="margin:0 0 12px;font-size:14px;color:#07c160">📊 标的实时行情（自动注入）</h4>'
+        quote_html += '<table style="width:100%;font-size:12px;border-collapse:collapse">'
+        quote_html += '<tr style="color:var(--text-tertiary);text-align:left"><th style="padding:4px 8px">代码</th><th>名称</th><th>现价</th><th>涨跌</th><th>PE</th><th>市值(亿)</th></tr>'
+        for code, info in quotes.items():
+            chg_str = f"<span style='color:{'#07c160' if info['change_pct'] >= 0 else '#c0392b'}'>{info['change_pct']:+.2f}%</span>"
+            pe_str = f"{info['pe']:.1f}" if info.get('pe') and info['pe'] > 0 else "-"
+            mkt_str = f"{info['market_cap']:.0f}" if info.get('market_cap') else "-"
+            quote_html += f"<tr><td style='padding:4px 8px;color:var(--accent)'>{code}</td><td>{info['name']}</td><td>{info['price']:.2f}</td><td>{chg_str}</td><td>{pe_str}</td><td>{mkt_str}</td></tr>"
+        quote_html += '</table></div>'
+
     # Format HTML
-    html = report
-    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    html = html.replace("\n\n", "</p><p>")
-    html = html.replace("\n", "<br>")
-    html = "<p>" + html + "</p>"
-    for tag in ["## 产业链全景图", "## 瓶颈识别", "## 核心标的", "## 风险提示"]:
-        label = tag.replace("## ", "")
-        html = html.replace(tag, "<h3 style='color:var(--accent);margin:20px 0 10px;font-size:16px;border-bottom:1px solid var(--border-subtle);padding-bottom:6px'>" + label + "</h3>")
-    html = html.replace("**", "<strong>")
-
-    # Parse chain_json from report
-    chain_data = None
-    try:
-        import re as re2
-        m = re2.search(r'```chain_json\s*\n(.*?)\n```', report, re2.DOTALL)
-        if m:
-            chain_data = json.loads(m.group(1))
-        # Remove the JSON block from displayed report
-        report_clean = re2.sub(r'```chain_json.*?```\s*\n*', '', report, flags=re2.DOTALL)
-    except Exception:
-        report_clean = report
-        chain_data = None
-
-    # Clean HTML without the JSON block
     html_clean = report_clean
     html_clean = html_clean.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     html_clean = html_clean.replace("\n\n", "</p><p>")
@@ -1703,15 +1757,27 @@ def bottleneck_scan():
     for tag in ["## 第一层", "## 第二层", "## 第三层", "## 第四层", "## 第五层", "## 第六层"]:
         html_clean = html_clean.replace(tag, "<h3 style='color:var(--accent);margin:20px 0 10px;font-size:16px;border-bottom:1px solid var(--border-subtle);padding-bottom:6px'>" + tag.replace("## ", "") + "</h3>")
     html_clean = html_clean.replace("**", "<strong>")
+    # 注入实时行情 HTML
+    html_clean += quote_html
 
-    return jsonify({
+    result = {
         "success": True,
         "industry": industry,
         "report": report_clean,
         "report_html": html_clean,
         "chain_data": chain_data,
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
+        "quotes": quotes,
+        "valid_codes": list(valid_codes),
+        "invalid_codes": list(invalid_codes) if invalid_codes else [],
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+
+    # 写缓存 + 记用量
+    _BOTTLENECK_CACHE[cache_key] = {"data": result, "ts": now_ts}
+    if uid:
+        increment_usage(uid, "bottleneck")
+
+    return jsonify(result)
 
 
 # ---- AI 魔鬼代言人 ----
@@ -1721,47 +1787,75 @@ def devils_advocate():
     data = request.json or {}
     code = data.get("code", "").strip()
     name = data.get("name", "")
-    thesis = data.get("thesis", "")  # User's investment thesis
+    thesis = data.get("thesis", "")
 
     if not code:
         return jsonify({"error": "no stock code"}), 400
     if not thesis:
         thesis = f"我买{name or code}是因为它是细分龙头，基本面不错"
 
-    # Get some context
+    # 用量控制
+    uid = current_user_id()
+    if uid:
+        allowed, limit, used = check_usage_limit(uid, "devils_advocate")
+        if not allowed:
+            return jsonify({
+                "error": f"今日魔鬼代言人次数已用完（{limit}次/天）",
+                "need_upgrade": True, "limit": limit, "used": used
+            }), 403
+
+    # 缓存（1h TTL，按 code+thesis 哈希）
+    import hashlib
+    cache_key = hashlib.md5(f"{code}|{thesis}".encode()).hexdigest()
+    now_ts = time.time()
+    if cache_key in _DEVILS_ADVOCATE_CACHE:
+        entry = _DEVILS_ADVOCATE_CACHE[cache_key]
+        if (now_ts - entry["ts"]) < 3600:
+            logger.info(f"[devils_advocate] Cache hit: {code}")
+            if uid:
+                increment_usage(uid, "devils_advocate")
+            return jsonify(entry["data"])
+
+    # Get quote context
+    price = pe = chg = 0
+    quote = None
+    qname = name
     try:
-        quote = fetch_cn_quote(code) if code.startswith(("6","0","3","4","8")) else None
+        if code.startswith(("6","0","3","4","8")):
+            quote = fetch_cn_quote(code)
+        elif code.startswith(("7","H","h")) or len(code) <= 5:
+            quote = fetch_hk_quote(code)
+        else:
+            quote = fetch_us_quote(code)
         price = quote.get("price", 0) if quote else 0
         pe = quote.get("pe", 0) if quote else 0
         chg = quote.get("change_pct", 0) if quote else 0
+        qname = quote.get("name", name) if quote else name
         ctx = f"当前价格{price}，PE{pe}，涨跌幅{chg}%。"
     except Exception:
+        qname = name
         ctx = ""
 
-    prompt = f"""你是一位顶级的产业空头分析师。你的工作不是做空股票，而是帮你面前的投资者找出他投资逻辑中的漏洞。
+    prompt = f"""你是一位顶级的产业空头分析师。你的工作不是做空股票，而是帮助投资者找出他投资逻辑中的漏洞。
 
-这位投资者买了{name or code}（{code}）。{ctx}
+这位投资者买了{qname or code}（{code}）。{ctx}
 他的投资逻辑是："{thesis}"
 
-现在请你以魔鬼代言人的身份，从以下角度逐一攻击他的逻辑：
+请以魔鬼代言人的身份，从以下角度逐一攻击他的逻辑：
 
-1. **需求端**：有没有可能下游需求根本没有他想的那么确定？有没有替代方案正在蚕食市场？
+1. **需求端**：下游需求有没有可能没他想的那么确定？替代方案在蚕食市场吗？
+2. **供给端**：他以为的"稀缺"是不是暂时的？新产能/新竞争对手？
+3. **估值端**：当前价格计入了多少乐观预期？增速放缓10%估值打几折？
+4. **技术路线**：有没有他没看到的技术路径让这家公司变得可有可无？
+5. **黑天鹅**：什么事件可以让这只股票腰斩？
 
-2. **供给端**：他以为的"稀缺"是不是暂时的？有没有新的产能正在路上？有没有他没注意到的竞争对手？
-
-3. **估值端**：现在的价格已经把多少乐观预期计入了？如果增速放缓10%，估值应该打几折？
-
-4. **技术路线**：有没有一条他没看到的技术路径，可能让这家公司的产品变得可有可无？
-
-5. **黑天鹅**：最坏情况下，什么事件可以让这只股票腰斩？
-
-请用犀利但不刻薄的语气。每点独立成段，用具体数据或逻辑支撑。最后给他一个总结：他的逻辑最大的漏洞是什么，以及他应该去查什么信息来验证。"""
+请用犀利但不刻薄的语气。每点独立成段，有数据或逻辑支撑。最后总结他逻辑的最大漏洞，以及该去查什么信息验证。300字以内。"""
 
     try:
         r = deepseek_chat([
-            {"role": "system", "content": "你是空头分析师，说话犀利但客观。你的目标不是吓唬投资者，而是帮他看到盲区。"},
+            {"role": "system", "content": "你是空头分析师，说话犀利但客观。目标是帮投资者看到盲区，不是吓唬人。"},
             {"role": "user", "content": prompt}
-        ], temperature=0.5, max_tokens=1500)
+        ], temperature=0.5, max_tokens=1200)
         raw = r if isinstance(r, str) else ""
     except Exception:
         raw = ""
@@ -1774,14 +1868,21 @@ def devils_advocate():
     for kw in ["风险", "漏洞", "错误", "危险", "腰斩", "泡沫", "高估", "忽视", "盲区", "致命"]:
         html = html.replace(kw, f"<span style='color:var(--red);font-weight:600'>{kw}</span>")
 
-    return jsonify({
+    result = {
         "success": True,
-        "code": code, "name": name,
+        "code": code, "name": qname,
         "thesis": thesis,
         "attack": attack,
         "attack_html": html,
+        "quote": {"price": price, "pe": pe, "change_pct": chg} if quote else None,
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    })
+    }
+
+    _DEVILS_ADVOCATE_CACHE[cache_key] = {"data": result, "ts": now_ts}
+    if uid:
+        increment_usage(uid, "devils_advocate")
+
+    return jsonify(result)
 
 
 # ---- 多Agent辩论 ----
