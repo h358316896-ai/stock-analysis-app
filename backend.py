@@ -255,6 +255,8 @@ XORPAY_SECRET = os.getenv("XORPAY_SECRET", "")
 # XORPay API - 通过阿里云 ECS 代理（中国 IP）绕过 geo-blocking
 XORPAY_API = "https://47.97.66.164:8443/"  # 阿里云ECS代理HTTPS（自签证书）
 XORPAY_PROXY = os.getenv("XORPAY_PROXY", "")  # 备用 HTTP 代理
+# Eastmoney API 代理 — 同样走 ECS 绕过 geo-blocking（与 XORPay 代理隔离，互不影响）
+EASTMONEY_PROXY = os.getenv("EASTMONEY_PROXY", "http://47.97.66.164:8444/")
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 
 PAYMENT_ORDERS_FILE = os.path.join(BASE_DIR, "payment_orders.json")
@@ -345,9 +347,12 @@ EM_HEADERS = {
 }
 
 def fetch_eastmoney(url, timeout=5):
-    """Fetch JSON from Eastmoney API. Returns parsed JSON or None."""
+    """Fetch JSON from Eastmoney API via ECS proxy (bypasses geo-blocking from US).
+    Returns parsed JSON or None."""
+    from urllib.parse import quote
     try:
-        resp = requests.get(url, headers=EM_HEADERS, timeout=timeout, verify=True)
+        proxy_url = f"{EASTMONEY_PROXY}?url={quote(url, safe='')}"
+        resp = requests.get(proxy_url, timeout=timeout)
         return resp.json()
     except Exception as e:
         logger.warning(f"[fetch_eastmoney] Request failed: {e}")
