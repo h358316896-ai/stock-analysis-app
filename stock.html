@@ -1177,9 +1177,6 @@ function updateUpgradePrice() {
   document.getElementById('upgradeTotal').innerHTML = '合计: ¥' + total.toFixed(0) + (discount < 1 ? ' <span style="font-size:13px;color:var(--green)">(' + Math.round((1-discount)*100) + '% 折扣)</span>' : '');
 }
 
-// Cloudflare Pages Function — 中国边缘节点代理 XORPay API
-var XPAY_PROXY = 'https://pay.kunhuang.top/705874';
-
 async function startPayment() {
   const months = parseInt(document.getElementById('upgradeMonths').value) || 1;
   closeUpgradeModal();
@@ -1194,54 +1191,25 @@ async function startPayment() {
     var token = localStorage.getItem('stockai_token');
     var headers = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = 'Bearer ' + token;
-
-    // 第一步：从后端获取 XORPay 签名参数
-    const r1 = await fetch('/api/payment/create', {
+    const r = await fetch('/api/payment/create', {
       method: 'POST', headers: headers,
       body: JSON.stringify({ tier: upgradeTier, months })
     });
-    const d = await r1.json();
-    if (!d.success) {
-      document.getElementById('paymentStatus').textContent = d.error || '支付创建失败';
-      showToast(d.detail || d.error || '支付创建失败', 'error');
-      return;
-    }
-    document.getElementById('paymentAmount').textContent = '¥' + d.total_fee.toFixed(2);
-    document.getElementById('paymentStatus').textContent = '正在连接支付网关...';
-
-    // 第二步：前端直调 Cloudflare Pages Function（中国边缘 IP → 能调通 XORPay）
-    var xp = d.xorpay;
-    var formBody = new URLSearchParams();
-    formBody.append('name', xp.name);
-    formBody.append('pay_type', xp.pay_type);
-    formBody.append('price', xp.price);
-    formBody.append('order_id', xp.order_id);
-    formBody.append('notify_url', xp.notify_url);
-    formBody.append('sign', xp.sign);
-
-    const r2 = await fetch(XPAY_PROXY, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formBody.toString()
-    });
-    const xr = await r2.json();
-
-    if (xr.status === 'ok' && xr.info && xr.info.qr) {
-      // 第三步：后端生成二维码图片
-      var qrUrl = '/api/payment/qrcode?data=' + encodeURIComponent(xr.info.qr);
-      document.getElementById('qrCodeImg').src = qrUrl;
+    const d = await r.json();
+    if (d.success && d.url_qrcode) {
+      document.getElementById('qrCodeImg').src = d.url_qrcode;
       document.getElementById('qrCodeImg').style.display = 'block';
       document.getElementById('qrPlaceholder').style.display = 'none';
-      document.getElementById('paymentStatus').textContent = '请使用支付宝或微信扫码支付';
+      document.getElementById('paymentAmount').textContent = '¥' + d.total_fee.toFixed(2);
+      document.getElementById('paymentStatus').textContent = '请使用微信或支付宝扫码支付';
       startPaymentPolling(d.out_trade_no);
     } else {
-      var err = (xr && xr.info) || (xr && xr.status) || '支付网关无响应';
-      document.getElementById('paymentStatus').textContent = '支付创建失败: ' + err;
-      showToast('支付创建失败: ' + err, 'error');
+      document.getElementById('paymentStatus').textContent = d.error || '支付创建失败';
+      showToast(d.detail || d.error || '支付创建失败', 'error');
     }
   } catch(e) {
     document.getElementById('paymentStatus').textContent = '网络错误，请重试';
-    showToast('Network error: ' + e.message, 'error');
+    showToast('Network error', 'error');
   }
 }
 
