@@ -272,10 +272,10 @@ def _save_payment_orders():
 _load_payment_orders()
 
 def _xorpay_sign(name, pay_type, price, order_id, notify_url):
-    """XORPay签名：name + pay_type + price + order_id + notify_url + secret (MD5大写)"""
+    """XORPay签名：name + pay_type + price + order_id + notify_url + secret (MD5小写)"""
     import hashlib
     raw = str(name) + str(pay_type) + str(price) + str(order_id) + str(notify_url) + XORPAY_SECRET
-    return hashlib.md5(raw.encode()).hexdigest().upper()
+    return hashlib.md5(raw.encode()).hexdigest().lower()  # XORPay 要求 32位小写
 
 def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_url: str, pay_type: str = "alipay") -> dict:
     """调用 XORPay API 创建扫码订单。pay_type: alipay(支付宝) / native(微信)"""
@@ -286,13 +286,20 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         "price": amount_str,
         "order_id": out_trade_no,
         "notify_url": notify_url,
+        "return_type": "json",  # 要求返回 JSON
     }
     params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
+        print(f"[XORPay] POST {url}")
+        print(f"[XORPay] params: {json.dumps({k:v for k,v in params.items() if k!='sign'}, ensure_ascii=False)}")
+        print(f"[XORPay] sign: {params['sign']}")
         r = requests.post(url, data=params, timeout=15)
-        return r.json()
+        result = r.json()
+        print(f"[XORPay] response: {json.dumps(result, ensure_ascii=False)}")
+        return result
     except Exception as e:
+        print(f"[XORPay] ERROR: {e}")
         return {"errcode": -1, "errmsg": str(e)}
 
 # 导入认证数据库模块
