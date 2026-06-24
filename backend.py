@@ -7,6 +7,8 @@ import json
 import time
 import base64
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 from io import BytesIO
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
@@ -251,7 +253,7 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
 XORPAY_AID = os.getenv("XORPAY_AID", "")
 XORPAY_SECRET = os.getenv("XORPAY_SECRET", "")
 # XORPay API - 通过阿里云 ECS 代理（中国 IP）绕过 geo-blocking
-XORPAY_API = "http://47.97.66.164:9876/"
+XORPAY_API = "https://47.97.66.164:8443/"  # 阿里云ECS代理HTTPS（自签证书）
 XORPAY_PROXY = os.getenv("XORPAY_PROXY", "")  # 备用 HTTP 代理
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 
@@ -303,7 +305,7 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         if XORPAY_PROXY:
             proxies = {"https": XORPAY_PROXY, "http": XORPAY_PROXY}
             logger.info(f"[XORPay] using proxy: {XORPAY_PROXY}")
-        r = requests.post(url, data=params, timeout=15, proxies=proxies)
+        r = requests.post(url, data=params, timeout=30, proxies=proxies, verify=False)
         raw_text = (r.text or "").strip()[:500]
         logger.info(f"[XORPay] HTTP {r.status_code} | body: {raw_text}")
         if not raw_text:
