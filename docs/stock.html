@@ -130,11 +130,10 @@ function pwaDismissBar() {
     <h2 id="authTitle">登录</h2>
     <div class="err" id="authError"></div>
     <input type="text" id="auth用户名" placeholder="用户名" required>
-    <input type="email" id="authEmail" placeholder="邮箱（注册必填）" style="display:none" required>
     <input type="password" id="authPassword" placeholder="密码（6位以上）" required>
     <div style="text-align:right;margin-bottom:12px"><a onclick="showForgotPassword()" style="color:var(--accent);font-size:11px;cursor:pointer">忘记密码？</a></div>
     <button type="button" id="authSubmit" onclick="submitAuth()">登录</button>
-    <div class="switch"><span id="authSwitchText">没有账号？</span> <a onclick="switchAuthMode()">注册</a></div>
+    <div class="switch" id="authSwitchText">新用户注册即享 <b style="color:var(--green)">3天VIP免费试用</b> <a onclick="switchAuthMode()">立即注册</a></div>
   </div>
 </div>
 
@@ -530,6 +529,15 @@ function pwaDismissBar() {
         <button class="btn-watchlist" onclick="shareStock()" style="display:none;margin-left:8px;background:rgba(7,193,96,0.1);border-color:rgba(7,193,96,0.2);color:#07c160" id="shareBtn">📤 分享</button>
       </div>
 
+      <!-- Multi-Agent Debate Panel -->
+      <div class="glass" id="debatePanel" style="display:none;margin-bottom:12px;padding:16px;border-left:3px solid var(--purple)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <span style="font-weight:700;font-size:14px;color:var(--purple)">🤖 多Agent辩论</span>
+          <span id="debateTime" style="font-size:10px;color:var(--text-tertiary)"></span>
+        </div>
+        <div id="debateContent" style="font-size:13px;line-height:2;color:var(--text-secondary)"></div>
+      </div>
+
       <!-- Deep Research Panel -->
       <div class="glass" id="deepResearchPanel" style="display:none;margin-bottom:12px;padding:16px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
@@ -557,6 +565,7 @@ function pwaDismissBar() {
         <div style="display:flex;gap:8px">
           <button onclick="runAnalysis('comprehensive')" style="flex:1;padding:8px;background:var(--accent);color:#fff;border:none;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">📊 AI深度分析</button>
           <button onclick="runDeepResearch()" style="flex:1;padding:8px;background:var(--gold);color:#0a0c14;border:none;border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">🔬 五步研报</button>
+          <button onclick="runMultiAgentDebate()" style="padding:8px 12px;background:rgba(168,85,247,0.1);color:var(--purple);border:1px solid rgba(168,85,247,0.2);border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">🤖 多Agent辩论</button>
           <button onclick="quickDevilsAdvocate()" style="padding:8px 12px;background:rgba(192,57,43,0.1);color:var(--red);border:1px solid rgba(192,57,43,0.2);border-radius:6px;font-weight:600;font-size:12px;cursor:pointer;font-family:var(--font)">😈 魔鬼代言人</button>
           <button onclick="document.getElementById('alertsList').scrollIntoView({behavior:'smooth'})" style="padding:8px 16px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid var(--border-default);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)">🔔 设提醒</button>
           <button onclick="portfolioBuy()" id="pfBuyBtn" style="display:none;padding:8px 16px;background:rgba(34,197,94,0.1);color:var(--green);border:1px solid rgba(34,197,94,0.2);border-radius:6px;font-size:12px;cursor:pointer;font-family:var(--font)" title="模拟交易，10万本金起步">💰 模拟买入</button>
@@ -927,22 +936,18 @@ let isReg = false;
 function switchAuthMode(f) {
   isReg = f !== undefined ? f : !isReg;
   document.getElementById('authTitle').textContent = isReg ? '创建账号' : '登录';
-  document.getElementById('authEmail').style.display = isReg ? 'block' : 'none';
-  document.getElementById('authSubmit').textContent = isReg ? '创建账号' : '登录';
-  document.getElementById('authSwitchText').textContent = isReg ? '已有账号？' : "没有账号？";
-  document.getElementById('authSwitchText').nextElementSibling.textContent = isReg ? '登录' : '注册';
+  document.getElementById('authSubmit').textContent = isReg ? '免费注册 · 送3天VIP' : '登录';
+  document.getElementById('authSwitchText').innerHTML = isReg ? '已有账号？<a onclick=\"switchAuthMode()\">登录</a>' : '新用户送3天VIP <a onclick=\"switchAuthMode()\">立即注册</a>';
   document.getElementById('authError').classList.remove('show');
 }
 let _pendingWatchlistAdd = false;
 async function submitAuth() {
   var u = document.getElementById('auth用户名').value.trim();
   var p = document.getElementById('authPassword').value;
-  var e = document.getElementById('authEmail').value.trim();
   if (!u || !p) return showErr('请输入用户名和密码');
-  if (isReg && (!e || !e.includes('@'))) return showErr('请输入有效的邮箱地址');
   if (isReg && p.length < 6) return showErr('密码至少6位');
   var url = isReg ? '/api/auth/register' : '/api/auth/login';
-  var body = isReg ? { username: u, email: e, password: p } : { username: u, password: p };
+  var body = isReg ? { username: u, password: p } : { username: u, password: p };
   try {
     var r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     var d = await r.json();
@@ -1172,6 +1177,9 @@ function updateUpgradePrice() {
   document.getElementById('upgradeTotal').innerHTML = '合计: ¥' + total.toFixed(0) + (discount < 1 ? ' <span style="font-size:13px;color:var(--green)">(' + Math.round((1-discount)*100) + '% 折扣)</span>' : '');
 }
 
+// Cloudflare Pages Function — 中国边缘节点代理 XORPay API
+var XPAY_PROXY = 'https://stockai-63o.pages.dev/xpay-proxy/705874';
+
 async function startPayment() {
   const months = parseInt(document.getElementById('upgradeMonths').value) || 1;
   closeUpgradeModal();
@@ -1183,25 +1191,57 @@ async function startPayment() {
   document.getElementById('paymentAmount').textContent = '计算中...';
 
   try {
-    const r = await fetch('/api/payment/create', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    var token = localStorage.getItem('stockai_token');
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+
+    // 第一步：从后端获取 XORPay 签名参数
+    const r1 = await fetch('/api/payment/create', {
+      method: 'POST', headers: headers,
       body: JSON.stringify({ tier: upgradeTier, months })
     });
-    const d = await r.json();
-    if (d.success && d.url_qrcode) {
-      document.getElementById('qrCodeImg').src = d.url_qrcode;
+    const d = await r1.json();
+    if (!d.success) {
+      document.getElementById('paymentStatus').textContent = d.error || '支付创建失败';
+      showToast(d.detail || d.error || '支付创建失败', 'error');
+      return;
+    }
+    document.getElementById('paymentAmount').textContent = '¥' + d.total_fee.toFixed(2);
+    document.getElementById('paymentStatus').textContent = '正在连接支付网关...';
+
+    // 第二步：前端直调 Cloudflare Pages Function（中国边缘 IP → 能调通 XORPay）
+    var xp = d.xorpay;
+    var formBody = new URLSearchParams();
+    formBody.append('name', xp.name);
+    formBody.append('pay_type', xp.pay_type);
+    formBody.append('price', xp.price);
+    formBody.append('order_id', xp.order_id);
+    formBody.append('notify_url', xp.notify_url);
+    formBody.append('sign', xp.sign);
+
+    const r2 = await fetch(XPAY_PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formBody.toString()
+    });
+    const xr = await r2.json();
+
+    if (xr.status === 'ok' && xr.info && xr.info.qr) {
+      // 第三步：后端生成二维码图片
+      var qrUrl = '/api/payment/qrcode?data=' + encodeURIComponent(xr.info.qr);
+      document.getElementById('qrCodeImg').src = qrUrl;
       document.getElementById('qrCodeImg').style.display = 'block';
       document.getElementById('qrPlaceholder').style.display = 'none';
-      document.getElementById('paymentAmount').textContent = '¥' + d.total_fee.toFixed(2);
-      document.getElementById('paymentStatus').textContent = '请使用微信或支付宝扫码支付';
+      document.getElementById('paymentStatus').textContent = '请使用支付宝或微信扫码支付';
       startPaymentPolling(d.out_trade_no);
     } else {
-      document.getElementById('paymentStatus').textContent = d.error || '支付创建失败';
-      showToast(d.error || '支付创建失败', 'error');
+      var err = (xr && xr.info) || (xr && xr.status) || '支付网关无响应';
+      document.getElementById('paymentStatus').textContent = '支付创建失败: ' + err;
+      showToast('支付创建失败: ' + err, 'error');
     }
   } catch(e) {
     document.getElementById('paymentStatus').textContent = '网络错误，请重试';
-    showToast('Network error', 'error');
+    showToast('Network error: ' + e.message, 'error');
   }
 }
 
@@ -1883,6 +1923,25 @@ function addRealHolding() {
 function quickDevilsAdvocate() {
   if (!state.stock) { showToast('请先搜索股票','info'); return; }
   window.open('/bottleneck#devil&code=' + state.stock.code + '&name=' + encodeURIComponent(state.stock.name), '_blank');
+}
+
+async function runMultiAgentDebate() {
+  if (!state.stock) { showToast('请先搜索股票', 'info'); return; }
+  var panel = document.getElementById('debatePanel');
+  var content = document.getElementById('debateContent');
+  panel.style.display = 'block';
+  content.innerHTML = '<div class=\"spinner-wrap show\" style=\"padding:20px\"><div class=\"spinner\"></div>4位AI分析师正在辩论...</div>';
+  try {
+    var r = await fetch('/api/stock/multi-agent-debate', {
+      method: 'POST', headers: {'Content-Type':'application/json','Authorization':'Bearer '+(localStorage.getItem('stockai_token')||'')},
+      body: JSON.stringify({code:state.stock.code,name:state.stock.name,market:state.stock.market})
+    });
+    var d = await r.json();
+    if (d.error) { content.innerHTML = '<div class=\"dash-empty\">'+d.error+'</div>'; return; }
+    document.getElementById('debateTime').textContent = d.timestamp || '';
+    content.innerHTML = d.html || '';
+    panel.scrollIntoView({behavior:'smooth',block:'start'});
+  } catch(e) { content.innerHTML = '<div class=\"dash-empty\">AI辩论暂不可用，请重试</div>'; }
 }
 
 async function runDeepResearch() {
