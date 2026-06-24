@@ -4556,12 +4556,6 @@ def payment_create():
         "tier": tier,
         "months": months
     })
-            "order_id": out_trade_no,
-            "notify_url": notify_url,
-            "sign": xorpay_sign,
-        },
-        # 前端调完 XORPay 后用 /api/payment/qrcode?data= 生成二维码
-    })
 
 @app.route("/api/payment/qrcode")
 def payment_qrcode():
