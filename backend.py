@@ -4515,16 +4515,12 @@ def payment_create():
 
     pay_type = data.get("pay_type", "alipay")  # 默认支付宝
 
-    # 计算 XORPay 签名参数（密钥在服务端，不暴露）
-    amount_str = f"{total_fee:.2f}"
-    xorpay_params = {
-        "name": title,
-        "pay_type": pay_type,
-        "price": amount_str,
-        "order_id": out_trade_no,
-        "notify_url": notify_url,
-    }
-    xorpay_sign = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
+    # 直接调 XORPay API（HTTP 协议绕过 geo-blocking）
+    result = _xorpay_create_order(total_fee, out_trade_no, title, notify_url, pay_type)
+    if result.get("status") != "ok":
+        error_detail = result.get("errmsg") or result.get("info") or result.get("status") or "未知错误"
+        logger.warning(f"Payment create failed: {error_detail}")
+        return jsonify({"error": "支付创建失败", "detail": str(error_detail)}), 500
 
     # 存储订单
     payment_orders[out_trade_no] = {
@@ -4532,23 +4528,28 @@ def payment_create():
         "tier": tier,
         "months": months,
         "amount_yuan": total_fee,
+        "xunhu_order_id": result.get("order_id", ""),
         "status": "pending",
         "created_at": time.time()
     }
     _save_payment_orders()
 
+    # XORPay 返回支付链接，我们自己生成二维码（不依赖 xorpay.com 被墙的图片接口）
+    qr_content = result.get("info", {}).get("qr", "")
+    qr_image_url = ""
+    if qr_content:
+        from urllib.parse import quote
+        # 用自己的二维码生成接口，同源无 CORS 问题
+        qr_image_url = f"/api/payment/qrcode?data={quote(qr_content, safe='')}"
+
     return jsonify({
         "success": True,
+        "url_qrcode": qr_image_url,
+        "url": qr_content,
         "out_trade_no": out_trade_no,
         "total_fee": total_fee,
         "tier": tier,
-        "months": months,
-        # 给前端用来直接调 XORPay 的参数
-        "xorpay": {
-            "url": f"{XORPAY_API}{XORPAY_AID}",
-            "params": xorpay_params,
-            "sign": xorpay_sign,
-        }
+        "months": months
     })
 
 @app.route("/api/payment/qrcode")
