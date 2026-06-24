@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#060608">
+<title>股票工具箱 — 仓位计算·盈亏计算·估值分析</title>
+<meta name="description" content="股票投资工具箱：仓位计算器、盈亏计算器、复利计算器、止盈止损计算器、PE估值计算器，为A股投资者打造。">
+<style>
+:root {
+  --bg-primary: #060608; --bg-secondary: #0c0c14; --bg-card: #111118;
+  --bg-elevated: #1a1a28; --border-subtle: rgba(255,255,255,0.04);
+  --border-default: rgba(255,255,255,0.06); --border-strong: rgba(255,255,255,0.1);
+  --text-primary: #f0f0f5; --text-secondary: #9090a8; --text-tertiary: #585870;
+  --accent: #3b82f6; --accent-glow: rgba(59,130,246,0.15);
+  --green: #22c55e; --red: #ef4444; --yellow: #eab308; --orange: #f97316;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --radius-sm: 6px; --radius-md: 10px; --radius-lg: 16px;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html { font-size:15px; }
+body { font-family:var(--font); background:var(--bg-primary); color:var(--text-primary); min-height:100vh; line-height:1.6; }
+::-webkit-scrollbar { width:4px; } ::-webkit-scrollbar-track { background:transparent; } ::-webkit-scrollbar-thumb { background:var(--border-strong); border-radius:2px; }
+
+/* NAV */
+.top-bar { background:rgba(8,8,24,0.9); border-bottom:1px solid var(--border-subtle); height:56px; display:flex; align-items:center; justify-content:space-between; padding:0 20px; position:sticky; top:0; z-index:100; backdrop-filter:blur(20px); }
+.logo-area { display:flex; align-items:center; gap:10px; }
+.logo-icon { width:32px; height:32px; background:linear-gradient(135deg, var(--orange), #ea580c); border-radius:8px; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:16px; color:white; }
+.logo-text { font-weight:800; font-size:17px; }
+.logo-text span { color:var(--orange); }
+.top-nav { display:flex; gap:2px; }
+.top-nav a { color:var(--text-secondary); text-decoration:none; padding:8px 14px; border-radius:var(--radius-sm); font-size:13px; font-weight:500; transition:var(--transition); }
+.top-nav a:hover, .top-nav a.active { color:var(--text-primary); background:rgba(255,255,255,0.04); }
+.btn-sign { padding:8px 18px; border-radius:20px; background:linear-gradient(135deg, var(--accent), #6366f1); color:white; border:none; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--font); text-decoration:none; }
+
+/* HERO */
+.hero { padding:60px 24px 40px; text-align:center; }
+.hero h1 { font-size:36px; font-weight:900; }
+.hero h1 span { color:var(--orange); }
+.hero p { color:var(--text-secondary); font-size:16px; margin-top:8px; }
+
+/* TOOLS GRID */
+.tools { padding:0 24px 80px; max-width:1100px; margin:0 auto; display:grid; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); gap:20px; }
+
+.tool-card { background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:28px 24px; }
+.tool-card h3 { font-size:18px; font-weight:700; margin-bottom:16px; display:flex; align-items:center; gap:8px; }
+.tool-card h3 .icon { width:32px; height:32px; border-radius:8px; display:inline-flex; align-items:center; justify-content:center; font-size:16px; }
+.icon-calc { background:rgba(59,130,246,0.15); color:var(--accent); }
+.icon-money { background:rgba(34,197,94,0.15); color:var(--green); }
+.icon-risk { background:rgba(239,68,68,0.15); color:var(--red); }
+.icon-chart { background:rgba(234,179,8,0.15); color:var(--yellow); }
+.icon-pe { background:rgba(168,85,247,0.15); color:#a855f7; }
+
+.tool-card label { display:block; font-size:12px; color:var(--text-tertiary); margin-bottom:4px; font-weight:500; }
+.tool-card input { width:100%; padding:10px 12px; background:var(--bg-secondary); border:1px solid var(--border-default); border-radius:var(--radius-sm); color:var(--text-primary); font-size:14px; font-family:var(--font); margin-bottom:12px; transition:var(--transition); }
+.tool-card input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(59,130,246,0.1); }
+.tool-card .row { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+.result-box { background:var(--bg-secondary); border-radius:var(--radius-md); padding:16px; margin-top:12px; text-align:center; }
+.result-box .big { font-size:28px; font-weight:900; color:var(--accent); }
+.result-box .sub { font-size:12px; color:var(--text-tertiary); margin-top:4px; }
+.result-box .detail { font-size:13px; color:var(--text-secondary); margin-top:8px; line-height:1.8; }
+
+.btn-calc { width:100%; padding:12px; background:linear-gradient(135deg, var(--accent), #6366f1); color:white; border:none; border-radius:var(--radius-sm); font-size:14px; font-weight:600; cursor:pointer; font-family:var(--font); margin-top:8px; transition:var(--transition); }
+.btn-calc:hover { transform:translateY(-1px); box-shadow:0 4px 20px var(--accent-glow); }
+
+.result-list { margin-top:12px; }
+.result-list .r { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--border-subtle); font-size:13px; }
+.result-list .r .v { font-weight:600; }
+
+.footer { text-align:center; padding:40px 24px; color:var(--text-tertiary); font-size:12px; border-top:1px solid var(--border-subtle); }
+.footer a { color:var(--text-secondary); text-decoration:none; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<div class="top-bar">
+  <div class="logo-area">
+    <div class="logo-icon">T</div>
+    <div class="logo-text">Stock<span>工具箱</span></div>
+  </div>
+  <div class="top-nav">
+    <a href="/">首页</a>
+    <a href="/stock">行情</a>
+    <a href="/tools" class="active">工具箱</a>
+    <a href="/media">自媒体</a>
+  </div>
+  <a href="/stock" class="btn-sign">进入行情 →</a>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>股票<span>工具箱</span></h1>
+  <p>仓位计算 · 盈亏计算 · 止盈止损 · 复利预测 · PE估值</p>
+</div>
+
+<!-- TOOLS -->
+<div class="tools">
+
+  <!-- 1. 仓位计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-calc">C</span>仓位计算器</h3>
+    <label>总资金（元）</label>
+    <input type="number" id="posTotal" placeholder="例如: 100000" value="100000">
+    <label>买入价格（元）</label>
+    <input type="number" id="posPrice" placeholder="例如: 15.50" value="15.50" step="any">
+    <label>仓位比例（%）</label>
+    <input type="number" id="posRatio" placeholder="例如: 30" value="30" min="1" max="100">
+    <div class="result-box" id="posResult">
+      <div class="big">--</div>
+      <div class="sub">输入后计算结果</div>
+    </div>
+    <button class="btn-calc" onclick="calcPosition()">计算可买股数</button>
+  </div>
+
+  <!-- 2. 盈亏计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-money">¥</span>盈亏计算器</h3>
+    <label>买入价格（元）</label>
+    <input type="number" id="plBuy" placeholder="例如: 15.50" value="15.50" step="any">
+    <label>卖出价格（元）</label>
+    <input type="number" id="plSell" placeholder="例如: 18.20" value="18.20" step="any">
+    <label>持股数量（股）</label>
+    <input type="number" id="plShares" placeholder="例如: 1000" value="1000">
+    <div class="result-box" id="plResult">
+      <div class="big">--</div>
+      <div class="sub">输入后计算结果</div>
+    </div>
+    <button class="btn-calc" onclick="calcPL()">计算盈亏</button>
+  </div>
+
+  <!-- 3. 止盈止损计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-risk">!</span>止盈止损计算</h3>
+    <label>买入价格（元）</label>
+    <input type="number" id="slEntry" placeholder="例如: 15.50" value="15.50" step="any">
+    <div class="row">
+      <div><label>止盈比例（%）</label><input type="number" id="slTP" placeholder="例如: 10" value="10"></div>
+      <div><label>止损比例（%）</label><input type="number" id="slSL" placeholder="例如: 5" value="5"></div>
+    </div>
+    <div class="result-box" id="slResult">
+      <div style="display:flex;justify-content:space-around">
+        <div><span style="color:var(--green);font-weight:700">止盈价</span><br><span style="font-size:20px;font-weight:900;color:var(--green)" id="slTPPrice">--</span></div>
+        <div><span style="color:var(--red);font-weight:700">止损价</span><br><span style="font-size:20px;font-weight:900;color:var(--red)" id="slSLPrice">--</span></div>
+      </div>
+    </div>
+    <button class="btn-calc" onclick="calcSL()">计算</button>
+  </div>
+
+  <!-- 4. 复利计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-chart">^</span>复利收益预测</h3>
+    <label>初始本金（元）</label>
+    <input type="number" id="ciPrincipal" placeholder="例如: 100000" value="100000">
+    <label>年化收益率（%）</label>
+    <input type="number" id="ciRate" placeholder="例如: 15" value="15">
+    <label>投资年限</label>
+    <input type="number" id="ciYears" placeholder="例如: 5" value="5">
+    <div class="result-box" id="ciResult">
+      <div class="big">--</div>
+      <div class="sub">最终金额</div>
+      <div class="result-list" id="ciDetail"></div>
+    </div>
+    <button class="btn-calc" onclick="calcCI()">计算复利收益</button>
+  </div>
+
+  <!-- 5. PE 估值计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-pe">P</span>PE 估值计算器</h3>
+    <label>每股收益 EPS（元）</label>
+    <input type="number" id="peEPS" placeholder="例如: 1.20" value="1.20" step="any">
+    <label>合理 PE 倍数</label>
+    <input type="number" id="pePE" placeholder="例如: 20" value="20">
+    <div class="result-box" id="peResult">
+      <div class="big">--</div>
+      <div class="sub">合理估值价格</div>
+    </div>
+    <div class="result-list" id="peRange"></div>
+    <button class="btn-calc" onclick="calcPE()">计算估值</button>
+  </div>
+
+  <!-- 6. 手续费计算器 -->
+  <div class="tool-card">
+    <h3><span class="icon icon-calc">%</span>交易成本计算</h3>
+    <label>成交金额（元）</label>
+    <input type="number" id="feeAmount" placeholder="例如: 50000" value="50000">
+    <div class="result-list" id="feeResult">
+      <div class="r"><span>佣金（万2.5）</span><span class="v" id="feeBroker">--</span></div>
+      <div class="r"><span>印花税（卖出 0.05%）</span><span class="v" id="feeStamp">--</span></div>
+      <div class="r"><span>过户费（0.001%）</span><span class="v" id="feeTransfer">--</span></div>
+      <div class="r" style="border-top:1px solid var(--border-strong);padding-top:8px"><span>合计</span><span class="v" style="color:var(--accent)" id="feeTotal">--</span></div>
+    </div>
+    <button class="btn-calc" onclick="calcFee()">计算费用</button>
+  </div>
+
+</div>
+
+<div class="footer">
+  © 2026 StockAI 工具箱 · <a href="/">返回首页</a> · <a href="/stock">行情终端</a>
+</div>
+
+<script>
+// 1. 仓位计算器
+function calcPosition() {
+  var total = parseFloat(document.getElementById('posTotal').value) || 0;
+  var price = parseFloat(document.getElementById('posPrice').value) || 0;
+  var ratio = parseFloat(document.getElementById('posRatio').value) || 0;
+  if (!total || !price || !ratio) return;
+  var invest = total * (ratio / 100);
+  var shares = Math.floor(invest / price / 100) * 100; // A股100股整数倍
+  var actualInvest = shares * price;
+  var actualRatio = (actualInvest / total * 100).toFixed(1);
+  document.getElementById('posResult').innerHTML =
+    '<div class="big">' + shares + ' 股</div>' +
+    '<div class="sub">' + ratio + '% 仓位，实际投入 ¥' + actualInvest.toLocaleString() + '（占比 ' + actualRatio + '%）</div>';
+}
+
+// 2. 盈亏计算器
+function calcPL() {
+  var buy = parseFloat(document.getElementById('plBuy').value) || 0;
+  var sell = parseFloat(document.getElementById('plSell').value) || 0;
+  var shares = parseInt(document.getElementById('plShares').value) || 0;
+  if (!buy || !sell || !shares) return;
+  var cost = buy * shares;
+  var revenue = sell * shares;
+  var profit = revenue - cost;
+  var pct = ((sell - buy) / buy * 100).toFixed(2);
+  var style = profit >= 0 ? 'color:#22c55e' : 'color:#ef4444';
+  document.getElementById('plResult').innerHTML =
+    '<div class="big" style="' + style + '">' + (profit >= 0 ? '+' : '') + profit.toLocaleString() + ' 元</div>' +
+    '<div class="sub" style="' + style + '">收益率 ' + (profit >= 0 ? '↑ ' : '↓ ') + Math.abs(pct) + '%</div>' +
+    '<div class="detail">成本 ¥' + cost.toLocaleString() + ' · 卖出收入 ¥' + revenue.toLocaleString() + '</div>';
+}
+
+// 3. 止盈止损
+function calcSL() {
+  var entry = parseFloat(document.getElementById('slEntry').value) || 0;
+  var tp = parseFloat(document.getElementById('slTP').value) || 0;
+  var sl = parseFloat(document.getElementById('slSL').value) || 0;
+  if (!entry) return;
+  var tpPrice = (entry * (1 + tp / 100)).toFixed(2);
+  var slPrice = (entry * (1 - sl / 100)).toFixed(2);
+  document.getElementById('slTPPrice').textContent = tpPrice;
+  document.getElementById('slSLPrice').textContent = slPrice;
+}
+
+// 4. 复利计算
+function calcCI() {
+  var p = parseFloat(document.getElementById('ciPrincipal').value) || 0;
+  var r = parseFloat(document.getElementById('ciRate').value) || 0;
+  var y = parseInt(document.getElementById('ciYears').value) || 0;
+  if (!p || !r || !y) return;
+  var final = p * Math.pow(1 + r / 100, y);
+  var profit = final - p;
+  var detail = '';
+  for (var i = 1; i <= y; i++) {
+    var v = p * Math.pow(1 + r / 100, i);
+    detail += '<div class="r"><span>第 ' + i + ' 年</span><span class="v">¥' + v.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '</span></div>';
+  }
+  document.getElementById('ciResult').innerHTML =
+    '<div class="big">¥' + final.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '</div>' +
+    '<div class="sub">总收益 ¥' + profit.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '（' + ((final / p - 1) * 100).toFixed(1) + '%）</div>';
+  document.getElementById('ciDetail').innerHTML = detail;
+}
+
+// 5. PE 估值
+function calcPE() {
+  var eps = parseFloat(document.getElementById('peEPS').value) || 0;
+  var pe = parseFloat(document.getElementById('pePE').value) || 0;
+  if (!eps || !pe) return;
+  var fair = (eps * pe).toFixed(2);
+  var low = (eps * pe * 0.8).toFixed(2);
+  var high = (eps * pe * 1.2).toFixed(2);
+  document.getElementById('peResult').innerHTML =
+    '<div class="big">¥' + fair + '</div>' +
+    '<div class="sub">PE=' + pe + ' × EPS=' + eps + '</div>';
+  document.getElementById('peRange').innerHTML =
+    '<div class="r"><span>低估区间（8折）</span><span class="v" style="color:#22c55e">¥' + low + '</span></div>' +
+    '<div class="r"><span>合理估值</span><span class="v" style="color:var(--accent)">¥' + fair + '</span></div>' +
+    '<div class="r"><span>高估区间（1.2倍）</span><span class="v" style="color:#ef4444">¥' + high + '</span></div>';
+}
+
+// 6. 手续费
+function calcFee() {
+  var amt = parseFloat(document.getElementById('feeAmount').value) || 0;
+  if (!amt) return;
+  var broker = Math.max(5, amt * 0.00025); // 佣金最低5元
+  var stamp = amt * 0.0005; // 卖出印花税
+  var transfer = amt * 0.00001; // 过户费
+  var total = broker + stamp + transfer;
+  document.getElementById('feeBroker').textContent = '¥' + broker.toFixed(2);
+  document.getElementById('feeStamp').textContent = '¥' + stamp.toFixed(2);
+  document.getElementById('feeTransfer').textContent = '¥' + transfer.toFixed(2);
+  document.getElementById('feeTotal').textContent = '¥' + total.toFixed(2);
+}
+
+// Auto-calc on load
+calcPosition(); calcPL(); calcSL(); calcCI(); calcPE(); calcFee();
+</script>
+</body>
+</html>

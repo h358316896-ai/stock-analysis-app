@@ -17,6 +17,11 @@ try:
     load_dotenv()
 except ImportError:
     pass
+# Logging setup for production
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
+
 
 # Manual CORS + custom pkg path for optional deps
 # (moved below BASE_DIR definition)
@@ -37,7 +42,7 @@ _secret_key = os.getenv("FLASK_SECRET_KEY")
 if not _secret_key:
     import secrets
     _secret_key = secrets.token_hex(32)
-    print("[WARN] FLASK_SECRET_KEY env var not set — using random key. Sessions will be invalidated on restart.")
+    logger.warning("[WARN] FLASK_SECRET_KEY env var not set — using random key. Sessions will be invalidated on restart.")
 app.secret_key = _secret_key
 # ProxyFix: trust X-Forwarded-Proto from Railway/Render reverse proxy
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -258,16 +263,16 @@ def _load_payment_orders():
                 loaded = json.load(f)
                 if isinstance(loaded, dict):
                     payment_orders.update(loaded)
-            print(f"[AI Workshop] Loaded {len(payment_orders)} persisted payment orders")
+            logger.info(f"[AI Workshop] Loaded {len(payment_orders)} persisted payment orders")
     except Exception as e:
-        print(f"[AI Workshop] Failed to load payment orders: {e}")
+        logger.warning(f"[AI Workshop] Failed to load payment orders: {e}")
 
 def _save_payment_orders():
     try:
         with open(PAYMENT_ORDERS_FILE, "w", encoding="utf-8") as f:
             json.dump(payment_orders, f, ensure_ascii=False)
     except Exception as e:
-        print(f"[AI Workshop] Failed to save payment orders: {e}")
+        logger.warning(f"[AI Workshop] Failed to save payment orders: {e}")
 
 _load_payment_orders()
 
@@ -291,15 +296,15 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
     params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
-        print(f"[XORPay] POST {url}")
-        print(f"[XORPay] params: {json.dumps({k:v for k,v in params.items() if k!='sign'}, ensure_ascii=False)}")
-        print(f"[XORPay] sign: {params['sign']}")
+        logger.debug(f"[XORPay] POST {url}")
+        logger.debug(f"[XORPay] params: {json.dumps({k:v for k,v in params.items() if k!='sign'}, ensure_ascii=False)}")
+        logger.debug(f"[XORPay] sign: {params['sign']}")
         r = requests.post(url, data=params, timeout=15)
         result = r.json()
-        print(f"[XORPay] response: {json.dumps(result, ensure_ascii=False)}")
+        logger.debug(f"[XORPay] response: {json.dumps(result, ensure_ascii=False)}")
         return result
     except Exception as e:
-        print(f"[XORPay] ERROR: {e}")
+        logger.error(f"[XORPay] ERROR: {e}")
         return {"errcode": -1, "errmsg": str(e)}
 
 # 导入认证数据库模块
@@ -319,7 +324,7 @@ def fetch_json(url, timeout=10):
         resp = requests.get(url, headers=headers, timeout=timeout)
         return resp.json()
     except Exception as e:
-        print(f"[fetch_json] Error for {url[:80]}: {e}")
+        logger.warning(f"[fetch_json] Error for {url[:80]}: {e}")
         return {"error": str(e)}
 
 EM_HEADERS = {
@@ -333,7 +338,7 @@ def fetch_eastmoney(url, timeout=5):
         resp = requests.get(url, headers=EM_HEADERS, timeout=timeout, verify=True)
         return resp.json()
     except Exception as e:
-        print(f"[fetch_eastmoney] Request failed: {e}")
+        logger.warning(f"[fetch_eastmoney] Request failed: {e}")
     return None
 
 
@@ -582,12 +587,12 @@ def refresh_hk_stocks():
                     if code and name:
                         stocks[code.zfill(5)] = name
                 total = data.get("data", {}).get("total", 0)
-                print(f"[refresh-hk-stocks] Page {page}: {len(items)} items, total collected: {len(stocks)}, server total: {total}")
+                logger.info(f"[refresh-hk-stocks] Page {page}: {len(items)} items, total collected: {len(stocks)}, server total: {total}")
                 if len(items) < page_size:
                     break
                 page += 1
             except Exception as e:
-                print(f"[refresh-hk-stocks] Error page {page}: {e}")
+                logger.info(f"[refresh-hk-stocks] Error page {page}: {e}")
                 break
 
         if stocks:
@@ -604,9 +609,9 @@ def refresh_hk_stocks():
                 f.write("}\n")
             # Reload in memory
             HK_STOCK_NAMES = sorted_stocks
-            print(f"[refresh-hk-stocks] Done. {len(sorted_stocks)} HK stocks written and loaded.")
+            logger.info(f"[refresh-hk-stocks] Done. {len(sorted_stocks)} HK stocks written and loaded.")
         else:
-            print("[refresh-hk-stocks] FAILED: no stocks fetched.")
+            logger.warning("[refresh-hk-stocks] FAILED: no stocks fetched.")
 
     # Run in background thread to avoid timeout
     t = threading.Thread(target=_do_refresh, daemon=True)
@@ -1876,7 +1881,7 @@ def ai_screener():
         ], temperature=0.3, max_tokens=2000)
         # Check if deepseek returned an error
         if isinstance(r, dict) and "error" in r:
-            print(f"[AI Screener] DeepSeek error: {r['error'][:150]}")
+            logger.warning(f"[AI Screener] DeepSeek error: {r['error'][:150]}")
         # Greedy match: AI returns a single JSON object, greedy captures the full thing
         raw = r if isinstance(r, str) else str(r)
         j = re.search(r'\{[\s\S]*\}', raw)
@@ -1886,9 +1891,9 @@ def ai_screener():
                 ai_data.pop("success", None)
                 return jsonify({"success": True, **ai_data})
             except (json.JSONDecodeError, TypeError) as e:
-                print(f"[AI Screener] JSON parse failed: {e} — raw: {str(j.group())[:200]}")
+                logger.warning(f"[AI Screener] JSON parse failed: {e} — raw: {str(j.group())[:200]}")
     except Exception as e:
-        print(f"[AI Screener] Exception: {e}")
+        logger.error(f"[AI Screener] Exception: {e}")
     return jsonify({"success": True, "stocks": [{"code":s["code"],"name":s["name"],"score":0,"technical":0,"fundamental":0,"capital":0,"sentiment":0,"reason":"AI暂不可用"} for s in stocks_data], "summary": "AI引擎暂时不可用","topPick":""})
 
 
@@ -3284,7 +3289,7 @@ def cap_ranking():
                     "pe": item.get("f9"),
                 })
     except Exception as e:
-        print(f"[cap_ranking] Eastmoney failed: {e}")
+        logger.warning(f"[cap_ranking] Eastmoney failed: {e}")
 
     # Fallback: Tencent Finance API (works outside trading hours)
     if not stocks:
@@ -3305,7 +3310,7 @@ def cap_ranking():
                         "pe": item.get("pe", item.get("pe_ttm")),
                     })
         except Exception as e:
-            print(f"[cap_ranking] Tencent fallback failed: {e}")
+            logger.warning(f"[cap_ranking] Tencent fallback failed: {e}")
 
     # Last resort: return hardcoded top stocks with live quotes fetched individually
     if not stocks:
@@ -3832,9 +3837,9 @@ def _auto_snapshot_if_needed():
         except Exception:
             pass
         auth_db.save_daily_snapshot(today, snapshot)
-        print(f"[AI Workshop] Daily snapshot saved for {today}")
+        logger.info(f"[AI Workshop] Daily snapshot saved for {today}")
     except Exception as e:
-        print(f"[AI Workshop] Snapshot failed: {e}")
+        logger.warning(f"[AI Workshop] Snapshot failed: {e}")
 
 # Trigger snapshot check on every health check and periodically
 @app.route("/api/market/snapshot", methods=["POST"])
@@ -4499,8 +4504,10 @@ def payment_create():
     result = _xorpay_create_order(total_fee, out_trade_no, title, notify_url, pay_type)
     # XORPay returns status: ok or fail
     if result.get("status") != "ok":
-        error_msg = result.get("status", "未知错误")
-        return jsonify({"error": "支付创建失败", "detail": error_msg}), 500
+        # 收集所有可能的错误信息
+        error_detail = result.get("errmsg") or result.get("info") or result.get("status") or "未知错误"
+        logger.warning(f"Payment create failed: {error_detail} | full_response: {json.dumps(result, ensure_ascii=False)}")
+        return jsonify({"error": "支付创建失败", "detail": str(error_detail)}), 500
 
     # 存储订单
     payment_orders[out_trade_no] = {
@@ -4521,7 +4528,7 @@ def payment_create():
     if qr_content:
         from urllib.parse import quote
         qr_image_url = f"https://xorpay.com/qr?data={quote(qr_content, safe='')}"
-        print(f"[AI Workshop] XORPay QR generated: {qr_image_url[:80]}...")
+        logger.debug(f"[AI Workshop] XORPay QR generated: {qr_image_url[:80]}...")
 
     return jsonify({
         "success": True,
@@ -4851,9 +4858,9 @@ def _send_alert_notification(wx_uid, email, alerts):
                 "contentType": 1,  # text
             }, timeout=10)
             if r.status_code == 200:
-                print(f"[WxPusher] Sent to uid={wx_uid[:8]}...")
+                logger.info(f"[WxPusher] Sent to uid={wx_uid[:8]}...")
         except Exception as e:
-            print(f"[WxPusher] Failed: {e}")
+            logger.warning(f"[WxPusher] Failed: {e}")
 
     # Channel 2: Email (via SMTP env vars, if configured)
     if email:
@@ -4878,9 +4885,9 @@ def _send_email_alert(to_email, subject, body_text):
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, [to_email], msg.as_string())
         server.quit()
-        print(f"[Email] Sent to {to_email}")
+        logger.info(f"[Email] Sent to {to_email}")
     except Exception as e:
-        print(f"[Email] Failed: {e}")
+        logger.warning(f"[Email] Failed: {e}")
 
 @app.route("/api/auth/push-token", methods=["POST"])
 @login_required
@@ -4916,9 +4923,9 @@ def wxpusher_callback():
             cur.execute("UPDATE users SET push_token=? WHERE id=?", (wx_uid, int(extra)))
             conn.commit()
             conn.close()
-            print(f"[WxPusher] Auto-bound uid={wx_uid} to user_id={extra}")
+            logger.info(f"[WxPusher] Auto-bound uid={wx_uid} to user_id={extra}")
         except Exception as e:
-            print(f"[WxPusher] Callback failed: {e}")
+            logger.warning(f"[WxPusher] Callback failed: {e}")
     return jsonify({"success": True})
 
 @app.route("/api/auth/push-token", methods=["GET"])
@@ -5689,15 +5696,15 @@ def _auto_create_admin():
                 uid = result.get("user_id")
                 auth_db.upgrade_membership(uid, "svip", 1200)
                 _ADMIN_USER_IDS.add(uid)
-                print(f"[AI Workshop] Super admin created: {admin_user}")
+                logger.info(f"[AI Workshop] Super admin created: {admin_user}")
             elif "已存在" in str(result.get("error","")):
                 v = auth_db.verify_user(admin_user, admin_pass)
                 if v.get("success"):
                     auth_db.upgrade_membership(v["user_id"], "svip", 1200)
                     _ADMIN_USER_IDS.add(v["user_id"])
-                    print(f"[AI Workshop] Super admin upgraded: {admin_user}")
+                    logger.info(f"[AI Workshop] Super admin upgraded: {admin_user}")
     except Exception as e:
-        print(f"[AI Workshop] Admin setup: {e}")
+        logger.error(f"[AI Workshop] Admin setup: {e}")
 
 # Run admin creation at module level for Gunicorn
 _auto_create_admin()
@@ -5710,10 +5717,10 @@ except Exception:
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5003))
-    print(f"[AI Workshop] Starting on http://0.0.0.0:{port}")
-    print(f"[AI Workshop] DeepSeek:  {'configured' if DEEPSEEK_API_KEY else 'MISSING'}")
-    print(f"[AI Workshop] Claude:     {'configured' if CLAUDE_API_KEY else 'MISSING'}")
-    print(f"[AI Workshop] XORPay:    {'configured' if XORPAY_AID else 'MISSING -- 支付功能不可用'}")
-    print(f"[AI Workshop] HK stocks: {len(HK_STOCK_NAMES)} loaded from local DB")
+    logger.info(f"[AI Workshop] Starting on http://0.0.0.0:{port}")
+    logger.info(f"[AI Workshop] DeepSeek:  {'configured' if DEEPSEEK_API_KEY else 'MISSING'}")
+    logger.info(f"[AI Workshop] Claude:     {'configured' if CLAUDE_API_KEY else 'MISSING'}")
+    logger.info(f"[AI Workshop] XORPay:    {'configured' if XORPAY_AID else 'MISSING -- 支付功能不可用'}")
+    logger.info(f"[AI Workshop] HK stocks: {len(HK_STOCK_NAMES)} loaded from local DB")
 
     app.run(host="0.0.0.0", port=port, debug=False)
