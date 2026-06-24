@@ -297,9 +297,12 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         "notify_url": notify_url,
     }
     params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
+    # 打印签名详情用于调试
+    raw_sign_str = str(title) + str(pay_type) + str(amount_str) + str(out_trade_no) + str(notify_url) + XORPAY_SECRET
+    logger.warning(f"[XORPay SIGN DEBUG] raw='{raw_sign_str}' sign='{params['sign']}'")
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
-        logger.info(f"[XORPay] POST {url} | name={title} | price={amount_str}")
+        logger.warning(f"[XORPay] POST {url} | body={params}")
         proxies = {}
         if XORPAY_PROXY:
             proxies = {"https": XORPAY_PROXY, "http": XORPAY_PROXY}
