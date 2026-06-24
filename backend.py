@@ -4507,10 +4507,19 @@ def payment_create():
     }
     _save_payment_orders()
 
+    # XORPay 返回 info.qr 是支付协议字符串 (weixin://... 或 https://qr.alipay.com/...)
+    # 需要包装成 XORPay 的二维码图片 URL 才能真正显示
+    qr_content = result.get("info", {}).get("qr", "")
+    qr_image_url = ""
+    if qr_content:
+        from urllib.parse import quote
+        qr_image_url = f"https://xorpay.com/qr?data={quote(qr_content, safe='')}"
+        print(f"[AI Workshop] XORPay QR generated: {qr_image_url[:80]}...")
+
     return jsonify({
         "success": True,
-        "url_qrcode": result.get("info", {}).get("qr", ""),  # XORPay QR
-        "url": result.get("info", {}).get("qr", ""),
+        "url_qrcode": qr_image_url,  # 可显示的二维码图片 URL
+        "url": qr_content,           # 原始支付链接（备用）
         "out_trade_no": out_trade_no,
         "total_fee": total_fee,
         "tier": tier,

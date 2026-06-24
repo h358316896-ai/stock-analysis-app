@@ -769,8 +769,11 @@ async function startPayment() {
   document.getElementById('paymentAmount').textContent = '计算中...';
 
   try {
+    var token = localStorage.getItem('stockai_token');
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
     const r = await fetch('/api/payment/create', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: headers,
       body: JSON.stringify({ tier: upgradeTier, months })
     });
     const d = await r.json();

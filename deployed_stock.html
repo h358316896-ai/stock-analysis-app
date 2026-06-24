@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -1100,9 +1100,12 @@ async function startPayment() {
   document.getElementById('paymentAmount').textContent = '计算中...';
 
   try {
-    const r = await fetch('/api/payment/create', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tier: upgradeTier, months })
+    var token = localStorage.getItem('stockai_token');
+    var headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const r = await fetch('/api/payment/create', {
+      method: 'POST', headers: headers,
+      body: JSON.stringify({ tier: upgradeTier, months })
     });
     const d = await r.json();
     if (d.success && d.url_qrcode) {
