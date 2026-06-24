@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>支付处理中...</title>
+<style>
+body{background:#060608;color:#f0f0f5;font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column;gap:16px}
+.spinner{width:40px;height:40px;border:3px solid rgba(255,255,255,0.1);border-top-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="spinner"></div>
+<div id="status">正在创建支付订单...</div>
+<div id="result" style="display:none;text-align:center"></div>
+
+<script>
+// 从父页面接收 XORPay 参数
+var params = null;
+try {
+    var hash = decodeURIComponent(window.location.hash.slice(1));
+    if (hash) params = JSON.parse(hash);
+} catch(e) {}
+
+if (!params) {
+    document.getElementById('status').textContent = '参数错误，请重新发起支付';
+} else {
+    // 创建表单提交到 XORPay API
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.action = params.url;
+    form.target = 'xpay_result';
+    form.acceptCharset = 'UTF-8';
+
+    var fp = params.params || {};
+    var fields = Object.assign({}, fp, { sign: params.sign });
+
+    for (var key in fields) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = fields[key];
+        form.appendChild(input);
+    }
+
+    // 创建隐藏 iframe 接收 XORPay 响应
+    var iframe = document.createElement('iframe');
+    iframe.name = 'xpay_result';
+    iframe.id = 'xpay_result';
+    iframe.style.cssText = 'display:none;width:0;height:0;border:0';
+    document.body.appendChild(iframe);
+
+    // 在 iframe 加载完成后读取结果
+    iframe.onload = function() {
+        try {
+            var doc = iframe.contentDocument || iframe.contentWindow.document;
+            var bodyText = (doc.body.textContent || doc.body.innerText || '').trim();
+            if (bodyText) {
+                var data = JSON.parse(bodyText);
+                document.getElementById('status').textContent = '';
+
+                if (data.status === 'ok' && data.info && data.info.qr) {
+                    // 成功 — 用 postMessage 传回父页面
+                    window.parent.postMessage({
+                        type: 'xorpay_result',
+                        success: true,
+                        qr_content: data.info.qr,
+                        order_id: data.order_id || ''
+                    }, '*');
+                    document.getElementById('status').textContent = '支付订单已创建，请扫码支付';
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('result').innerHTML = '<div style="font-size:14px;color:#22c55e">订单创建成功 ✅</div><div style="font-size:12px;color:#9090a8;margin-top:8px">请返回原页面扫码支付</div>';
+                } else {
+                    var err = data.info || data.status || '未知错误';
+                    window.parent.postMessage({
+                        type: 'xorpay_result',
+                        success: false,
+                        error: err
+                    }, '*');
+                    document.getElementById('status').textContent = '支付创建失败: ' + err;
+                }
+            }
+        } catch(e) {
+            // 尝试获取原始文本
+            try {
+                var doc = iframe.contentDocument || iframe.contentWindow.document;
+                var raw = (doc.body.textContent || doc.body.innerText || '').trim();
+                window.parent.postMessage({
+                    type: 'xorpay_result',
+                    success: false,
+                    error: '响应解析失败',
+                    raw: raw.substring(0, 500)
+                }, '*');
+                document.getElementById('status').textContent = '响应解析失败，请重试';
+            } catch(e2) {
+                window.parent.postMessage({
+                    type: 'xorpay_result',
+                    success: false,
+                    error: '无法读取响应 (CORS)'
+                }, '*');
+                document.getElementById('status').textContent = '网络错误，请重试';
+            }
+        }
+    };
+
+    // 提交表单
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+</body>
+</html>

@@ -523,6 +523,10 @@ def bottleneck_page():
             return f.read(), 200, {"Content-Type": "text/html; charset=utf-8"}
     return send_file(os.path.join(STATIC_DIR, "bottleneck.html"), mimetype="text/html")
 
+@app.route("/xpay-bridge.html")
+def serve_xpay_bridge():
+    return send_file(os.path.join(STATIC_DIR, "xpay-bridge.html"), mimetype="text/html")
+
 # CDN-compatible asset routes (serve /css/style.css and /manifest.json from static/)
 @app.route("/css/<path:filename>")
 def serve_css(filename):
@@ -4510,13 +4514,17 @@ def payment_create():
     notify_url = (PUBLIC_URL or request.host_url.rstrip("/")) + "/api/payment/notify"
 
     pay_type = data.get("pay_type", "alipay")  # 默认支付宝
-    result = _xorpay_create_order(total_fee, out_trade_no, title, notify_url, pay_type)
-    # XORPay returns status: ok or fail
-    if result.get("status") != "ok":
-        # 收集所有可能的错误信息
-        error_detail = result.get("errmsg") or result.get("info") or result.get("status") or "未知错误"
-        logger.warning(f"Payment create failed: {error_detail} | full_response: {json.dumps(result, ensure_ascii=False)}")
-        return jsonify({"error": "支付创建失败", "detail": str(error_detail)}), 500
+
+    # 计算 XORPay 签名参数（密钥在服务端，不暴露）
+    amount_str = f"{total_fee:.2f}"
+    xorpay_params = {
+        "name": title,
+        "pay_type": pay_type,
+        "price": amount_str,
+        "order_id": out_trade_no,
+        "notify_url": notify_url,
+    }
+    xorpay_sign = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
 
     # 存储订单
     payment_orders[out_trade_no] = {
@@ -4524,30 +4532,44 @@ def payment_create():
         "tier": tier,
         "months": months,
         "amount_yuan": total_fee,
-        "xunhu_order_id": result.get("order_id", ""),
         "status": "pending",
         "created_at": time.time()
     }
     _save_payment_orders()
 
-    # XORPay 返回 info.qr 是支付协议字符串 (weixin://... 或 https://qr.alipay.com/...)
-    # 需要包装成 XORPay 的二维码图片 URL 才能真正显示
-    qr_content = result.get("info", {}).get("qr", "")
-    qr_image_url = ""
-    if qr_content:
-        from urllib.parse import quote
-        qr_image_url = f"https://xorpay.com/qr?data={quote(qr_content, safe='')}"
-        logger.debug(f"[AI Workshop] XORPay QR generated: {qr_image_url[:80]}...")
-
     return jsonify({
         "success": True,
-        "url_qrcode": qr_image_url,  # 可显示的二维码图片 URL
-        "url": qr_content,           # 原始支付链接（备用）
         "out_trade_no": out_trade_no,
         "total_fee": total_fee,
         "tier": tier,
-        "months": months
+        "months": months,
+        # 给前端用来直接调 XORPay 的参数
+        "xorpay": {
+            "url": f"{XORPAY_API}{XORPAY_AID}",
+            "params": xorpay_params,
+            "sign": xorpay_sign,
+        }
     })
+
+@app.route("/api/payment/qrcode")
+def payment_qrcode():
+    """生成二维码图片 — 前端拿到支付链接后调用此接口生成 QR 码"""
+    data = request.args.get("data", "")
+    if not data:
+        return jsonify({"error": "缺少 data 参数"}), 400
+    try:
+        import qrcode
+        from io import BytesIO
+        qr = qrcode.QRCode(box_size=10, border=2)
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return send_file(buf, mimetype="image/png", max_age=0)
+    except Exception as e:
+        return jsonify({"error": f"二维码生成失败: {str(e)}"}), 500
 
 @app.route("/api/payment/notify", methods=["POST"])
 def payment_notify():

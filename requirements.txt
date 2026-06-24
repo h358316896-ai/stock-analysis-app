@@ -4,3 +4,5 @@ PyJWT>=2.8
 yfinance>=0.2.40
 gunicorn>=21.0
 python-dotenv>=1.0
+qrcode>=7.4
+Pillow>=10.0
