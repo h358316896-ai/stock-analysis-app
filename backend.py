@@ -296,13 +296,19 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
     params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
-        logger.debug(f"[XORPay] POST {url}")
-        logger.debug(f"[XORPay] params: {json.dumps({k:v for k,v in params.items() if k!='sign'}, ensure_ascii=False)}")
-        logger.debug(f"[XORPay] sign: {params['sign']}")
+        logger.info(f"[XORPay] POST {url} | name={title} | price={amount_str}")
         r = requests.post(url, data=params, timeout=15)
+        raw_text = r.text[:500] if r.text else "(empty)"
+        logger.info(f"[XORPay] HTTP {r.status_code} | body: {raw_text}")
+        if not r.text or not r.text.strip():
+            return {"errcode": -2, "errmsg": f"XORPay 返回空响应 (HTTP {r.status_code})"}
         result = r.json()
-        logger.debug(f"[XORPay] response: {json.dumps(result, ensure_ascii=False)}")
+        logger.info(f"[XORPay] parsed: {json.dumps(result, ensure_ascii=False)}")
         return result
+    except requests.exceptions.Timeout:
+        return {"errcode": -3, "errmsg": "XORPay API 连接超时"}
+    except requests.exceptions.ConnectionError as e:
+        return {"errcode": -4, "errmsg": f"XORPay API 连接失败: {str(e)[:200]}"}
     except Exception as e:
         logger.error(f"[XORPay] ERROR: {e}")
         return {"errcode": -1, "errmsg": str(e)}
