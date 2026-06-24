@@ -250,7 +250,7 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
 # XORPay 支付配置
 XORPAY_AID = os.getenv("XORPAY_AID", "")
 XORPAY_SECRET = os.getenv("XORPAY_SECRET", "")
-XORPAY_API = "https://xorpay.com/api/pay/"
+XORPAY_API = "http://xorpay.com/api/pay/"
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 
 PAYMENT_ORDERS_FILE = os.path.join(BASE_DIR, "payment_orders.json")
