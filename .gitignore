@@ -28,3 +28,4 @@ nul
 .netlify
 
 .vercel
+static/backend.py
