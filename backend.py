@@ -251,6 +251,7 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
 XORPAY_AID = os.getenv("XORPAY_AID", "")
 XORPAY_SECRET = os.getenv("XORPAY_SECRET", "")
 XORPAY_API = "https://xorpay.com/api/pay/"
+XORPAY_PROXY = os.getenv("XORPAY_PROXY", "")  # 中国 HTTP 代理，绕过 Railway 的 geo-blocking
 PUBLIC_URL = os.getenv("PUBLIC_URL", "").rstrip("/")
 
 PAYMENT_ORDERS_FILE = os.path.join(BASE_DIR, "payment_orders.json")
@@ -297,7 +298,11 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
     try:
         url = f"{XORPAY_API}{XORPAY_AID}"
         logger.info(f"[XORPay] POST {url} | name={title} | price={amount_str}")
-        r = requests.post(url, data=params, timeout=15)
+        proxies = {}
+        if XORPAY_PROXY:
+            proxies = {"https": XORPAY_PROXY, "http": XORPAY_PROXY}
+            logger.info(f"[XORPay] using proxy: {XORPAY_PROXY}")
+        r = requests.post(url, data=params, timeout=15, proxies=proxies)
         raw_text = (r.text or "").strip()[:500]
         logger.info(f"[XORPay] HTTP {r.status_code} | body: {raw_text}")
         if not raw_text:

@@ -1,5 +1,6 @@
-// XORPay API CORS Proxy
-// 前端浏览器直调此 Worker → Worker 从中国边缘节点调 XORPay → 返回结果 + CORS 头
+// XORPay API CORS Proxy Worker
+// 前端直调此 Worker → Worker 从中国边缘节点转发到 XORPay
+// Cloudflare 边缘节点在中国有 IP，能绕开 XORPay 的 geo-blocking
 export default {
   async fetch(request) {
     if (request.method === 'OPTIONS') {
@@ -7,7 +8,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Allow-Headers': 'Content-Type',
           'Access-Control-Max-Age': '86400',
         }
       });
@@ -20,8 +21,10 @@ export default {
       });
     }
 
+    // 从 URL 路径提取 XORPay AID (如 /705874)
     const url = new URL(request.url);
-    const aid = url.pathname.replace(/^\/+/, '').split('/')[0] || '705874';
+    const pathParts = url.pathname.replace(/^\/+/, '').split('/');
+    const aid = pathParts[0] || '705874';
     const body = await request.text();
 
     try {
@@ -41,7 +44,7 @@ export default {
         }
       });
     } catch (e) {
-      return new Response(JSON.stringify({ status: 'error', info: e.message }), {
+      return new Response(JSON.stringify({ status: 'error', info: 'Proxy error: ' + e.message }), {
         status: 502,
         headers: {
           'Content-Type': 'application/json',

@@ -3,9 +3,6 @@ name: Deploy XORPay Proxy Worker
 on:
   push:
     branches: [main]
-    paths:
-      - 'workers/xpay-proxy/**'
-      - '.github/workflows/deploy-xpay-worker.yml'
 
 jobs:
   deploy:
