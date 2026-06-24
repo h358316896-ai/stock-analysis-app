@@ -295,7 +295,6 @@ def _xorpay_create_order(amount: float, out_trade_no: str, title: str, notify_ur
         "price": amount_str,
         "order_id": out_trade_no,
         "notify_url": notify_url,
-        "return_type": "json",  # 要求返回 JSON
     }
     params["sign"] = _xorpay_sign(title, pay_type, amount_str, out_trade_no, notify_url)
     try:
