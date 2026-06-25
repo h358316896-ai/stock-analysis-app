@@ -3775,46 +3775,63 @@ def gold_price():
     except Exception:
         pass
 
-    # 2. 伦敦现货金 XAU/USD (Tencent usXAU — 如有)
-    try:
-        text2 = _fetch_tencent_raw("https://qt.gtimg.cn/q=usXAU")
-        if text2:
-            m2 = re.search(r'v_usXAU="([^"]*)"', text2)
-            if m2:
-                f2 = m2.group(1).split("~")
-                if len(f2) >= 5:
-                    try:
-                        spot_price = float(f2[3]) if f2[3] else 0
-                        spot_chg = (spot_price - float(f2[4])) / float(f2[4]) * 100 if f2[4] and float(f2[4]) else 0
-                        result["spot"] = {
-                            "price": round(spot_price, 2),
-                            "change_pct": round(spot_chg, 2),
-                            "prev_close": float(f2[4]) if f2[4] else 0,
-                        }
-                    except (ValueError, IndexError):
-                        pass
-    except Exception:
-        pass
+    # 2. 现货金 ≈ COMEX价格 (COMEX与伦敦现货几乎同步，价差<0.1%)
+    if result["comex"]:
+        result["spot"] = {
+            "price": result["comex"]["price"],
+            "change_pct": result["comex"]["change_pct"],
+            "prev_close": result["comex"]["prev_close"],
+        }
 
-    # 3. 沪金 + 沪银 (East Money push2 期货)
+    # 3. 沪金 + 沪银 (Sina 期货 API)
     try:
-        shfe_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:113+t:2,m:113+t:3&fields=f2,f3,f4,f12,f14,f5"
-        shfe_data = fetch_eastmoney(shfe_url, timeout=10)
-        if shfe_data and shfe_data.get("data") and shfe_data["data"].get("diff"):
-            for item in shfe_data["data"]["diff"]:
-                name = item.get("f14", "")
-                pct = float(item.get("f3", 0) or 0)
-                price = float(item.get("f2", 0) or 0)
-                high = float(item.get("f4", 0) or 0)
-                entry = {
-                    "code": item.get("f12", ""), "name": name,
-                    "price": price, "change_pct": pct,
-                    "volume": item.get("f5", 0),
-                }
-                if "金" in name and "银" not in name and not result["shanghai_gold"]:
-                    result["shanghai_gold"] = entry
-                elif "银" in name and not result["shanghai_silver"]:
-                    result["shanghai_silver"] = entry
+        # 尝试常见主力合约: 偶数月份，当前2026年主力可能是au2608或au2612
+        for au_code in ["au2608", "au2612", "au2610", "au2606"]:
+            if result["shanghai_gold"]: break
+            try:
+                sina_url = f"https://hq.sinajs.cn/list={au_code}"
+                headers = {"Referer": "https://finance.sina.com.cn/"}
+                resp = requests.get(sina_url, headers=headers, timeout=5)
+                resp.encoding = "gbk"
+                text = resp.text
+                m = re.search(r'var hq_str_(\w+)="([^"]*)"', text)
+                if m and m.group(2):
+                    f = m.group(2).split(",")
+                    if len(f) >= 10 and f[3] and float(f[3]) > 0:
+                        price = float(f[3])  # 最新价
+                        prev = float(f[5]) if f[5] else price  # 昨结算
+                        chg = (price - prev) / prev * 100 if prev else 0
+                        result["shanghai_gold"] = {
+                            "code": m.group(1), "name": "沪金主力",
+                            "price": price, "change_pct": round(chg, 2),
+                            "high": float(f[4]) if f[4] else 0,
+                            "low": float(f[5]) if f[5] else 0,
+                            "volume": int(f[8]) if len(f) > 8 and f[8] else 0,
+                        }
+            except Exception:
+                continue
+        for ag_code in ["ag2608", "ag2612", "ag2610", "ag2606"]:
+            if result["shanghai_silver"]: break
+            try:
+                sina_url = f"https://hq.sinajs.cn/list={ag_code}"
+                headers = {"Referer": "https://finance.sina.com.cn/"}
+                resp = requests.get(sina_url, headers=headers, timeout=5)
+                resp.encoding = "gbk"
+                text = resp.text
+                m = re.search(r'var hq_str_(\w+)="([^"]*)"', text)
+                if m and m.group(2):
+                    f = m.group(2).split(",")
+                    if len(f) >= 10 and f[3] and float(f[3]) > 0:
+                        price = float(f[3])
+                        prev = float(f[5]) if f[5] else price
+                        chg = (price - prev) / prev * 100 if prev else 0
+                        result["shanghai_silver"] = {
+                            "code": m.group(1), "name": "沪银主力",
+                            "price": price, "change_pct": round(chg, 2),
+                            "volume": int(f[8]) if len(f) > 8 and f[8] else 0,
+                        }
+            except Exception:
+                continue
     except Exception:
         pass
 
