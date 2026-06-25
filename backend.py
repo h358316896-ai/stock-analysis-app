@@ -2297,17 +2297,30 @@ def smart_money():
     result = {"north_flow_5d": 0, "hot_sectors": [], "updated": datetime.now().strftime("%H:%M:%S")}
 
     try:
-        # North-bound flow recent
-        nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=5"
+        # North-bound flow recent — KAMT API returns hk2sh/hk2sz arrays
+        nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=10"
         nb_data = fetch_eastmoney(nb_url, timeout=8)
-        if nb_data and nb_data.get("data") and nb_data["data"].get("klines"):
-            flows = []
-            for line in nb_data["data"]["klines"]:
-                parts = line.split(",")
-                if len(parts) >= 4:
-                    flows.append(float(parts[3]))
-            total = sum(flows) if flows else 0
-            result["north_flow_5d"] = round(total, 1)
+        flows = []
+        if nb_data and nb_data.get("data"):
+            nd = nb_data["data"]
+            # New format: data.hk2sh + data.hk2sz arrays, each line "date,flow,quota,net"
+            for key in ("hk2sh", "hk2sz"):
+                for line in nd.get(key, []):
+                    parts = line.split(",")
+                    if len(parts) >= 4:
+                        try:
+                            net = float(parts[3]) if parts[3] != "-" else 0.0
+                            flows.append(net)
+                        except ValueError:
+                            pass
+            # Fallback: old format with data.klines
+            if not flows and nd.get("klines"):
+                for line in nd["klines"]:
+                    parts = line.split(",")
+                    if len(parts) >= 4:
+                        flows.append(float(parts[3]))
+        if flows:
+            result["north_flow_5d"] = round(sum(flows[-5:]), 1)
 
         # Sector fund flow top 5
         sf_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62"
@@ -2938,14 +2951,27 @@ def north_bound_flow():
     url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30"
     data = _cached_eastmoney("north_bound", url, ttl=1800)
     flows = []
-    if data and data.get("data") and data["data"].get("klines"):
-        for line in data["data"]["klines"]:
-            parts = line.split(",")
-            if len(parts) >= 4:
-                flows.append({
-                    "date": parts[0],
-                    "net_flow": float(parts[1]) if parts[1] != "-" else 0,
-                })
+    if data and data.get("data"):
+        nd = data["data"]
+        # New format: hk2sh + hk2sz arrays
+        raw_flows = {}
+        for key in ("hk2sh", "hk2sz"):
+            for line in nd.get(key, []):
+                parts = line.split(",")
+                if len(parts) >= 4:
+                    date = parts[0]
+                    net = float(parts[3]) if parts[3] != "-" else 0.0
+                    raw_flows[date] = raw_flows.get(date, 0) + net
+        flows = [{"date": d, "net_flow": round(v, 1)} for d, v in sorted(raw_flows.items())[-30:]]
+        # Fallback: old format with klines
+        if not flows and nd.get("klines"):
+            for line in nd["klines"]:
+                parts = line.split(",")
+                if len(parts) >= 4:
+                    flows.append({
+                        "date": parts[0],
+                        "net_flow": float(parts[1]) if parts[1] != "-" else 0,
+                    })
     # push2 返回空时生成近10日估算数据
     if not flows:
         try:
