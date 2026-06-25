@@ -360,6 +360,23 @@ def fetch_eastmoney(url, timeout=5):
         logger.warning(f"[fetch_eastmoney] Request failed: {e}")
     return None
 
+# Monkey-patch: route ALL eastmoney.com API calls through ECS proxy
+_original_requests_get = requests.get
+def _patched_get(url, **kwargs):
+    """Intercept eastmoney.com calls and route through ECS proxy"""
+    if "eastmoney.com" in url and "47.97.66.164" not in url:
+        from urllib.parse import quote
+        proxy_url = f"{EASTMONEY_PROXY}?url={quote(url, safe='')}"
+        timeout = kwargs.pop("timeout", 15)
+        try:
+            return _original_requests_get(proxy_url, timeout=timeout)
+        except Exception as e:
+            logger.warning(f"[proxy-patch] Eastmoney request failed: {e}")
+            # Return a dummy response on failure
+            return _original_requests_get(url, **kwargs, timeout=timeout)
+    return _original_requests_get(url, **kwargs)
+requests.get = _patched_get
+
 
 def fetch_text_gbk(url, timeout=10):
     """Fetch raw text as GBK from URL"""
