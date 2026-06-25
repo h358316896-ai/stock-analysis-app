@@ -1,0 +1,48 @@
+name: Update DNS to ECS
+
+on:
+  push:
+    paths:
+      - '.github/workflows/update-dns.yml'
+
+jobs:
+  update-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update kunhuang.top A record to ECS
+        run: |
+          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
+          ZONE_NAME="kunhuang.top"
+          NEW_IP="47.97.66.164"
+
+          # Get Zone ID
+          ZONE_RESP=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones?name=$ZONE_NAME")
+          ZONE_ID=$(echo "$ZONE_RESP" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+          echo "Zone ID: $ZONE_ID"
+
+          # Get A record for @ and www
+          for NAME in "kunhuang.top" "www.kunhuang.top"; do
+            RECORD_RESP=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?type=A&name=$NAME")
+            RECORD_ID=$(echo "$RECORD_RESP" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r[0]['id'] if r else 'NOT_FOUND')")
+            OLD_IP=$(echo "$RECORD_RESP" | python3 -c "import sys,json; r=json.load(sys.stdin)['result']; print(r[0]['content'] if r else 'N/A')")
+
+            if [ "$RECORD_ID" = "NOT_FOUND" ]; then
+              # Create new record
+              echo "Creating A record for $NAME..."
+              curl -s -X POST \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"A\",\"name\":\"$NAME\",\"content\":\"$NEW_IP\",\"ttl\":120,\"proxied\":false}" \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records"
+            else
+              echo "Updating $NAME: $OLD_IP → $NEW_IP"
+              curl -s -X PUT \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"A\",\"name\":\"$NAME\",\"content\":\"$NEW_IP\",\"ttl\":120,\"proxied\":false}" \
+                "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID"
+            fi
+          done
+          echo "DNS update complete!"
