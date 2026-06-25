@@ -1810,7 +1810,17 @@ body::after {
         var areaPath = path + ' L ' + (w - pad).toFixed(1) + ' ' + (h - pad) + ' L ' + pad.toFixed(1) + ' ' + (h - pad) + ' Z';
         var up = (data.change_pct || 0) >= 0;
         var color = up ? '240,185,11' : '239,68,68'; // gold or red
-        el.innerHTML = '<svg width="' + w + '" height="' + h + '" style="display:block;margin:4px auto 0"><defs><linearGradient id="sg-' + prefix + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(' + color + ',0.3)"/><stop offset="100%" stop-color="rgba(' + color + ',0.02)"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#sg-' + prefix + ')" /><path d="' + path + '" fill="none" stroke="rgba(' + color + ',0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="' + (pad + (w-pad*2)*(pts.length-1)/(pts.length-1)).toFixed(1) + '" cy="' + (pad + (h-pad*2)*(1-(pts[pts.length-1]-min)/range)).toFixed(1) + '" r="2.5" fill="rgba(' + color + ',1)"><animate attributeName="r" values="2.5;3.5;2.5" dur="2s" repeatCount="indefinite"/></circle></svg>';
+        el.innerHTML = '<svg width="' + w + '" height="' + h + '" style="display:block;margin:4px auto 0"><defs><linearGradient id="sg-' + prefix + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(' + color + ',0.3)"/><stop offset="100%" stop-color="rgba(' + color + ',0.02)"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#sg-' + prefix + ')" /><path d="' + path + '" fill="none" stroke="rgba(' + color + ',0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />// Build dots along the curve — staggered blink
+        var dots = '';
+        for (var j = 0; j < pts.length; j++) {
+          if (j % 4 !== 0 && j !== pts.length - 1) continue;
+          var dx = pad + (w - pad * 2) * j / (pts.length - 1);
+          var dy = pad + (h - pad * 2) * (1 - (pts[j] - min) / range);
+          var isEnd = (j === pts.length - 1);
+          var delay = (j / pts.length * 2.2).toFixed(1);
+          dots += '<circle cx="' + dx.toFixed(1) + '" cy="' + dy.toFixed(1) + '" r="' + (isEnd ? '2' : '1') + '" fill="rgba(' + color + ',' + (isEnd ? '1' : '0.7') + ')"><animate attributeName="opacity" values="1;0.1;1" dur="1.8s" begin="' + delay + 's" repeatCount="indefinite"/><animate attributeName="r" values="' + (isEnd ? '2;3.5;2' : '1;2.2;1') + '" dur="1.8s" begin="' + delay + 's" repeatCount="indefinite"/></circle>';
+        }
+        el.innerHTML = '<svg width="' + w + '" height="' + h + '" style="display:block;margin:4px auto 0"><defs><linearGradient id="sg-' + prefix + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(' + color + ',0.3)"/><stop offset="100%" stop-color="rgba(' + color + ',0.02)"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#sg-' + prefix + ')" /><path d="' + path + '" fill="none" stroke="rgba(' + color + ',0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />' + dots + '</svg>';
       }
       setVal('g-spot', d.spot, '$');
       setVal('g-comex', d.comex, '$');
