@@ -3845,7 +3845,6 @@ def gold_price():
     if not result["shanghai_silver"] and comex_silver:
         result["shanghai_silver"] = comex_silver
     if not result["comex"]:
-    if not result["comex"]:
         try:
             yf_data = _fetch_yf_indices_parallel([("GC=F", "Gold Futures")])
             if yf_data:
