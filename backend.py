@@ -2297,13 +2297,13 @@ def smart_money():
     result = {"north_flow_5d": 0, "hot_sectors": [], "updated": datetime.now().strftime("%H:%M:%S")}
 
     try:
-        # North-bound flow recent — KAMT API returns hk2sh/hk2sz arrays
-        nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=10"
+        # North-bound flow recent — use push2his for historical daily data
+        nb_url = "https://push2his.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=10"
         nb_data = fetch_eastmoney(nb_url, timeout=8)
         flows = []
         if nb_data and nb_data.get("data"):
             nd = nb_data["data"]
-            # New format: data.hk2sh + data.hk2sz arrays, each line "date,flow,quota,net"
+            # Format: hk2sh/hk2sz arrays, each line "date,quota1,quota2,net_flow_yuan"
             for key in ("hk2sh", "hk2sz"):
                 for line in nd.get(key, []):
                     parts = line.split(",")
@@ -2313,14 +2313,15 @@ def smart_money():
                             flows.append(net)
                         except ValueError:
                             pass
-            # Fallback: old format with data.klines
+            # Fallback: old klines format
             if not flows and nd.get("klines"):
                 for line in nd["klines"]:
                     parts = line.split(",")
                     if len(parts) >= 4:
                         flows.append(float(parts[3]))
         if flows:
-            result["north_flow_5d"] = round(sum(flows[-5:]), 1)
+            # Convert yuan to yi (亿), take last 5 trading days
+            result["north_flow_5d"] = round(sum(flows[-5:]) / 100000000, 1)
 
         # Sector fund flow top 5
         sf_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62"
@@ -2948,7 +2949,7 @@ def stock_indicators():
 @app.route("/api/market/north-bound")
 def north_bound_flow():
     """获取沪深港通北向资金流向"""
-    url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30"
+    url = "https://push2his.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30"
     data = _cached_eastmoney("north_bound", url, ttl=1800)
     flows = []
     if data and data.get("data"):
@@ -5620,16 +5621,28 @@ def quant_market_breadth():
     # Approx limit down: use movers sorted reverse
     limit_down_count = max(1, decline_count // 3)  # rough estimate
 
-    # North-bound flows
+    # North-bound flows — use push2his for historical daily data
     nb_data = _cached_eastmoney("north_bound",
-        "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30",
+        "https://push2his.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30",
         ttl=1800)
     north_flows = []
-    if nb_data and nb_data.get("data") and nb_data["data"].get("klines"):
-        for line in nb_data["data"]["klines"]:
-            parts = line.split(",")
-            if len(parts) >= 4:
-                north_flows.append({"date": parts[0], "net_flow": float(parts[1]) if parts[1] != "-" else 0.0})
+    if nb_data and nb_data.get("data"):
+        nd = nb_data["data"]
+        raw = {}
+        for key in ("hk2sh", "hk2sz"):
+            for line in nd.get(key, []):
+                parts = line.split(",")
+                if len(parts) >= 4:
+                    d = parts[0]
+                    net = float(parts[3]) if parts[3] != "-" else 0.0
+                    raw[d] = raw.get(d, 0) + net
+        north_flows = [{"date": d, "net_flow": round(v / 100000000, 1)} for d, v in sorted(raw.items())[-30:]]
+        # Fallback: old klines format
+        if not north_flows and nd.get("klines"):
+            for line in nd["klines"]:
+                parts = line.split(",")
+                if len(parts) >= 4:
+                    north_flows.append({"date": parts[0], "net_flow": float(parts[1]) if parts[1] != "-" else 0.0})
 
     # CSI 300 change pct
     csi300_chg = 0.0
