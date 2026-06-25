@@ -1808,7 +1808,7 @@ body::after {
         }
         // Build area path (fill below line)
         var areaPath = path + ' L ' + (w - pad).toFixed(1) + ' ' + (h - pad) + ' L ' + pad.toFixed(1) + ' ' + (h - pad) + ' Z';
-	        var up = (data.change_pct || 0) >= 0;
+        var up = (data.change_pct || 0) >= 0;
 	        var color = up ? '240,185,11' : '239,68,68';
 	        var dots = '';
 	        for (var j = 0; j < pts.length; j++) {
@@ -1820,4 +1820,443 @@ body::after {
 	          dots += '<circle cx="' + dx.toFixed(1) + '" cy="' + dy.toFixed(1) + '" r="' + (isEnd ? '2' : '1') + '" fill="rgba(' + color + ',' + (isEnd ? '1' : '0.7') + ')"><animate attributeName="opacity" values="1;0.1;1" dur="1.8s" begin="' + delay + 's" repeatCount="indefinite"/><animate attributeName="r" values="' + (isEnd ? '2;3.5;2' : '1;2.2;1') + '" dur="1.8s" begin="' + delay + 's" repeatCount="indefinite"/></circle>';
 	        }
 	        el.innerHTML = '<svg width="' + w + '" height="' + h + '" style="display:block;margin:4px auto 0"><defs><linearGradient id="sg-' + prefix + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(' + color + ',0.3)"/><stop offset="100%" stop-color="rgba(' + color + ',0.02)"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#sg-' + prefix + ')" /><path d="' + path + '" fill="none" stroke="rgba(' + color + ',0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" />' + dots + '</svg>';
-	      }
+      }
+      setVal('g-spot', d.spot, '$');
+      setVal('g-comex', d.comex, '$');
+      setVal('g-sh', d.shanghai_gold, '¥');
+      setVal('g-ag', d.shanghai_silver, '¥');
+      drawSparkline('g-comex', d.comex, 100, 26);
+      drawSparkline('g-spot', d.spot, 100, 26);
+    })
+    .catch(function(){});
+})();
+</script>
+
+<!-- ============================================================
+     SMART MONEY — 聪明钱在干什么
+     ============================================================ -->
+<section class="smart-money">
+  <div class="smart-money-inner">
+    <div class="sm-header">
+      <span style="font-size:24px">🐉</span>
+      <div>
+        <div class="sm-title">聪明钱在干什么？</div>
+        <div class="sm-subtitle">机构视角数据，让你和主力站在同一边</div>
+      </div>
+    </div>
+    <div class="sm-grid">
+      <!-- 龙虎榜 -->
+      <div class="sm-card">
+        <div class="sm-card-title">🐉 今日龙虎榜速览</div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">深股通专用</div>
+            <div class="sm-item-sub">净买入 科大讯飞</div>
+          </div>
+          <span class="sm-item-val up">+3.2亿</span>
+        </div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">中信上海分公司</div>
+            <div class="sm-item-sub">净买入 中芯国际</div>
+          </div>
+          <span class="sm-item-val up">+1.8亿</span>
+        </div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">华泰总部</div>
+            <div class="sm-item-sub">净卖出 贵州茅台</div>
+          </div>
+          <span class="sm-item-val down">-2.1亿</span>
+        </div>
+      </div>
+      <!-- 资金面：融资融券 + 北向 -->
+      <div class="sm-card" id="sm-fund-flow-card">
+        <div class="sm-card-title">🧭 资金面</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="text-align:center;padding:10px 6px;background:rgba(79,140,255,0.04);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">💰 融资余额</div>
+            <div style="font-size:16px;font-weight:800;color:var(--accent-bright)" id="sm-margin-rz">-- 亿</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:rgba(240,185,11,0.04);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">📉 融券余额</div>
+            <div style="font-size:16px;font-weight:800;color:var(--gold)" id="sm-margin-rq">-- 亿</div>
+          </div>
+        </div>
+        <div class="sm-flow-big">
+          <div class="sm-flow-num" id="sm-north-net" style="color:var(--text-primary)">-- 亿</div>
+          <div class="sm-flow-label">北向资金今日净流入</div>
+        </div>
+        <div style="margin-top:10px">
+          <div class="sm-item">
+            <span class="sm-item-name">近 5 日北向累计</span>
+            <span class="sm-item-val" id="sm-north-5d" style="color:var(--text-secondary)">--</span>
+          </div>
+          <div class="sm-item">
+            <span class="sm-item-name">融资余额占流通市值</span>
+            <span class="sm-item-val" id="sm-margin-ratio" style="color:var(--text-secondary)">--</span>
+          </div>
+        </div>
+      </div>
+      <!-- 热门板块 -->
+      <div class="sm-card">
+        <div class="sm-card-title">🔥 今日热门板块</div>
+        <div class="sm-hot-tags">
+          <span class="sm-hot-tag">半导体 +4.2%</span>
+          <span class="sm-hot-tag">AI算力 +3.8%</span>
+          <span class="sm-hot-tag">新能源车 +2.9%</span>
+          <span class="sm-hot-tag">光伏 +2.1%</span>
+          <span class="sm-hot-tag">消费电子 +1.8%</span>
+          <span class="sm-hot-tag">军工 +1.5%</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:12px;text-align:center">
+          资金正向以上板块聚集
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     STATS BAR
+     ============================================================ -->
+<section class="stats-bar">
+  <div class="stats-grid">
+    <div class="stat-item">
+      <div class="stat-num">5,500<span style="font-size:0.5em;font-weight:600">+</span></div>
+      <div class="stat-label">覆盖 A 股</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">7</div>
+      <div class="stat-label">全球指数</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">3</div>
+      <div class="stat-label">交易市场</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">30<span style="font-size:0.5em;font-weight:600">s</span></div>
+      <div class="stat-label">数据刷新</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     PRODUCT CARDS
+     ============================================================ -->
+<section class="products" id="products">
+  <div class="section-header">
+    <div class="section-tag">全部产品</div>
+    <h2 class="section-h2">你需要的，我们都有</h2>
+    <p class="section-p">从选股决策到内容创作，AI 让一切变简单。所有产品均支持免费试用。</p>
+  </div>
+  <div class="products-grid">
+    <!-- Product 1: Stock Analysis -->
+    <a href="/stock" class="prod-card">
+      <div class="pc-icon pc-icon-stock">📈</div>
+      <h3>AI 选股决策</h3>
+      <p>不盯盘也能做决策 — AI 替你分析涨跌，给出明确操作建议。覆盖沪深港美股。</p>
+      <ul class="pc-features">
+        <li>每日 AI 操作建议 + 置信度</li>
+        <li>MACD / RSI / KDJ 技术指标</li>
+        <li>北向资金 & 主力资金追踪</li>
+        <li>避雷预警 & 解禁提醒</li>
+        <li>龙虎榜 & 游资动向</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-free-label">🎁 免费开始</span>
+        <span class="pc-cta">立即使用 →</span>
+      </div>
+    </a>
+    <!-- Product 2: Media AI -->
+    <a href="/media" class="prod-card">
+      <div class="pc-icon pc-icon-media">✍️</div>
+      <h3>内容创作助手</h3>
+      <p>财经自媒体人的效率神器 — 热点追踪、视频脚本、爆款模仿，一站式搞定。</p>
+      <ul class="pc-features">
+        <li>双引擎 AI（DeepSeek + Claude）</li>
+        <li>爆款标题 & 脚本一键生成</li>
+        <li>视频配音自动制作</li>
+        <li>热点趋势智能发现</li>
+        <li>多平台内容适配优化</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-free-label">🎁 免费开始</span>
+        <span class="pc-cta">立即使用 →</span>
+      </div>
+    </a>
+    <!-- Product 3: Custom Dev -->
+    <a href="/services" class="prod-card">
+      <div class="pc-icon pc-icon-dev">⚡</div>
+      <h3>定制开发</h3>
+      <p>量身打造的 AI 解决方案 — 金融数据系统、微信小程序、自动化工具快速交付。</p>
+      <ul class="pc-features">
+        <li>AI 工具 MVP 快速开发</li>
+        <li>全栈 Web 应用搭建</li>
+        <li>金融数据系统定制</li>
+        <li>自动化 & 数据采集</li>
+        <li>微信小程序开发</li>
+      </ul>
+      <div class="pc-bottom">
+        <span class="pc-price-sm">项目 ¥500+</span>
+        <span class="pc-cta">获取报价 →</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<!-- ============================================================
+     FEATURE SHOWCASE
+     ============================================================ -->
+<section class="showcase">
+  <div class="section-header" style="margin-bottom:64px">
+    <div class="section-tag">核心优势</div>
+    <h2 class="section-h2">为什么交易者选择 StockAI</h2>
+  </div>
+
+  <!-- Showcase 1 -->
+  <div class="showcase-item">
+    <div class="sc-text">
+      <h3>实时全球市场数据</h3>
+      <p>覆盖沪深 A 股、港股、美股及全球主要市场。商品期货与加密货币同步监控，每 30 秒自动刷新。</p>
+      <ul class="sc-list">
+        <li>7 大全球指数 + 行业概念热力图</li>
+        <li>北向资金可视化追踪</li>
+        <li>实时滚动行情条，异动秒级提醒</li>
+      </ul>
+    </div>
+    <div class="sc-preview">
+      <div class="sc-preview-chart">
+        <div class="sc-preview-bar" style="height:32px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:48px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:26px;background:#ef4444"></div>
+        <div class="sc-preview-bar" style="height:58px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:40px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:52px;background:#22c55e"></div>
+        <div class="sc-preview-bar" style="height:36px;background:#4f8cff"></div>
+        <div class="sc-preview-bar" style="height:62px;background:#22c55e"></div>
+      </div>
+      <strong style="color:var(--text-primary)">实时大盘指数</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">上证 +0.8% &nbsp;深证 +1.2% &nbsp;创业板 +2.1%</span>
+    </div>
+  </div>
+
+  <!-- Showcase 2 -->
+  <div class="showcase-item reverse">
+    <div class="sc-text">
+      <h3>专业级技术分析</h3>
+      <p>K 线蜡烛图叠加多周期均线，MACD 动量指标，RSI 超买超卖信号，布林带通道 — 为专业交易者打造。</p>
+      <ul class="sc-list">
+        <li>K 线 + MA5 / MA10 / MA20 / MA60</li>
+        <li>MACD 金叉死叉 + 柱状图</li>
+        <li>RSI(14) 超买超卖 30/70 警戒</li>
+      </ul>
+    </div>
+    <div class="sc-preview">
+      <div style="display:flex;align-items:flex-end;gap:3px;height:56px;margin-bottom:12px">
+        <div style="width:7px;height:28px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:42px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:22px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:48px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:18px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:38px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:52px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:32px;background:#22c55e;border-radius:1px"></div>
+        <div style="width:7px;height:45px;background:#ef4444;border-radius:1px"></div>
+        <div style="width:7px;height:25px;background:#22c55e;border-radius:1px"></div>
+      </div>
+      <strong style="color:var(--text-primary)">K 线图 + MACD 指标</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">MA5 · MA10 · MA20 · MA60 · RSI · 布林带</span>
+    </div>
+  </div>
+
+  <!-- Showcase 3 -->
+  <div class="showcase-item">
+    <div class="sc-text">
+      <h3>AI 驱动七维分析</h3>
+      <p>综合评估到风险预警，七大维度全覆盖。DeepSeek 大模型驱动，秒级生成专业分析洞察与操作建议。</p>
+      <ul class="sc-list">
+        <li>综合 / 技术面 / 基本面 / 估值</li>
+        <li>新闻事件 / 行业对比 / 风险评级</li>
+        <li>具体操作建议 + 目标价区间</li>
+      </ul>
+    </div>
+    <div class="sc-preview">
+      <div style="display:flex;gap:6px;margin-bottom:14px">
+        <span class="sc-preview-dot" style="background:#4f8cff;color:#4f8cff"></span>
+        <span class="sc-preview-dot" style="background:#a855f7;color:#a855f7"></span>
+        <span class="sc-preview-dot" style="background:#22c55e;color:#22c55e"></span>
+        <span class="sc-preview-dot" style="background:#f97316;color:#f97316"></span>
+        <span class="sc-preview-dot" style="background:#ef4444;color:#ef4444"></span>
+        <span class="sc-preview-dot" style="background:#f0b90b;color:#f0b90b"></span>
+        <span class="sc-preview-dot" style="background:#4f8cff;color:#4f8cff"></span>
+      </div>
+      <strong style="color:var(--text-primary)">七维 AI 深度分析</strong>
+      <span style="font-size:11px;margin-top:6px;color:var(--text-tertiary)">7 个视角 · PDF 报告 · 历史记录</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     FAQ
+     ============================================================ -->
+<section class="faq">
+  <div class="section-header">
+    <div class="section-tag">常见问题</div>
+    <h2 class="section-h2">快速了解 StockAI</h2>
+  </div>
+  <div class="faq-grid">
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">StockAI 覆盖哪些市场？ <span>+</span></div>
+      <div class="faq-a">沪深 A 股、港股（港交所）、美股（纽交所 + 纳斯达克）。同时覆盖日本、韩国、印度、欧洲等全球主要指数，以及商品期货和加密货币行情。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">AI 分析如何工作？ <span>+</span></div>
+      <div class="faq-a">系统获取实时行情和近期 K 线数据，通过多引擎 AI 架构（DeepSeek V4 + Claude Opus 4.8）进行七维深度分析：综合评估、技术面（MACD / RSI / KDJ）、基本面（PE / PB / ROE）、估值对比、新闻事件驱动、行业赛道对比、风险评估。所有 AI 模型并行工作、交叉验证，确保专业性和准确性。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">数据是实时的吗？ <span>+</span></div>
+      <div class="faq-a">是的。系统接入全球主流交易所权威数据源，A 股、港股、美股、欧亚指数实时同步更新，刷新频率达 30 秒/次。美股数据遵循交易所合规要求（标准延迟）。所有数据经过多源交叉校验，确保准确稳定。</div>
+    </div>
+    <div class="faq-item" onclick="this.classList.toggle('open')">
+      <div class="faq-q">可以保存分析和追踪股票吗？ <span>+</span></div>
+      <div class="faq-a">注册免费账户即可：① 自选股管理（免费 10 只 / VIP 50 只 / SVIP 200 只）；② 智能价格提醒（突破 / 跌破 / 涨跌幅 / 资金异动）；③ AI 分析历史云端保存 + 一键导出 PDF；④ 资金流向追踪自动累积；⑤ 多设备数据同步。所有记录永久保存。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     CTA BANNER
+     ============================================================ -->
+<section class="cta-banner">
+  <h2>准备好提升交易水平了吗？</h2>
+  <p>加入数千名交易者，使用 StockAI 进行专业市场分析。免费开始，随时升级。</p>
+  <a href="/stock" class="btn-primary" style="display:inline-flex">免费开始使用 →</a>
+</section>
+
+<!-- ============================================================
+     LIVE MARKET ENTRY
+     ============================================================ -->
+<section class="live-entry">
+  <h2>实时行情终端</h2>
+
+  <!-- Feature icon grid -->
+  <div class="feature-icon-grid">
+    <div class="fi-card">
+      <div class="fi-icon">📊</div>
+      <div class="fi-label">实时指数</div>
+      <div class="fi-desc">7大全球指数</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🔥</div>
+      <div class="fi-label">板块热力图</div>
+      <div class="fi-desc">行业概念轮动</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">💰</div>
+      <div class="fi-label">资金流向</div>
+      <div class="fi-desc">主力散户追踪</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">📈</div>
+      <div class="fi-label">K线图表</div>
+      <div class="fi-desc">MACD·RSI·KDJ</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🤖</div>
+      <div class="fi-label">AI分析引擎</div>
+      <div class="fi-desc">7维深度分析</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🐉</div>
+      <div class="fi-label">龙虎榜</div>
+      <div class="fi-desc">游资动向追踪</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">🎯</div>
+      <div class="fi-label">智能选股</div>
+      <div class="fi-desc">AI量化筛选</div>
+    </div>
+    <div class="fi-card">
+      <div class="fi-icon">📋</div>
+      <div class="fi-label">PDF报告</div>
+      <div class="fi-desc">一键导出分析</div>
+    </div>
+  </div>
+
+  <a href="/stock" class="btn-primary" style="padding:16px 44px;font-size:16px;display:inline-flex">进入实时行情 →</a>
+</section>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer class="footer">
+  <div class="footer-grid">
+    <div class="footer-col">
+      <h4>StockAI</h4>
+      <p class="brand-desc">专业市场智能分析平台。AI 驱动深度分析，实时行情数据，为现代交易者和创作者打造的专业工具。</p>
+    </div>
+    <div class="footer-col">
+      <h4>产品</h4>
+      <a href="/stock">A 股智能分析</a>
+      <a href="/media">自媒体 AI 助手</a>
+      <a href="/services">定制 AI 开发</a>
+    </div>
+    <div class="footer-col">
+      <h4>资源</h4>
+      <a href="/stock">实时行情</a>
+      <a href="/stock">板块热力图</a>
+      <a href="/stock">智能选股</a>
+    </div>
+    <div class="footer-col">
+      <h4>关于</h4>
+      <a href="/services">联系我们</a>
+      <a href="/services">服务介绍</a>
+      <a href="/">关于我们</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 StockAI. All rights reserved.</span>
+    <span>AI 驱动 · Railway 部署 · kunhuang.top</span>
+  </div>
+</footer>
+
+<!-- ============================================================
+     SCRIPTS
+     ============================================================ -->
+<script>
+// Live ticker — fetch from backend and render
+(async function ticker() {
+  try {
+    const r = await fetch('/api/market/indices');
+    const d = await r.json();
+    if (!d.indices) return;
+    const labels = {
+      'sh000001':'上证指数','sz399001':'深证成指','sz399006':'创业板指',
+      'hk800000':'恒生指数','us.INX':'标普500','us.IXIC':'纳斯达克','us.DJI':'道琼斯'
+    };
+    const all = [...d.indices, ...d.indices]; // duplicate for seamless scroll
+    document.getElementById('tickerEl').innerHTML = all.map(i => {
+      const up = i.change_pct >= 0, c = up ? '#22c55e' : '#ef4444', a = up ? '↑' : '↓';
+      return `<span class="item"><span class="sym">${labels[i.code]||i.name}</span><span>${i.price.toFixed(2)}</span><span style="color:${c};font-size:11px;font-weight:600">${a} ${Math.abs(i.change_pct).toFixed(2)}%</span><span class="divider"></span></span>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('tickerEl').innerHTML = '<span style="padding:0 20px;color:var(--text-tertiary)">行情数据加载中，请稍后刷新...</span>';
+  }
+})();
+</script>
+
+<!-- PWA Install Prompt -->
+<div id="pwaInstallBtn" style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:9999;background:linear-gradient(180deg,rgba(15,18,37,0.98),rgba(6,6,8,0.98));border-top:1px solid rgba(59,130,246,0.3);padding:12px 16px calc(12px + env(safe-area-inset-bottom));justify-content:space-between;align-items:center;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)">
+  <div style="display:flex;align-items:center;gap:10px">
+    <span style="font-size:28px">📈</span>
+    <div><div style="font-weight:700;font-size:14px;color:#fff">StockAI — 专业行情终端</div><div style="font-size:11px;color:var(--text-tertiary)">添加到桌面，随时随地看盘</div></div>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button onclick="pwaDismiss()" style="padding:8px 14px;background:transparent;border:1px solid var(--border-default);border-radius:20px;color:var(--text-secondary);font-size:12px;cursor:pointer;font-family:var(--font)">稍后</button>
+    <button onclick="pwaInstall()" style="padding:8px 20px;background:linear-gradient(135deg,#3b82f6,#2563eb);border:none;border-radius:20px;color:#fff;font-weight:700;font-size:12px;cursor:pointer;font-family:var(--font);box-shadow:0 4px 16px rgba(59,130,246,0.3)">立即安装</button>
+  </div>
+</div>
+
+</body>
+</html>
