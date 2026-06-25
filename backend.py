@@ -656,6 +656,28 @@ def _fetch_tencent_raw(url):
 # 优先使用 Railway 持久化卷 /data，否则本地目录
 _PERSIST_DIR = "/data" if os.path.isdir("/data") else BASE_DIR
 _MARKET_CACHE_FILE = os.path.join(_PERSIST_DIR, "market_cache.json")
+_NORTHBOUND_FILE = os.path.join(_PERSIST_DIR, "northbound_daily.json")
+
+def _load_northbound_history():
+    """加载北向资金每日快照"""
+    try:
+        if os.path.exists(_NORTHBOUND_FILE):
+            with open(_NORTHBOUND_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception:
+        pass
+    return {}
+
+def _save_northbound_history(data):
+    """保存北向资金每日快照（最多保留30天）"""
+    # Keep only last 30 days
+    sorted_keys = sorted(data.keys())[-30:]
+    trimmed = {k: data[k] for k in sorted_keys}
+    try:
+        with open(_NORTHBOUND_FILE, "w", encoding="utf-8") as f:
+            json.dump(trimmed, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 def _load_market_cache():
     try:
@@ -2297,31 +2319,33 @@ def smart_money():
     result = {"north_flow_5d": 0, "hot_sectors": [], "updated": datetime.now().strftime("%H:%M:%S")}
 
     try:
-        # North-bound flow recent — use push2his for historical daily data
-        nb_url = "https://push2his.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=10"
+        # North-bound flow: snapshot-based 5-day tracking
+        # KAMT API only returns today's data reliably; accumulate history locally
+        nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=1"
         nb_data = fetch_eastmoney(nb_url, timeout=8)
-        flows = []
+        today_flow = 0.0
+        today_str = datetime.now().strftime("%Y-%m-%d")
         if nb_data and nb_data.get("data"):
             nd = nb_data["data"]
-            # Format: hk2sh/hk2sz arrays, each line "date,quota1,quota2,net_flow_yuan"
             for key in ("hk2sh", "hk2sz"):
                 for line in nd.get(key, []):
                     parts = line.split(",")
                     if len(parts) >= 4:
                         try:
                             net = float(parts[3]) if parts[3] != "-" else 0.0
-                            flows.append(net)
+                            # net is in yuan, convert to yi (亿)
+                            today_flow += net / 100000000
                         except ValueError:
                             pass
-            # Fallback: old klines format
-            if not flows and nd.get("klines"):
-                for line in nd["klines"]:
-                    parts = line.split(",")
-                    if len(parts) >= 4:
-                        flows.append(float(parts[3]))
-        if flows:
-            # Convert yuan to yi (亿), take last 5 trading days
-            result["north_flow_5d"] = round(sum(flows[-5:]) / 100000000, 1)
+        # Persist today's flow if non-zero (market is open)
+        nb_history = _load_northbound_history()
+        if today_flow > 0.01:
+            nb_history[today_str] = round(today_flow, 2)
+            _save_northbound_history(nb_history)
+        # Compute 5-day total from history
+        all_days = sorted(nb_history.keys())
+        recent_5 = all_days[-5:]
+        result["north_flow_5d"] = round(sum(nb_history[d] for d in recent_5), 1)
 
         # Sector fund flow top 5
         sf_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62"
