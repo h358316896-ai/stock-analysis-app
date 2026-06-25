@@ -3567,10 +3567,10 @@ def margin_trading():
 @app.route("/api/market/limit-up-down")
 def limit_up_down():
     """获取涨跌停统计 — 拉取全市场排序后客户端过滤"""
-    # 全市场按涨跌幅排序，取前200条再过滤
+    # 全市场按涨跌幅排序，涨幅榜和跌幅榜分别取
     url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
     up_data = fetch_eastmoney(url_up, timeout=10)
-    url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
+    url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
     down_data = fetch_eastmoney(url_down, timeout=10)
 
     def parse_limit(item):
@@ -3684,12 +3684,15 @@ def institutional_research():
 @app.route("/api/market/limit-up-review")
 def limit_up_review():
     """涨停板复盘：连板统计 + 涨停原因"""
-    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f8,f9,f10,f12,f14,f20,f62,f184"
+    # Try push2 first, fall back to Tencent if too few results
+    url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f8,f9,f10,f12,f14,f20,f62,f184"
     data = _cached_eastmoney("limit_review", url, ttl=600)
     stocks = []
     if data and data.get("data") and data["data"].get("diff"):
         for item in data["data"]["diff"]:
             pct = item.get("f3", 0)
+            try: pct = float(pct) if pct else 0
+            except: pct = 0
             if pct >= 9.5:
                 name = item.get("f14","")
                 code = item.get("f12","")
@@ -3704,8 +3707,8 @@ def limit_up_review():
                     "main_net": item.get("f62",0),
                     "reason": "推测:" + _guess_limit_reason(name),
                 })
-    # push2 返回空时用腾讯 API 回退
-    if not stocks:
+    # push2 返回太少时用腾讯 API 补充
+    if len(stocks) < 5:
         fb = _fetch_movers_tencent_fallback()
         for s in fb:
             if s["change_pct"] >= 9.5:
