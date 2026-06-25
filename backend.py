@@ -3745,6 +3745,7 @@ def gold_price():
     result = {"updated": datetime.now().strftime("%H:%M:%S"), "spot": None, "comex": None, "shanghai_gold": None, "shanghai_silver": None}
 
     # 1. COMEX黄金 + 白银 (Tencent hf_GC / hf_SI — 实时)
+    comex_silver = None  # temp storage, only use as fallback
     try:
         text = _fetch_tencent_raw("https://qt.gtimg.cn/q=hf_GC,hf_SI")
         if text:
@@ -3769,7 +3770,7 @@ def gold_price():
                     if code == "GC":
                         result["comex"] = item
                     elif code == "SI":
-                        result["shanghai_silver"] = item  # placeholder; will overwrite with SHFE
+                        comex_silver = item  # store as fallback only
                 except (ValueError, IndexError):
                     pass
     except Exception:
@@ -3840,7 +3841,10 @@ def gold_price():
     except Exception:
         pass
 
-    # 4. Fallback: 如果 COMEX 失败，用 Yahoo Finance
+    # 4. Fallback: 沪银用COMEX白银, COMEX用Yahoo
+    if not result["shanghai_silver"] and comex_silver:
+        result["shanghai_silver"] = comex_silver
+    if not result["comex"]:
     if not result["comex"]:
         try:
             yf_data = _fetch_yf_indices_parallel([("GC=F", "Gold Futures")])
