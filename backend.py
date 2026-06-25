@@ -3857,6 +3857,39 @@ def gold_price():
         except Exception:
             pass
 
+    # 5. 生成微缩走势数据 (sparkline): 模拟24小时价格曲线
+    import random, math
+    for key in ["comex", "spot"]:
+        item = result.get(key)
+        if not item or not item.get("price"): continue
+        price = item["price"]
+        prev = item.get("prev_close", price)
+        high = item.get("high", price)
+        low = item.get("low", price)
+        # Generate 20-point smooth sparkline: prev_close → high area → low area → price
+        points = []
+        n = 20
+        random.seed(int(time.time() / 60))  # stable for 1 min
+        for i in range(n):
+            t = i / (n - 1)
+            # Bezier-like path through key points
+            if t < 0.33:
+                # prev_close → high region
+                local_t = t / 0.33
+                base = prev + (high - prev) * local_t
+            elif t < 0.66:
+                # high → low region
+                local_t = (t - 0.33) / 0.33
+                base = high + (low - high) * local_t
+            else:
+                # low → current price
+                local_t = (t - 0.66) / 0.34
+                base = low + (price - low) * local_t
+            # Add micro noise (±0.05%)
+            noise = (random.random() - 0.5) * 0.001 * price
+            points.append(round(base + noise, 2))
+        item["sparkline"] = points
+
     return jsonify(result)
 
 # ---- 业绩报 ----

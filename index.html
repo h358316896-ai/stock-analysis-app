@@ -1750,11 +1750,13 @@ body::after {
         <div class="gold-label">🌍 现货金 XAU</div>
         <div class="gold-price" id="g-spot-price">--</div>
         <div class="gold-chg" id="g-spot-chg">--</div>
+        <div class="gold-spark" id="g-spot-spark"></div>
       </div>
       <div class="gold-item">
         <div class="gold-label">🏗 COMEX 期货</div>
         <div class="gold-price" id="g-comex-price">--</div>
         <div class="gold-chg" id="g-comex-chg">--</div>
+        <div class="gold-spark" id="g-comex-spark"></div>
       </div>
       <div class="gold-item">
         <div class="gold-label">🇨🇳 沪金主力</div>
@@ -1789,10 +1791,33 @@ body::after {
           cEl.style.color = chg >= 0 ? 'var(--red)' : 'var(--green)';
         }
       }
+      function drawSparkline(prefix, data, w, h) {
+        var pts = data && data.sparkline;
+        if (!pts || pts.length < 2) return;
+        var el = document.getElementById(prefix + '-spark');
+        if (!el) return;
+        var min = Math.min.apply(null, pts), max = Math.max.apply(null, pts);
+        var range = max - min || 1;
+        var pad = 2;
+        // Build SVG path
+        var path = '';
+        for (var i = 0; i < pts.length; i++) {
+          var x = pad + (w - pad * 2) * i / (pts.length - 1);
+          var y = pad + (h - pad * 2) * (1 - (pts[i] - min) / range);
+          path += (i === 0 ? 'M' : 'L') + ' ' + x.toFixed(1) + ' ' + y.toFixed(1);
+        }
+        // Build area path (fill below line)
+        var areaPath = path + ' L ' + (w - pad).toFixed(1) + ' ' + (h - pad) + ' L ' + pad.toFixed(1) + ' ' + (h - pad) + ' Z';
+        var up = (data.change_pct || 0) >= 0;
+        var color = up ? '240,185,11' : '239,68,68'; // gold or red
+        el.innerHTML = '<svg width="' + w + '" height="' + h + '" style="display:block;margin:4px auto 0"><defs><linearGradient id="sg-' + prefix + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(' + color + ',0.3)"/><stop offset="100%" stop-color="rgba(' + color + ',0.02)"/></linearGradient></defs><path d="' + areaPath + '" fill="url(#sg-' + prefix + ')" /><path d="' + path + '" fill="none" stroke="rgba(' + color + ',0.9)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" /><circle cx="' + (pad + (w-pad*2)*(pts.length-1)/(pts.length-1)).toFixed(1) + '" cy="' + (pad + (h-pad*2)*(1-(pts[pts.length-1]-min)/range)).toFixed(1) + '" r="2.5" fill="rgba(' + color + ',1)"><animate attributeName="r" values="2.5;3.5;2.5" dur="2s" repeatCount="indefinite"/></circle></svg>';
+      }
       setVal('g-spot', d.spot, '$');
       setVal('g-comex', d.comex, '$');
       setVal('g-sh', d.shanghai_gold, '¥');
       setVal('g-ag', d.shanghai_silver, '¥');
+      drawSparkline('g-comex', d.comex, 100, 26);
+      drawSparkline('g-spot', d.spot, 100, 26);
     })
     .catch(function(){});
 })();
