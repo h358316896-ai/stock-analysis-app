@@ -29,3 +29,5 @@ nul
 
 .vercel
 static/backend.py
+
+switch_ns.py

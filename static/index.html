@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -406,6 +406,174 @@ body::after {
   box-shadow: var(--shadow-glow-gold);
 }
 
+/* Hero AI Verdict Preview Card */
+.hero-verdict-card {
+  max-width: 420px; margin: 0 auto 32px;
+  padding: 18px 24px;
+  border-radius: var(--radius-lg);
+  background: rgba(15,18,37,0.7);
+  border: 1px solid rgba(79,140,255,0.2);
+  box-shadow: 0 0 30px rgba(79,140,255,0.08), 0 0 60px rgba(79,140,255,0.03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: verdictFloat 4s ease-in-out infinite;
+}
+@keyframes verdictFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.hero-verdict-head {
+  font-size: 11px; font-weight: 700; color: var(--text-secondary);
+  letter-spacing: 0.04em; margin-bottom: 10px;
+}
+.hero-verdict-main {
+  display: flex; align-items: center; justify-content: center; gap: 16px;
+  margin-bottom: 10px;
+}
+.hero-verdict-badge {
+  padding: 6px 18px; border-radius: 20px;
+  font-size: 18px; font-weight: 900; letter-spacing: 0.02em;
+}
+.hero-verdict-badge.bullish {
+  background: rgba(34,197,94,0.15);
+  color: var(--green);
+  border: 1px solid rgba(34,197,94,0.3);
+  box-shadow: 0 0 20px rgba(34,197,94,0.15);
+}
+.hero-verdict-badge.bearish {
+  background: rgba(239,68,68,0.15);
+  color: var(--red);
+  border: 1px solid rgba(239,68,68,0.3);
+  box-shadow: 0 0 20px rgba(239,68,68,0.15);
+}
+.hero-verdict-badge.neutral {
+  background: rgba(240,185,11,0.15);
+  color: var(--gold);
+  border: 1px solid rgba(240,185,11,0.3);
+  box-shadow: 0 0 20px rgba(240,185,11,0.15);
+}
+.hero-verdict-conf {
+  font-size: 13px; color: var(--text-secondary);
+}
+.hero-verdict-conf strong {
+  color: var(--text-primary); font-size: 16px;
+}
+.hero-verdict-note {
+  font-size: 11px; color: var(--text-tertiary);
+}
+
+/* ============================================================
+   DAILY DECISION PANEL — Core value proposition
+   ============================================================ */
+.daily-decision {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 30px; padding: 0 24px;
+}
+.daily-decision-inner {
+  border-radius: var(--radius-xl);
+  padding: 32px 36px;
+  background: linear-gradient(135deg, rgba(15,18,37,0.9), rgba(12,15,29,0.95));
+  border: 1px solid rgba(34,197,94,0.18);
+  box-shadow: 0 0 60px rgba(34,197,94,0.06), 0 0 120px rgba(34,197,94,0.03);
+  position: relative; overflow: hidden;
+}
+.daily-decision-inner::before {
+  content: '';
+  position: absolute; top: -50%; right: -20%;
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(34,197,94,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+.daily-decision-inner.neutral-bg {
+  border-color: rgba(240,185,11,0.18);
+  box-shadow: 0 0 60px rgba(240,185,11,0.06), 0 0 120px rgba(240,185,11,0.03);
+}
+.daily-decision-inner.neutral-bg::before {
+  background: radial-gradient(circle, rgba(240,185,11,0.04) 0%, transparent 70%);
+}
+.daily-decision-inner.bearish-bg {
+  border-color: rgba(239,68,68,0.18);
+  box-shadow: 0 0 60px rgba(239,68,68,0.06), 0 0 120px rgba(239,68,68,0.03);
+}
+.daily-decision-inner.bearish-bg::before {
+  background: radial-gradient(circle, rgba(239,68,68,0.04) 0%, transparent 70%);
+}
+.dd-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 28px;
+  flex-wrap: wrap; position: relative; z-index: 1;
+}
+.dd-verdict {
+  font-size: clamp(20px, 3vw, 28px); font-weight: 900;
+  letter-spacing: -0.02em; color: var(--text-primary);
+}
+.dd-verdict-badge {
+  padding: 6px 16px; border-radius: 20px;
+  font-size: 15px; font-weight: 800;
+}
+.dd-verdict-badge.bullish {
+  background: rgba(34,197,94,0.15); color: var(--green);
+  border: 1px solid rgba(34,197,94,0.3);
+}
+.dd-verdict-badge.neutral {
+  background: rgba(240,185,11,0.15); color: var(--gold);
+  border: 1px solid rgba(240,185,11,0.3);
+}
+.dd-verdict-badge.bearish {
+  background: rgba(239,68,68,0.15); color: var(--red);
+  border: 1px solid rgba(239,68,68,0.3);
+}
+.dd-conf {
+  font-size: 14px; color: var(--text-secondary);
+  margin-left: auto;
+}
+.dd-conf strong { color: var(--text-primary); font-size: 20px; }
+.dd-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px; position: relative; z-index: 1;
+}
+.dd-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--radius-md);
+  padding: 18px;
+  transition: var(--transition);
+}
+.dd-card:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(79,140,255,0.15);
+}
+.dd-card-title {
+  font-size: 11px; font-weight: 700; color: var(--text-tertiary);
+  letter-spacing: 0.05em; margin-bottom: 12px;
+}
+.dd-stock-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 13px;
+}
+.dd-stock-item:last-child { border-bottom: none; }
+.dd-stock-name { color: var(--text-primary); font-weight: 600; }
+.dd-stock-code { color: var(--text-tertiary); font-size: 10px; margin-left: 6px; }
+.dd-stock-reason { font-size: 10px; color: var(--text-secondary); margin-top: 2px; }
+.dd-stock-pct { font-size: 12px; font-weight: 700; }
+.dd-stock-pct.up { color: var(--green); }
+.dd-stock-pct.down { color: var(--red); }
+.dd-level-item {
+  display: flex; justify-content: space-between; padding: 6px 0;
+  font-size: 13px; border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.dd-level-item:last-child { border-bottom: none; }
+.dd-level-label { color: var(--text-tertiary); }
+.dd-level-val { color: var(--text-primary); font-weight: 600; font-family: var(--font-num); }
+.dd-advice {
+  font-size: 14px; color: var(--text-primary); line-height: 1.7;
+}
+.dd-advice-highlight {
+  display: inline-block; padding: 2px 10px; border-radius: 4px;
+  background: rgba(79,140,255,0.12); color: var(--accent-bright);
+  font-weight: 700; margin: 0 2px;
+}
+
 /* ============================================================
    LIVE TICKER STRIP
    ============================================================ */
@@ -441,6 +609,158 @@ body::after {
   width: 1px; height: 12px;
   background: rgba(255,255,255,0.06);
 }
+
+/* ============================================================
+   RISK SHIELD — "买之前先看这个"
+   ============================================================ */
+.risk-shield {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 30px; padding: 0 24px;
+}
+.risk-shield-inner {
+  border-radius: var(--radius-xl);
+  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(239,68,68,0.04), rgba(15,18,37,0.9));
+  border: 1px solid rgba(239,68,68,0.15);
+  box-shadow: 0 0 40px rgba(239,68,68,0.04);
+  position: relative; overflow: hidden;
+}
+.risk-shield-inner::before {
+  content: '';
+  position: absolute; top: -30%; left: -10%;
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(239,68,68,0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+.rs-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+  position: relative; z-index: 1;
+}
+.rs-title {
+  font-size: 17px; font-weight: 800; color: var(--text-primary);
+}
+.rs-subtitle {
+  font-size: 12px; color: var(--text-tertiary);
+}
+.rs-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 10px; position: relative; z-index: 1;
+}
+.rs-item {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(239,68,68,0.04);
+  border: 1px solid rgba(239,68,68,0.1);
+  transition: var(--transition-fast);
+}
+.rs-item:hover {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.18);
+}
+.rs-item.orange {
+  background: rgba(249,115,22,0.04);
+  border-color: rgba(249,115,22,0.1);
+}
+.rs-item.orange:hover {
+  background: rgba(249,115,22,0.08);
+  border-color: rgba(249,115,22,0.18);
+}
+.rs-icon { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.rs-body { flex: 1; min-width: 0; }
+.rs-item-title {
+  font-size: 13px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.rs-item-desc {
+  font-size: 11px; color: var(--text-tertiary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rs-item-tag {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700;
+  background: rgba(239,68,68,0.12); color: var(--red);
+  flex-shrink: 0;
+}
+.rs-item-tag.warn {
+  background: rgba(249,115,22,0.12); color: var(--orange);
+}
+
+/* ============================================================
+   SMART MONEY — "聪明钱在干什么"
+   ============================================================ */
+.smart-money {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 30px; padding: 0 24px;
+}
+.smart-money-inner {
+  border-radius: var(--radius-xl);
+  padding: 28px 32px;
+  background: linear-gradient(135deg, rgba(15,18,37,0.9), rgba(12,15,29,0.95));
+  border: 1px solid rgba(168,85,247,0.12);
+  box-shadow: 0 0 40px rgba(168,85,247,0.04);
+}
+.sm-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+}
+.sm-title {
+  font-size: 17px; font-weight: 800; color: var(--text-primary);
+}
+.sm-subtitle {
+  font-size: 12px; color: var(--text-tertiary);
+}
+.sm-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+}
+.sm-card {
+  border-radius: var(--radius-md);
+  padding: 18px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  transition: var(--transition-fast);
+}
+.sm-card:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(168,85,247,0.15);
+}
+.sm-card-title {
+  font-size: 12px; font-weight: 700; color: var(--text-secondary);
+  margin-bottom: 14px; display: flex; align-items: center; gap: 6px;
+}
+.sm-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.03);
+  font-size: 12px;
+}
+.sm-item:last-child { border-bottom: none; }
+.sm-item-name { color: var(--text-primary); font-weight: 600; font-size: 12px; }
+.sm-item-sub { color: var(--text-tertiary); font-size: 10px; }
+.sm-item-val { font-size: 12px; font-weight: 700; font-family: var(--font-num); }
+.sm-item-val.up { color: var(--green); }
+.sm-item-val.down { color: var(--red); }
+.sm-flow-big {
+  text-align: center; padding: 12px 0;
+}
+.sm-flow-num {
+  font-size: 28px; font-weight: 900; font-family: var(--font-num);
+  letter-spacing: -0.02em;
+}
+.sm-flow-num.inflow { color: var(--green); }
+.sm-flow-num.outflow { color: var(--red); }
+.sm-flow-label { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
+.sm-hot-tags {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.sm-hot-tag {
+  padding: 4px 12px; border-radius: 14px;
+  font-size: 11px; font-weight: 600;
+  background: rgba(79,140,255,0.08);
+  color: var(--accent-bright);
+  border: 1px solid rgba(79,140,255,0.12);
+}
+.sm-hot-tag:nth-child(2) { background: rgba(34,197,94,0.08); color: var(--green); border-color: rgba(34,197,94,0.12); }
+.sm-hot-tag:nth-child(3) { background: rgba(240,185,11,0.08); color: var(--gold); border-color: rgba(240,185,11,0.12); }
 
 /* ============================================================
    STATS BAR
@@ -654,6 +974,17 @@ body::after {
   transition: all var(--transition-fast);
 }
 .prod-card:hover .pc-cta { color: var(--accent-bright); letter-spacing: 0.02em; }
+
+.prod-card .pc-free-label {
+  font-size: 13px; font-weight: 700;
+  color: var(--green);
+  background: rgba(34,197,94,0.08);
+  padding: 4px 12px; border-radius: 12px;
+}
+.prod-card .pc-price-sm {
+  font-size: 13px; font-weight: 600;
+  color: var(--text-tertiary);
+}
 
 /* ============================================================
    FEATURE SHOWCASE
@@ -945,6 +1276,13 @@ body::after {
 
   /* Reduce particles on mobile for performance */
   .hero-particle:nth-child(n+9) { display: none; }
+
+  /* New modules — stack on tablet */
+  .dd-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .rs-grid { grid-template-columns: 1fr; }
+  .sm-grid { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto; }
+  .dd-header { flex-direction: column; align-items: flex-start; }
+  .dd-conf { margin-left: 0; }
 }
 
 /* --- Phone (≤480px) --- */
@@ -999,6 +1337,19 @@ body::after {
   .feature-icon-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .fi-card { padding: 14px 8px; }
   .fi-card .fi-icon { font-size: 24px; }
+
+  /* New modules — phone compact */
+  .daily-decision { padding: 0 14px; margin-bottom: 20px; }
+  .daily-decision-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
+  .dd-verdict { font-size: 18px; }
+  .risk-shield { padding: 0 14px; margin-bottom: 20px; }
+  .risk-shield-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
+  .rs-title { font-size: 15px; }
+  .smart-money { padding: 0 14px; margin-bottom: 20px; }
+  .smart-money-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
+  .sm-title { font-size: 15px; }
+  .sm-flow-num { font-size: 24px; }
+  .hero-verdict-card { max-width: 100%; margin: 0 14px 28px; }
 
   /* Touch-friendly improvements */
   button, a, [onclick], .faq-item, .prod-card, .showcase-item {
@@ -1065,15 +1416,99 @@ body::after {
   <div class="hero-line" aria-hidden="true"></div>
 
   <div class="hero-content">
-    <div class="hero-badge">🆓 免费使用 · AI选股 · 微信通知</div>
-    <h1>每天3分钟<br><span class="gradient-text">AI帮你搞定A股</span></h1>
-    <p>不懂股票也能看懂——大盘方向、涨停复盘、避雷指南，AI替你分析。<br>同花顺给你数据，<b>StockAI 给你结论</b>。</p>
+    <div class="hero-badge">🟢 盘中实时 · AI 驱动 · 微信通知</div>
+    <h1>今天该买还是该卖？<br><span class="gradient-text">AI 直接告诉你</span></h1>
+    <p>不用盯盘、不用看财报、不用学 K 线 —<br>AI 帮你盯着，<b>异动第一时间通知你</b>。</p>
+    <!-- Hero 内嵌 AI 判断预览卡片 -->
+    <div class="hero-verdict-card">
+      <div class="hero-verdict-head">🤖 AI 今日综合判断</div>
+      <div class="hero-verdict-main">
+        <span class="hero-verdict-badge bullish">短线偏多</span>
+        <span class="hero-verdict-conf">置信度 <strong>78%</strong></span>
+      </div>
+      <div class="hero-verdict-note">上证支撑 3,280 · 压力 3,420 — 回调即是机会</div>
+    </div>
     <div class="hero-actions">
       <a href="/stock" class="btn-primary">
-        <span>进入行情终端</span>
+        <span>免费查看今日判断</span>
         <span style="font-size:16px">→</span>
       </a>
-      <a href="#products" class="btn-outline">探索产品</a>
+      <a href="#daily-decision" class="btn-outline">了解更多 ↓</a>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     DAILY DECISION PANEL — AI 今日判断
+     ============================================================ -->
+<section class="daily-decision" id="daily-decision">
+  <div class="daily-decision-inner bullish-bg">
+    <div class="dd-header">
+      <span class="dd-verdict-badge bullish">短线偏多</span>
+      <span class="dd-verdict">今日市场偏积极，回调即是机会</span>
+      <span class="dd-conf">AI 置信度 <strong>78%</strong></span>
+    </div>
+    <div class="dd-grid">
+      <!-- 今日关注 -->
+      <div class="dd-card">
+        <div class="dd-card-title">📌 今日 AI 关注</div>
+        <div class="dd-stock-item">
+          <div>
+            <span class="dd-stock-name">贵州茅台</span><span class="dd-stock-code">600519</span>
+            <div class="dd-stock-reason">北向连续5日加仓</div>
+          </div>
+          <span class="dd-stock-pct up">+2.1%</span>
+        </div>
+        <div class="dd-stock-item">
+          <div>
+            <span class="dd-stock-name">宁德时代</span><span class="dd-stock-code">300750</span>
+            <div class="dd-stock-reason">MACD 金叉 + 放量突破</div>
+          </div>
+          <span class="dd-stock-pct up">+3.5%</span>
+        </div>
+        <div class="dd-stock-item">
+          <div>
+            <span class="dd-stock-name">中芯国际</span><span class="dd-stock-code">688981</span>
+            <div class="dd-stock-reason">芯片板块轮动启动</div>
+          </div>
+          <span class="dd-stock-pct up">+1.8%</span>
+        </div>
+      </div>
+      <!-- 关键位置 -->
+      <div class="dd-card">
+        <div class="dd-card-title">📐 关键位置</div>
+        <div class="dd-level-item">
+          <span class="dd-level-label">上证支撑位</span>
+          <span class="dd-level-val">3,280</span>
+        </div>
+        <div class="dd-level-item">
+          <span class="dd-level-label">上证压力位</span>
+          <span class="dd-level-val">3,420</span>
+        </div>
+        <div class="dd-level-item">
+          <span class="dd-level-label">创业板支撑</span>
+          <span class="dd-level-val">2,080</span>
+        </div>
+        <div class="dd-level-item">
+          <span class="dd-level-label">创业板压力</span>
+          <span class="dd-level-val">2,250</span>
+        </div>
+        <div class="dd-level-item">
+          <span class="dd-level-label">两市成交预估</span>
+          <span class="dd-level-val">9,800 亿</span>
+        </div>
+      </div>
+      <!-- 操作建议 -->
+      <div class="dd-card">
+        <div class="dd-card-title">💡 操作建议</div>
+        <div class="dd-advice">
+          当前市场<span class="dd-advice-highlight">偏多震荡</span>，建议：
+          <br><br>✅ 持仓可继续持有
+          <br>✅ 回调至<span class="dd-advice-highlight">上证 3,300</span>附近可加仓
+          <br>⚠️ 上涨至压力位附近适当减仓
+          <br>❌ 不追高，等回调
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -1155,6 +1590,130 @@ body::after {
 </script>
 
 <!-- ============================================================
+     RISK SHIELD — 避雷区
+     ============================================================ -->
+<section class="risk-shield">
+  <div class="risk-shield-inner">
+    <div class="rs-header">
+      <span style="font-size:24px">🛡️</span>
+      <div>
+        <div class="rs-title">买之前花 30 秒看一眼</div>
+        <div class="rs-subtitle">AI 实时扫描市场风险，帮你避开这些坑</div>
+      </div>
+    </div>
+    <div class="rs-grid">
+      <div class="rs-item">
+        <span class="rs-icon">🔓</span>
+        <div class="rs-body">
+          <div class="rs-item-title">宁德时代 — 下周解禁 1.2 亿股</div>
+          <div class="rs-item-desc">解禁市值约 260 亿，占流通股 5.8%</div>
+        </div>
+        <span class="rs-item-tag">高危</span>
+      </div>
+      <div class="rs-item">
+        <span class="rs-icon">💸</span>
+        <div class="rs-body">
+          <div class="rs-item-title">五粮液 — 主力连续 5 日净流出</div>
+          <div class="rs-item-desc">累计净流出 12.6 亿，散户接盘风险大</div>
+        </div>
+        <span class="rs-item-tag">注意</span>
+      </div>
+      <div class="rs-item orange">
+        <span class="rs-icon">📉</span>
+        <div class="rs-body">
+          <div class="rs-item-title">通威股份 — 业绩预告大幅下滑</div>
+          <div class="rs-item-desc">Q2 净利润预降 60%-70%，光伏行业承压</div>
+        </div>
+        <span class="rs-item-tag warn">预警</span>
+      </div>
+      <div class="rs-item orange">
+        <span class="rs-icon">⚡</span>
+        <div class="rs-body">
+          <div class="rs-item-title">赛力斯 — 近 20 日涨幅超 80%</div>
+          <div class="rs-item-desc">RSI 达 92，严重超买，追高风险极大</div>
+        </div>
+        <span class="rs-item-tag warn">高位</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SMART MONEY — 聪明钱在干什么
+     ============================================================ -->
+<section class="smart-money">
+  <div class="smart-money-inner">
+    <div class="sm-header">
+      <span style="font-size:24px">🐉</span>
+      <div>
+        <div class="sm-title">聪明钱在干什么？</div>
+        <div class="sm-subtitle">机构视角数据，让你和主力站在同一边</div>
+      </div>
+    </div>
+    <div class="sm-grid">
+      <!-- 龙虎榜 -->
+      <div class="sm-card">
+        <div class="sm-card-title">🐉 今日龙虎榜速览</div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">深股通专用</div>
+            <div class="sm-item-sub">净买入 科大讯飞</div>
+          </div>
+          <span class="sm-item-val up">+3.2亿</span>
+        </div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">中信上海分公司</div>
+            <div class="sm-item-sub">净买入 中芯国际</div>
+          </div>
+          <span class="sm-item-val up">+1.8亿</span>
+        </div>
+        <div class="sm-item">
+          <div>
+            <div class="sm-item-name">华泰总部</div>
+            <div class="sm-item-sub">净卖出 贵州茅台</div>
+          </div>
+          <span class="sm-item-val down">-2.1亿</span>
+        </div>
+      </div>
+      <!-- 北向资金 -->
+      <div class="sm-card">
+        <div class="sm-card-title">🧭 北向资金</div>
+        <div class="sm-flow-big">
+          <div class="sm-flow-num inflow">+42.8 亿</div>
+          <div class="sm-flow-label">今日净流入（沪股通 + 深股通）</div>
+        </div>
+        <div style="margin-top:10px">
+          <div class="sm-item">
+            <span class="sm-item-name">近 5 日累计</span>
+            <span class="sm-item-val up">+156.3亿</span>
+          </div>
+          <div class="sm-item">
+            <span class="sm-item-name">近 20 日累计</span>
+            <span class="sm-item-val up">+487.2亿</span>
+          </div>
+        </div>
+      </div>
+      <!-- 热门板块 -->
+      <div class="sm-card">
+        <div class="sm-card-title">🔥 今日热门板块</div>
+        <div class="sm-hot-tags">
+          <span class="sm-hot-tag">半导体 +4.2%</span>
+          <span class="sm-hot-tag">AI算力 +3.8%</span>
+          <span class="sm-hot-tag">新能源车 +2.9%</span>
+          <span class="sm-hot-tag">光伏 +2.1%</span>
+          <span class="sm-hot-tag">消费电子 +1.8%</span>
+          <span class="sm-hot-tag">军工 +1.5%</span>
+        </div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:12px;text-align:center">
+          资金正向以上板块聚集
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
      STATS BAR
      ============================================================ -->
 <section class="stats-bar">
@@ -1183,50 +1742,50 @@ body::after {
      ============================================================ -->
 <section class="products" id="products">
   <div class="section-header">
-    <div class="section-tag">核心产品</div>
-    <h2 class="section-h2">三大引擎，一站覆盖</h2>
-    <p class="section-p">从行情分析到内容创作，从工具使用到定制开发 — 全栈 AI 解决方案。</p>
+    <div class="section-tag">全部产品</div>
+    <h2 class="section-h2">你需要的，我们都有</h2>
+    <p class="section-p">从选股决策到内容创作，AI 让一切变简单。所有产品均支持免费试用。</p>
   </div>
   <div class="products-grid">
     <!-- Product 1: Stock Analysis -->
     <a href="/stock" class="prod-card">
       <div class="pc-icon pc-icon-stock">📈</div>
-      <h3>A 股智能分析</h3>
-      <p>实时沪深港美股行情，AI 深度分析引擎，专业 K 线图表，一键导出 PDF 报告。</p>
+      <h3>AI 选股决策</h3>
+      <p>不盯盘也能做决策 — AI 替你分析涨跌，给出明确操作建议。覆盖沪深港美股。</p>
       <ul class="pc-features">
-        <li>全球指数追踪 & 板块热力图</li>
-        <li>MACD / RSI / KDJ / 布林带</li>
-        <li>北向资金 & 主力资金流向</li>
-        <li>智能选股 & 多股对比</li>
-        <li>龙虎榜 & 游资追踪</li>
+        <li>每日 AI 操作建议 + 置信度</li>
+        <li>MACD / RSI / KDJ 技术指标</li>
+        <li>北向资金 & 主力资金追踪</li>
+        <li>避雷预警 & 解禁提醒</li>
+        <li>龙虎榜 & 游资动向</li>
       </ul>
       <div class="pc-bottom">
-        <span class="pc-price">¥39<span style="font-size:12px;font-weight:400;margin-left:2px">/月</span></span>
+        <span class="pc-free-label">🎁 免费开始</span>
         <span class="pc-cta">立即使用 →</span>
       </div>
     </a>
     <!-- Product 2: Media AI -->
     <a href="/media" class="prod-card">
       <div class="pc-icon pc-icon-media">✍️</div>
-      <h3>自媒体 AI 助手</h3>
-      <p>AI 内容生成、热点追踪、视频脚本到配音制作，内容创作者的超级工具箱。</p>
+      <h3>内容创作助手</h3>
+      <p>财经自媒体人的效率神器 — 热点追踪、视频脚本、爆款模仿，一站式搞定。</p>
       <ul class="pc-features">
         <li>双引擎 AI（DeepSeek + Claude）</li>
-        <li>爆款模仿 & 模板库</li>
-        <li>视频脚本 & 配音自动生成</li>
+        <li>爆款标题 & 脚本一键生成</li>
+        <li>视频配音自动制作</li>
         <li>热点趋势智能发现</li>
-        <li>多平台内容优化分发</li>
+        <li>多平台内容适配优化</li>
       </ul>
       <div class="pc-bottom">
-        <span class="pc-price">¥29<span style="font-size:12px;font-weight:400;margin-left:2px">/月</span></span>
+        <span class="pc-free-label">🎁 免费开始</span>
         <span class="pc-cta">立即使用 →</span>
       </div>
     </a>
     <!-- Product 3: Custom Dev -->
     <a href="/services" class="prod-card">
       <div class="pc-icon pc-icon-dev">⚡</div>
-      <h3>定制 AI 开发</h3>
-      <p>量身打造的 AI 解决方案与全栈应用开发，从 MVP 到生产级系统。</p>
+      <h3>定制开发</h3>
+      <p>量身打造的 AI 解决方案 — 金融数据系统、微信小程序、自动化工具快速交付。</p>
       <ul class="pc-features">
         <li>AI 工具 MVP 快速开发</li>
         <li>全栈 Web 应用搭建</li>
@@ -1235,7 +1794,7 @@ body::after {
         <li>微信小程序开发</li>
       </ul>
       <div class="pc-bottom">
-        <span class="pc-price">¥500<span style="font-size:12px;font-weight:400;margin-left:2px">+</span></span>
+        <span class="pc-price-sm">项目 ¥500+</span>
         <span class="pc-cta">获取报价 →</span>
       </div>
     </a>
