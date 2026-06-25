@@ -1589,6 +1589,66 @@ body::after {
 })();
 </script>
 
+<script>
+// Load margin trading + north-bound data for Smart Money section
+(function() {
+  var base = window.API_BASE || '';
+
+  // Fetch margin trading data
+  try {
+    fetch(base + '/api/market/margin-trading')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        // 融资余额
+        if (d.total_rz > 0) {
+          var elRz = document.getElementById('sm-margin-rz');
+          if (elRz) elRz.textContent = d.total_rz.toFixed(0) + ' 亿';
+        }
+        // 融券余额
+        if (d.total_rq >= 0) {
+          var elRq = document.getElementById('sm-margin-rq');
+          if (elRq) elRq.textContent = d.total_rq.toFixed(1) + ' 亿';
+        }
+        // 融资余额占比（估算：融资余额 / 两市总市值 ~80万亿）
+        var ratio = d.total_rz > 0 ? (d.total_rz / 800000 * 100).toFixed(2) : '--';
+        var elRatio = document.getElementById('sm-margin-ratio');
+        if (elRatio && d.total_rz > 0) elRatio.textContent = ratio + '%';
+      })
+      .catch(function(){});
+  } catch(e) {}
+
+  // Fetch north-bound flow
+  try {
+    fetch(base + '/api/market/north-bound')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var flows = d.flows || [];
+        if (flows.length > 0) {
+          // Latest day
+          var latest = flows[flows.length - 1];
+          var net = latest.net_flow;
+          var elNet = document.getElementById('sm-north-net');
+          if (elNet) {
+            elNet.textContent = (net >= 0 ? '+' : '') + net + ' 亿';
+            elNet.style.color = net >= 0 ? 'var(--green)' : 'var(--red)';
+          }
+          // 5-day cumulative
+          var sum5 = 0;
+          for (var i = Math.max(0, flows.length - 5); i < flows.length; i++) {
+            sum5 += flows[i].net_flow;
+          }
+          var el5d = document.getElementById('sm-north-5d');
+          if (el5d) {
+            el5d.textContent = (sum5 >= 0 ? '+' : '') + sum5.toFixed(1) + '亿';
+            el5d.style.color = sum5 >= 0 ? 'var(--green)' : 'var(--red)';
+          }
+        }
+      })
+      .catch(function(){});
+  } catch(e) {}
+})();
+</script>
+
 <!-- ============================================================
      RISK SHIELD — 避雷区
      ============================================================ -->
@@ -1676,21 +1736,31 @@ body::after {
           <span class="sm-item-val down">-2.1亿</span>
         </div>
       </div>
-      <!-- 北向资金 -->
-      <div class="sm-card">
-        <div class="sm-card-title">🧭 北向资金</div>
+      <!-- 资金面：融资融券 + 北向 -->
+      <div class="sm-card" id="sm-fund-flow-card">
+        <div class="sm-card-title">🧭 资金面</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+          <div style="text-align:center;padding:10px 6px;background:rgba(79,140,255,0.04);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">💰 融资余额</div>
+            <div style="font-size:16px;font-weight:800;color:var(--accent-bright)" id="sm-margin-rz">-- 亿</div>
+          </div>
+          <div style="text-align:center;padding:10px 6px;background:rgba(240,185,11,0.04);border-radius:8px">
+            <div style="font-size:10px;color:var(--text-tertiary);margin-bottom:4px">📉 融券余额</div>
+            <div style="font-size:16px;font-weight:800;color:var(--gold)" id="sm-margin-rq">-- 亿</div>
+          </div>
+        </div>
         <div class="sm-flow-big">
-          <div class="sm-flow-num inflow">+42.8 亿</div>
-          <div class="sm-flow-label">今日净流入（沪股通 + 深股通）</div>
+          <div class="sm-flow-num" id="sm-north-net" style="color:var(--text-primary)">-- 亿</div>
+          <div class="sm-flow-label">北向资金今日净流入</div>
         </div>
         <div style="margin-top:10px">
           <div class="sm-item">
-            <span class="sm-item-name">近 5 日累计</span>
-            <span class="sm-item-val up">+156.3亿</span>
+            <span class="sm-item-name">近 5 日北向累计</span>
+            <span class="sm-item-val" id="sm-north-5d" style="color:var(--text-secondary)">--</span>
           </div>
           <div class="sm-item">
-            <span class="sm-item-name">近 20 日累计</span>
-            <span class="sm-item-val up">+487.2亿</span>
+            <span class="sm-item-name">融资余额占流通市值</span>
+            <span class="sm-item-val" id="sm-margin-ratio" style="color:var(--text-secondary)">--</span>
           </div>
         </div>
       </div>

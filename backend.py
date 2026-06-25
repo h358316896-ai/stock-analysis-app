@@ -3547,7 +3547,7 @@ def margin_trading():
     total_rz = total_rq = 0
     if data and data.get("data") and data["data"].get("diff"):
         total_rz = sum(float(i.get("f124", 0) or 0) for i in data["data"]["diff"]) / 1e8
-        total_rq = sum(float(i.get("f126", 0) or 0) for i in data["data"]["diff"]) / 1e8
+        total_rq = sum(float(i.get("f125", 0) or 0) for i in data["data"]["diff"]) / 1e8
     # Top margin stocks
     url2 = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=15&po=1&np=1&fltt=2&invt=2&fid=f124&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f12,f14,f124,f125,f128"
     data2 = _cached_eastmoney("margin_top", url2, ttl=1800)
