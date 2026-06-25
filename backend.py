@@ -3738,6 +3738,102 @@ def limit_up_review():
     stocks.sort(key=lambda x: x["change_pct"], reverse=True)
     return jsonify({"stocks": stocks[:50], "total": len(stocks)})
 
+# ---- 黄金24小时实时数据 ----
+@app.route("/api/market/gold")
+def gold_price():
+    """国际黄金24小时实时行情：现货金 + COMEX期货 + 沪金/沪银"""
+    result = {"updated": datetime.now().strftime("%H:%M:%S"), "spot": None, "comex": None, "shanghai_gold": None, "shanghai_silver": None}
+
+    # 1. COMEX黄金 + 白银 (Tencent hf_GC / hf_SI — 实时)
+    try:
+        text = _fetch_tencent_raw("https://qt.gtimg.cn/q=hf_GC,hf_SI")
+        if text:
+            for line in text.strip().split("\n"):
+                m = re.match(r'v_hf_(\w+)="([^"]*)"', line)
+                if not m: continue
+                code = m.group(1)  # GC or SI
+                fields = m.group(2).split(",")
+                if len(fields) < 9: continue
+                try:
+                    price = float(fields[0]) if fields[0] else 0
+                    chg_pct = float(fields[1]) if fields[1] else 0
+                    high = float(fields[3]) if fields[3] else 0
+                    low = float(fields[5]) if fields[5] else 0
+                    prev_close = float(fields[7]) if len(fields) > 7 and fields[7] else price
+                    item = {
+                        "price": price, "change_pct": chg_pct,
+                        "high": high, "low": low,
+                        "prev_close": prev_close if prev_close else price,
+                        "time": fields[6] if len(fields) > 6 else "",
+                    }
+                    if code == "GC":
+                        result["comex"] = item
+                    elif code == "SI":
+                        result["shanghai_silver"] = item  # placeholder; will overwrite with SHFE
+                except (ValueError, IndexError):
+                    pass
+    except Exception:
+        pass
+
+    # 2. 伦敦现货金 XAU/USD (Tencent usXAU — 如有)
+    try:
+        text2 = _fetch_tencent_raw("https://qt.gtimg.cn/q=usXAU")
+        if text2:
+            m2 = re.search(r'v_usXAU="([^"]*)"', text2)
+            if m2:
+                f2 = m2.group(1).split("~")
+                if len(f2) >= 5:
+                    try:
+                        spot_price = float(f2[3]) if f2[3] else 0
+                        spot_chg = (spot_price - float(f2[4])) / float(f2[4]) * 100 if f2[4] and float(f2[4]) else 0
+                        result["spot"] = {
+                            "price": round(spot_price, 2),
+                            "change_pct": round(spot_chg, 2),
+                            "prev_close": float(f2[4]) if f2[4] else 0,
+                        }
+                    except (ValueError, IndexError):
+                        pass
+    except Exception:
+        pass
+
+    # 3. 沪金 + 沪银 (East Money push2 期货)
+    try:
+        shfe_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:113+t:2,m:113+t:3&fields=f2,f3,f4,f12,f14,f5"
+        shfe_data = fetch_eastmoney(shfe_url, timeout=10)
+        if shfe_data and shfe_data.get("data") and shfe_data["data"].get("diff"):
+            for item in shfe_data["data"]["diff"]:
+                name = item.get("f14", "")
+                pct = float(item.get("f3", 0) or 0)
+                price = float(item.get("f2", 0) or 0)
+                high = float(item.get("f4", 0) or 0)
+                entry = {
+                    "code": item.get("f12", ""), "name": name,
+                    "price": price, "change_pct": pct,
+                    "volume": item.get("f5", 0),
+                }
+                if "金" in name and "银" not in name and not result["shanghai_gold"]:
+                    result["shanghai_gold"] = entry
+                elif "银" in name and not result["shanghai_silver"]:
+                    result["shanghai_silver"] = entry
+    except Exception:
+        pass
+
+    # 4. Fallback: 如果 COMEX 失败，用 Yahoo Finance
+    if not result["comex"]:
+        try:
+            yf_data = _fetch_yf_indices_parallel([("GC=F", "Gold Futures")])
+            if yf_data:
+                g = yf_data[0]
+                result["comex"] = {
+                    "price": g.get("price", 0), "change_pct": g.get("change_pct", 0),
+                    "high": g.get("high", 0), "low": g.get("low", 0),
+                    "prev_close": g.get("prev_close", 0), "time": "",
+                }
+        except Exception:
+            pass
+
+    return jsonify(result)
+
 # ---- 业绩报 ----
 @app.route("/api/market/earnings")
 def earnings_report():

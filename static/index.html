@@ -687,6 +687,39 @@ body::after {
 }
 
 /* ============================================================
+   GOLD TRACKER — 24h real-time gold prices
+   ============================================================ */
+.gold-tracker {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 20px; padding: 0 24px;
+}
+.gold-tracker-inner {
+  border-radius: var(--radius-lg);
+  padding: 16px 24px;
+  background: linear-gradient(135deg, rgba(240,185,11,0.05), rgba(15,18,37,0.9));
+  border: 1px solid rgba(240,185,11,0.15);
+  box-shadow: 0 0 30px rgba(240,185,11,0.04);
+}
+.gold-tracker-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(240,185,11,0.08);
+}
+.gold-prices {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+}
+.gold-item {
+  text-align: center; padding: 8px 4px;
+  border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.015);
+  transition: var(--transition-fast);
+}
+.gold-item:hover { background: rgba(240,185,11,0.04); }
+.gold-label { font-size: 10px; color: var(--text-tertiary); margin-bottom: 4px; }
+.gold-price { font-size: 16px; font-weight: 800; color: var(--gold); font-family: var(--font-num); }
+.gold-chg { font-size: 11px; font-weight: 700; font-family: var(--font-num); margin-top: 2px; }
+
+/* ============================================================
    SMART MONEY — "聪明钱在干什么"
    ============================================================ */
 .smart-money {
@@ -1345,6 +1378,10 @@ body::after {
   .risk-shield { padding: 0 14px; margin-bottom: 20px; }
   .risk-shield-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
   .rs-title { font-size: 15px; }
+  .gold-tracker { padding: 0 14px; margin-bottom: 14px; }
+  .gold-tracker-inner { padding: 12px 14px; }
+  .gold-prices { grid-template-columns: repeat(2, 1fr); }
+  .gold-price { font-size: 14px; }
   .smart-money { padding: 0 14px; margin-bottom: 20px; }
   .smart-money-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
   .sm-title { font-size: 15px; }
@@ -1697,6 +1734,69 @@ body::after {
     </div>
   </div>
 </section>
+
+<!-- ============================================================
+     GOLD TRACKER — 黄金24小时实时行情
+     ============================================================ -->
+<section class="gold-tracker">
+  <div class="gold-tracker-inner">
+    <div class="gold-tracker-header">
+      <span style="font-size:18px">🥇</span>
+      <span style="font-weight:800;color:var(--gold)">黄金 24h 实时</span>
+      <span class="gold-updated" id="gold-updated" style="font-size:10px;color:var(--text-tertiary);margin-left:auto">加载中...</span>
+    </div>
+    <div class="gold-prices" id="gold-prices">
+      <div class="gold-item">
+        <div class="gold-label">🌍 现货金 XAU</div>
+        <div class="gold-price" id="g-spot-price">--</div>
+        <div class="gold-chg" id="g-spot-chg">--</div>
+      </div>
+      <div class="gold-item">
+        <div class="gold-label">🏗 COMEX 期货</div>
+        <div class="gold-price" id="g-comex-price">--</div>
+        <div class="gold-chg" id="g-comex-chg">--</div>
+      </div>
+      <div class="gold-item">
+        <div class="gold-label">🇨🇳 沪金主力</div>
+        <div class="gold-price" id="g-sh-price">--</div>
+        <div class="gold-chg" id="g-sh-chg">--</div>
+      </div>
+      <div class="gold-item">
+        <div class="gold-label">🥈 沪银主力</div>
+        <div class="gold-price" id="g-ag-price">--</div>
+        <div class="gold-chg" id="g-ag-chg">--</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var base = window.API_BASE || '';
+  fetch(base + '/api/market/gold')
+    .then(function(r){return r.json()})
+    .then(function(d){
+      document.getElementById('gold-updated').textContent = '更新 ' + (d.updated||'');
+      function setVal(prefix, data, unit) {
+        if (!data) return;
+        var pEl = document.getElementById(prefix + '-price');
+        var cEl = document.getElementById(prefix + '-chg');
+        if (pEl) pEl.textContent = (unit||'$') + (data.price||0).toFixed(1);
+        if (cEl) {
+          var chg = data.change_pct||0;
+          var sign = chg >= 0 ? '+' : '';
+          cEl.textContent = sign + chg.toFixed(2) + '%';
+          cEl.style.color = chg >= 0 ? 'var(--red)' : 'var(--green)';
+        }
+      }
+      setVal('g-spot', d.spot, '$');
+      setVal('g-comex', d.comex, '$');
+      setVal('g-sh', d.shanghai_gold, '¥');
+      setVal('g-ag', d.shanghai_silver, '¥');
+    })
+    .catch(function(){});
+})();
+</script>
 
 <!-- ============================================================
      SMART MONEY — 聪明钱在干什么
