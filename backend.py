@@ -3979,6 +3979,34 @@ def market_anomalies():
     except Exception:
         pass
 
+    # Fallback: A股没异动时展示全球资产异动 (收盘/周末/节假日)
+    if not alerts:
+        try:
+            global_alerts = []
+            g_data = _fetch_yf_indices_parallel([
+                ("^GSPC", "标普500"), ("^IXIC", "纳斯达克"), ("^DJI", "道琼斯"),
+                ("GC=F", "黄金期货"), ("CL=F", "WTI原油"), ("SI=F", "白银期货"),
+                ("BTC-USD", "比特币"), ("ETH-USD", "以太坊"),
+                ("^VIX", "VIX恐慌指数"), ("DX-Y.NYB", "美元指数"),
+            ])
+            if g_data:
+                for g in g_data:
+                    pct = g.get("change_pct", 0) or 0
+                    name = g.get("name", "")
+                    if abs(pct) >= 0.5:
+                        icon = {"标普500":"📊","纳斯达克":"💻","道琼斯":"🏛️","黄金期货":"🥇","WTI原油":"🛢️","白银期货":"🥈","比特币":"₿","以太坊":"💎","VIX恐慌指数":"😱","美元指数":"💵"}.get(name, "🌍")
+                        global_alerts.append({
+                            "type": "global",
+                            "code": g.get("code",""), "name": name,
+                            "price": g.get("price",0), "change_pct": round(pct,2),
+                            "volume_ratio": 0, "turnover": 0, "main_net": 0,
+                            "message": f"{icon} 全球异动 · 涨跌幅{pct:+.2f}%",
+                        })
+                global_alerts.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+                alerts = global_alerts[:6]
+        except Exception:
+            pass
+
     return jsonify({"alerts": alerts, "updated": datetime.now().strftime("%H:%M:%S")})
 
 # ---- 市场温度计 ----
