@@ -754,6 +754,74 @@ body::after {
 }
 
 /* ============================================================
+   SECTOR HEATMAP — 板块轮动热力图
+   ============================================================ */
+.heatmap-section {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 20px; padding: 0 24px;
+}
+.heatmap-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding: 0 4px;
+}
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+}
+.hm-cell {
+  aspect-ratio: 1.6;
+  border-radius: 6px;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  font-weight: 700; cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s;
+  overflow: hidden; text-align: center;
+  padding: 2px;
+}
+.hm-cell:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 16px rgba(0,0,0,0.4);
+  z-index: 2;
+}
+.hm-name { line-height: 1.1; }
+.hm-pct { font-size: 70%; opacity: 0.85; margin-top: 1px; }
+
+/* ============================================================
+   ANOMALIES — 异动早报
+   ============================================================ */
+.anomalies {
+  position: relative; z-index: 1;
+  max-width: 960px; margin: 0 auto 20px; padding: 0 24px;
+}
+.anomalies-inner {
+  border-radius: var(--radius-lg); padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(15,18,37,0.9), rgba(12,15,29,0.95));
+  border: 1px solid rgba(249,115,22,0.12);
+}
+.anomalies-header {
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.anomalies-list { display: flex; flex-direction: column; gap: 6px; }
+.ano-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; border-radius: var(--radius-sm);
+  background: rgba(255,255,255,0.015);
+  transition: var(--transition-fast);
+}
+.ano-item:hover { background: rgba(255,255,255,0.03); }
+.ano-item.up { border-left: 2px solid rgba(239,68,68,0.3); }
+.ano-item.down { border-left: 2px solid rgba(34,197,94,0.3); }
+.ano-icon { font-size: 16px; flex-shrink: 0; }
+.ano-body { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
+.ano-name { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.ano-code { font-size: 10px; color: var(--text-tertiary); }
+.ano-msg { font-size: 11px; color: var(--text-secondary); }
+.ano-pct { font-size: 14px; font-weight: 800; flex-shrink: 0; }
+
+/* ============================================================
    GOLD TRACKER — 24h real-time gold prices
    ============================================================ */
 .gold-tracker {
@@ -1452,6 +1520,12 @@ body::after {
   .risk-shield { padding: 0 14px; margin-bottom: 20px; }
   .risk-shield-inner { padding: 20px 16px; border-radius: var(--radius-lg); }
   .rs-title { font-size: 15px; }
+  .heatmap-section { padding: 0 14px; margin-bottom: 14px; }
+  .heatmap-grid { grid-template-columns: repeat(5, 1fr); gap: 3px; }
+  .hm-cell { aspect-ratio: 1.3; font-size: 10px !important; }
+  .anomalies { padding: 0 14px; margin-bottom: 14px; }
+  .anomalies-inner { padding: 12px 14px; }
+  .ano-name { font-size: 11px; }
   .thermo { padding: 0 14px; margin-bottom: 16px; }
   .thermo-inner { padding: 16px 18px; gap: 14px; }
   .thermo-left { width: 80px; padding: 8px 0; }
@@ -1856,6 +1930,94 @@ body::after {
     </div>
   </div>
 </section>
+
+<!-- ============================================================
+     SECTOR HEATMAP — 板块轮动热力图
+     ============================================================ -->
+<section class="heatmap-section">
+  <div class="heatmap-header">
+    <span style="font-size:18px">🔥</span>
+    <span style="font-weight:800">板块轮动热力图</span>
+    <span style="font-size:10px;color:var(--text-tertiary);margin-left:8px">颜色=涨跌 · 大小=资金</span>
+    <span class="heatmap-updated" id="heatmap-updated" style="font-size:10px;color:var(--text-tertiary);margin-left:auto"></span>
+  </div>
+  <div class="heatmap-grid" id="heatmap-grid"></div>
+</section>
+
+<script>
+(function(){
+  var base = window.API_BASE || '';
+  fetch(base + '/api/market/sector-flow-ranking')
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var sectors = (d.sectors||[]).slice(0, 60);
+      var el = document.getElementById('heatmap-grid');
+      if (!el || !sectors.length) return;
+      var maxFlow = Math.max.apply(null, sectors.map(function(s){return Math.abs(s.main_net||0)}));
+      el.innerHTML = sectors.map(function(s){
+        var pct = s.change_pct||0;
+        var flow = s.main_net||0;
+        var intensity = Math.min(1, Math.abs(pct)/6); // 6% = max intensity
+        var size = maxFlow > 0 ? 0.7 + 0.3 * Math.abs(flow)/maxFlow : 1;
+        var hue = pct >= 0 ? 0 : 120; // red=0 green=120
+        var sat = Math.round(intensity * 80);
+        var light = Math.round(50 - intensity * 15); // brighter when hot
+        var bg = 'hsl(' + hue + ',' + sat + '%,' + light + '%)';
+        var textColor = intensity > 0.5 ? '#fff' : (pct >= 0 ? '#fca5a5' : '#86efac');
+        var fontSize = 10 + size * 2;
+        return '<div class="hm-cell" style="background:' + bg + ';font-size:' + fontSize.toFixed(0) + 'px;color:' + textColor + '" title="' + s.name + ': ' + (pct>=0?'+':'') + pct.toFixed(1) + '% 主力' + (flow>=0?'+':'') + (flow/1e8).toFixed(1) + '亿"><span class="hm-name">' + s.name + '</span><span class="hm-pct">' + (pct>=0?'+':'') + pct.toFixed(1) + '%</span></div>';
+      }).join('');
+      document.getElementById('heatmap-updated').textContent = '更新 ' + (d.updated||new Date().toTimeString().slice(0,5));
+    })
+    .catch(function(){});
+})();
+</script>
+
+<!-- ============================================================
+     ANOMALIES — 异动早报
+     ============================================================ -->
+<section class="anomalies" id="anomalies-section">
+  <div class="anomalies-inner">
+    <div class="anomalies-header">
+      <span style="font-size:18px">⚡</span>
+      <span style="font-weight:800">异动早报</span>
+      <span style="font-size:10px;color:var(--text-tertiary);margin-left:8px">放量·急拉·主力抢筹</span>
+      <span id="anomalies-updated" style="font-size:10px;color:var(--text-tertiary);margin-left:auto">扫描中...</span>
+    </div>
+    <div class="anomalies-list" id="anomalies-list">
+      <span style="color:var(--text-tertiary);font-size:11px">AI 正在扫描全市场异动...</span>
+    </div>
+  </div>
+</section>
+
+<script>
+(function(){
+  var base = window.API_BASE || '';
+  fetch(base + '/api/market/anomalies')
+    .then(function(r){return r.json()})
+    .then(function(d){
+      var alerts = d.alerts || [];
+      var el = document.getElementById('anomalies-list');
+      document.getElementById('anomalies-updated').textContent = '更新 ' + (d.updated||'');
+      if (!alerts.length) { el.innerHTML = '<span style="color:var(--text-tertiary);font-size:11px">暂无显著异动</span>'; return; }
+      var typeIcons = {vol_surge:'📊',limit_high_turnover:'🔥',crash:'⚠️',main_inflow:'💰',big_cap_move:'🐘'};
+      el.innerHTML = alerts.map(function(a){
+        var dir = (a.change_pct||0) >= 0 ? 'up' : 'down';
+        var clr = dir === 'up' ? 'var(--red)' : 'var(--green)';
+        return '<div class="ano-item ' + dir + '" style="cursor:pointer">' +
+          '<span class="ano-icon">' + (typeIcons[a.type] || '⚡') + '</span>' +
+          '<div class="ano-body">' +
+            '<span class="ano-name">' + a.name + '</span>' +
+            '<span class="ano-code">' + (a.code||'') + '</span>' +
+            '<span class="ano-msg">' + a.message + '</span>' +
+          '</div>' +
+          '<span class="ano-pct" style="color:' + clr + '">' + (a.change_pct>=0?'+':'') + (a.change_pct||0).toFixed(1) + '%</span>' +
+        '</div>';
+      }).join('');
+    })
+    .catch(function(){});
+})();
+</script>
 
 <!-- ============================================================
      GOLD TRACKER — 黄金24小时实时行情

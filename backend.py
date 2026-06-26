@@ -3915,6 +3915,72 @@ def gold_price():
 
     return jsonify(result)
 
+# ---- 异动早报 ----
+@app.route("/api/market/anomalies")
+def market_anomalies():
+    """AI实时异动扫描：放量、急拉、尾盘突袭、主力异动"""
+    alerts = []
+
+    try:
+        # 扫描全市场：涨跌幅最大 + 量比异常
+        url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f5,f8,f10,f12,f14,f20,f62"
+        data = fetch_eastmoney(url, timeout=10)
+        if data and data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"]:
+                pct = float(item.get("f3", 0) or 0)
+                vol_ratio = float(item.get("f10", 0) or 0)
+                turnover = float(item.get("f8", 0) or 0)
+                main_net = float(item.get("f62", 0) or 0)
+                mkt_cap = float(item.get("f20", 0) or 0)
+                name = item.get("f14", "")
+                code = item.get("f12", "")
+                price = float(item.get("f2", 0) or 0)
+
+                alert_type = None
+                alert_msg = ""
+
+                if vol_ratio >= 3 and abs(pct) >= 3:
+                    alert_type = "vol_surge"
+                    alert_msg = f"突然{'放量拉升' if pct > 0 else '放量下杀'}，量比{vol_ratio:.0f}倍"
+                elif pct >= 9.0 and turnover >= 10:
+                    alert_type = "limit_high_turnover"
+                    alert_msg = f"涨停+高换手{turnover:.0f}%，游资博弈激烈"
+                elif pct <= -7:
+                    alert_type = "crash"
+                    alert_msg = f"大幅下挫{pct:.1f}%，注意风险"
+                elif pct >= 5 and main_net > 5e7:
+                    alert_type = "main_inflow"
+                    alert_msg = f"主力净流入{main_net/1e8:.1f}亿，强势拉升"
+                elif pct >= 3 and vol_ratio >= 2 and mkt_cap > 1e11:
+                    alert_type = "big_cap_move"
+                    alert_msg = f"大盘股异动，成交活跃"
+
+                if alert_type:
+                    alerts.append({
+                        "type": alert_type,
+                        "code": code, "name": name,
+                        "price": price, "change_pct": pct,
+                        "volume_ratio": vol_ratio,
+                        "turnover": turnover,
+                        "main_net": round(main_net/1e8, 1),
+                        "message": alert_msg,
+                    })
+
+        # Deduplicate and take top 8
+        seen = set()
+        unique = []
+        for a in alerts:
+            if a["code"] not in seen:
+                seen.add(a["code"])
+                unique.append(a)
+        unique.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
+        alerts = unique[:8]
+
+    except Exception:
+        pass
+
+    return jsonify({"alerts": alerts, "updated": datetime.now().strftime("%H:%M:%S")})
+
 # ---- 市场温度计 ----
 @app.route("/api/market/thermometer")
 def market_thermometer():
