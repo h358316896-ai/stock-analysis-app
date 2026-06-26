@@ -1953,6 +1953,7 @@ body::after {
       var sectors = (d.sectors||[]).slice(0, 60);
       var el = document.getElementById('heatmap-grid');
       if (!el || !sectors.length) return;
+      function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
       var maxFlow = Math.max.apply(null, sectors.map(function(s){return Math.abs(s.main_net||0)}));
       el.innerHTML = sectors.map(function(s){
         var pct = s.change_pct||0;
@@ -1965,7 +1966,7 @@ body::after {
         var bg = 'hsl(' + hue + ',' + sat + '%,' + light + '%)';
         var textColor = intensity > 0.5 ? '#fff' : (pct >= 0 ? '#fca5a5' : '#86efac');
         var fontSize = 10 + size * 2;
-        return '<div class="hm-cell" style="background:' + bg + ';font-size:' + fontSize.toFixed(0) + 'px;color:' + textColor + '" title="' + s.name + ': ' + (pct>=0?'+':'') + pct.toFixed(1) + '% 主力' + (flow>=0?'+':'') + (flow/1e8).toFixed(1) + '亿"><span class="hm-name">' + s.name + '</span><span class="hm-pct">' + (pct>=0?'+':'') + pct.toFixed(1) + '%</span></div>';
+        return '<div class="hm-cell" style="background:' + bg + ';font-size:' + fontSize.toFixed(0) + 'px;color:' + textColor + '" title="' + esc(s.name) + ': ' + (pct>=0?'+':'') + pct.toFixed(1) + '%"><span class="hm-name">' + esc(s.name) + '</span><span class="hm-pct">' + (pct>=0?'+':'') + pct.toFixed(1) + '%</span></div>';
       }).join('');
       document.getElementById('heatmap-updated').textContent = '更新 ' + (d.updated||new Date().toTimeString().slice(0,5));
     })
@@ -2000,6 +2001,7 @@ body::after {
       var el = document.getElementById('anomalies-list');
       document.getElementById('anomalies-updated').textContent = '更新 ' + (d.updated||'');
       if (!alerts.length) { el.innerHTML = '<span style="color:var(--text-tertiary);font-size:11px">暂无显著异动</span>'; return; }
+      function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
       var typeIcons = {vol_surge:'📊',limit_high_turnover:'🔥',crash:'⚠️',main_inflow:'💰',big_cap_move:'🐘'};
       el.innerHTML = alerts.map(function(a){
         var dir = (a.change_pct||0) >= 0 ? 'up' : 'down';
@@ -2007,8 +2009,8 @@ body::after {
         return '<div class="ano-item ' + dir + '" style="cursor:pointer">' +
           '<span class="ano-icon">' + (typeIcons[a.type] || '⚡') + '</span>' +
           '<div class="ano-body">' +
-            '<span class="ano-name">' + a.name + '</span>' +
-            '<span class="ano-code">' + (a.code||'') + '</span>' +
+            '<span class="ano-name">' + esc(a.name) + '</span>' +
+            '<span class="ano-code">' + esc(a.code||'') + '</span>' +
             '<span class="ano-msg">' + a.message + '</span>' +
           '</div>' +
           '<span class="ano-pct" style="color:' + clr + '">' + (a.change_pct>=0?'+':'') + (a.change_pct||0).toFixed(1) + '%</span>' +
