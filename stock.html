@@ -191,7 +191,7 @@ function pwaDismissBar() {
   <!-- 搜索 -->
   <div class="search-section">
     <div class="search-box">
-      <input type="text" id="stock搜索" placeholder="输入代码或名称搜索 — 如 600519、AAPL、00700" autocomplete="off" list="stockDatalist" onfocus="showSearchHistory()" onblur="setTimeout(function(){document.getElementById('searchHistory').classList.remove('show')},200)">
+      <input type="text" id="stock搜索" placeholder="🔍 搜代码或名称 — 600519 / 茅台 / AAPL / 腾讯" autocomplete="off" onfocus="showSearchHistory()" onblur="setTimeout(function(){document.getElementById('searchResults').classList.remove('show')},200)">
       <div class="search-results" id="searchHistory" style="display:none;position:absolute;top:100%;left:0;right:0;max-height:200px;overflow-y:auto;z-index:100"><div style="padding:8px 14px;font-size:12px;color:var(--text-tertiary)">🔍 最近搜索</div></div>
       <datalist id="stockDatalist"></datalist>
       <select id="marketSelect">
@@ -1732,41 +1732,80 @@ function applyStrategy(name) {
 // ============================================================
 // SEARCH
 // ============================================================
+// 热门默认股 — 空输入时展示
+const _HOT_DEFAULTS = [
+  { code: '600519', name: '贵州茅台', market: 'cn' },
+  { code: '300750', name: '宁德时代', market: 'cn' },
+  { code: '000858', name: '五粮液', market: 'cn' },
+  { code: '601899', name: '紫金矿业', market: 'cn' },
+  { code: '002594', name: '比亚迪', market: 'cn' },
+  { code: '688981', name: '中芯国际', market: 'cn' },
+  { code: '00700', name: '腾讯控股', market: 'hk' },
+  { code: 'AAPL', name: 'Apple Inc.', market: 'us' },
+];
+
+function renderSuggestList(list, items, showMkt) {
+  list.innerHTML = '';
+  items.forEach(function(s) {
+    var clr = (MKT_CLR && MKT_CLR[s.market]) || '#6366f1';
+    var mktLabel = (MKT && MKT[s.market]) || s.market;
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);transition:background .1s';
+    div.onmouseenter = function() { div.style.background = 'rgba(79,140,255,0.08)'; };
+    div.onmouseleave = function() { div.style.background = ''; };
+    div.innerHTML = (showMkt ? '<span style="font-size:10px;font-weight:600;color:white;background:' + clr + ';padding:2px 7px;border-radius:3px;flex-shrink:0">' + mktLabel + '</span>' : '') +
+      '<span style="font-weight:600;flex:1;color:var(--text-primary)">' + s.name + '</span>' +
+      '<span style="color:var(--text-tertiary);font-size:12px">' + s.code + '</span>';
+    div.onclick = function() {
+      document.getElementById('stock搜索').value = s.code;
+      document.getElementById('marketSelect').value = s.market || 'cn';
+      list.classList.remove('show');
+      searchStock();
+    };
+    list.appendChild(div);
+  });
+}
+
 async function auto搜索() {
   const input = document.getElementById('stock搜索');
   const list = document.getElementById('searchResults');
+  const hist = document.getElementById('searchHistory');
   if (!input || !list) return;
   const q = input.value.trim();
-  if (q.length < 1) { list.classList.remove('show'); list.innerHTML = ''; return; }
-  const mkt = (document.getElementById('marketSelect') || {}).value || 'cn';
 
-  list.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);text-align:center">搜索ing...</div>';
+  // 空输入 → 显示热门股 + 最近搜索
+  if (q.length < 1) {
+    hist && (hist.style.display = 'none');
+    list.classList.add('show');
+    list.innerHTML = '<div style="padding:6px 14px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid rgba(255,255,255,0.04)">🔥 热门股票</div>';
+    renderSuggestList(list, _HOT_DEFAULTS, true);
+    if (_searchHistory && _searchHistory.length) {
+      var sep = document.createElement('div');
+      sep.style.cssText = 'padding:6px 14px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.04)';
+      sep.textContent = '🕐 最近搜索';
+      list.appendChild(sep);
+      renderSuggestList(list, _searchHistory, false);
+    }
+    return;
+  }
+
+  hist && (hist.style.display = 'none');
   list.classList.add('show');
+  list.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);text-align:center;font-size:12px">🔍 搜索中...</div>';
+  const mkt = (document.getElementById('marketSelect') || {}).value || 'cn';
 
   try {
     const r = await fetch('/api/stock/search?q=' + encodeURIComponent(q) + '&market=' + mkt);
     const d = await r.json();
     list.innerHTML = '';
     if (d.results && d.results.length) {
-      d.results.forEach(function(s) {
-        var clr = (MKT_CLR && MKT_CLR[s.market]) || '#6366f1';
-        var mktLabel = (MKT && MKT[s.market]) || s.market;
-        var div = document.createElement('div');
-        div.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04)';
-        div.innerHTML = '<span style="font-size:10px;font-weight:600;color:white;background:' + clr + ';padding:2px 7px;border-radius:3px">' + mktLabel + '</span> <span style="font-weight:500;flex:1">' + s.name + '</span> <span style="color:var(--text-tertiary)">' + s.code + '</span>';
-        div.onclick = function() {
-          document.getElementById('stock搜索').value = s.code;
-          document.getElementById('marketSelect').value = s.market;
-          list.classList.remove('show');
-          searchStock();
-        };
-        list.appendChild(div);
-      });
+      list.innerHTML = '<div style="padding:4px 14px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid rgba(255,255,255,0.04)">📋 ' + d.results.length + ' 个结果</div>';
+      renderSuggestList(list, d.results.slice(0, 15), true);
     } else {
-      list.innerHTML = '<div style="padding:12px;color:var(--text-tertiary);text-align:center">未找到结果</div>';
+      list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:12px">😕 未找到 "' + q + '"<br><span style="font-size:10px">试试输入代码如 600519 或名称</span></div>';
     }
   } catch(e) {
-    list.innerHTML = '<div style="padding:12px;color:#ef4444;text-align:center">搜索出错，请重试</div>';
+    list.innerHTML = '<div style="padding:12px;color:#ef4444;text-align:center;font-size:12px">搜索出错</div>';
   }
 }
 
@@ -1950,15 +1989,8 @@ function addToHistory(code, name, mkt) {
   localStorage.setItem('stockHistory', JSON.stringify(_searchHistory));
 }
 function showSearchHistory() {
-  var el = document.getElementById('searchHistory');
-  if (!_searchHistory.length) { el.classList.remove('show'); return; }
-  el.innerHTML = '<div style=\"padding:4px 12px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid var(--border-subtle)\">最近搜索</div>' +
-    _searchHistory.map(function(h, i) {
-      return '<div style=\"padding:8px 14px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border-subtle);display:flex;justify-content:space-between\" onmousedown=\"event.preventDefault();document.getElementById(\'stock搜索\').value=\'' + h.code + '\';searchStock();\"' +
-        '><span>' + h.name + ' <span style=\"color:var(--text-tertiary);font-size:10px\">' + h.code + '</span></span><span onclick=\"event.stopPropagation();deleteFromHistory(' + i + ')\" style=\"color:var(--text-tertiary);font-size:10px\">✕</span></div>';
-    }).join('');
-  el.style.display = 'block';
-  el.classList.add('show');
+  // Trigger smart suggest (shows hot stocks + history)
+  auto搜索();
 }
 function deleteFromHistory(i) { _searchHistory.splice(i, 1); localStorage.setItem('stockHistory', JSON.stringify(_searchHistory)); showSearchHistory(); }
 
