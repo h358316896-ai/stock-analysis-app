@@ -3540,6 +3540,7 @@ def cap_ranking():
 
 # ---- 1. 融资融券 ----
 _MARGIN_PERSIST_FILE = os.path.join(_PERSIST_DIR, "margin_snapshot.json")
+_MARGIN_SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "margin_snapshot.json")
 @app.route("/api/market/margin-trading")
 def margin_trading():
     """获取融资融券余额数据 (带持久化兜底)"""
@@ -3572,17 +3573,19 @@ def margin_trading():
         except Exception:
             pass
     elif total_rz == 0:
-        try:
-            if os.path.exists(_MARGIN_PERSIST_FILE):
-                with open(_MARGIN_PERSIST_FILE) as f:
-                    snap = json.load(f)
-                # 24小时内有效
-                if time.time() - snap.get("ts", 0) < 86400:
-                    total_rz = snap["total_rz"]
-                    total_rq = snap["total_rq"]
-                    stocks = snap["stocks"]
-        except Exception:
-            pass
+        for fpath in [_MARGIN_PERSIST_FILE, _MARGIN_SEED_FILE]:
+            try:
+                if os.path.exists(fpath):
+                    with open(fpath) as f:
+                        snap = json.load(f)
+                    if time.time() - snap.get("ts", 0) < 86400 * 7:  # 7天种子文件
+                        total_rz = snap["total_rz"]
+                        total_rq = snap["total_rq"]
+                        stocks = snap["stocks"]
+                        if total_rz > 0:
+                            break
+            except Exception:
+                continue
 
     return jsonify({"total_rz": round(total_rz,2), "total_rq": round(total_rq,2), "stocks": stocks})
 
