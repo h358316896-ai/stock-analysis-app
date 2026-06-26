@@ -715,6 +715,13 @@ body::after {
   transition: var(--transition-fast);
 }
 .gold-item:hover { background: rgba(240,185,11,0.04); }
+.gold-item-spot {
+  background: rgba(240,185,11,0.06);
+  border: 1px solid rgba(240,185,11,0.15);
+}
+.gold-item-spot:hover { background: rgba(240,185,11,0.1); }
+.gold-item-spot .gold-label { color: var(--gold); font-weight: 700; }
+.gold-item-spot .gold-price { font-size: 18px; }
 .gold-label { font-size: 10px; color: var(--text-tertiary); margin-bottom: 4px; }
 .gold-price { font-size: 16px; font-weight: 800; color: var(--gold); font-family: var(--font-num); }
 .gold-chg { font-size: 11px; font-weight: 700; font-family: var(--font-num); margin-top: 2px; }
@@ -1746,8 +1753,8 @@ body::after {
       <span class="gold-updated" id="gold-updated" style="font-size:10px;color:var(--text-tertiary);margin-left:auto">加载中...</span>
     </div>
     <div class="gold-prices" id="gold-prices">
-      <div class="gold-item">
-        <div class="gold-label">🌍 现货金 XAU</div>
+      <div class="gold-item gold-item-spot">
+        <div class="gold-label">🥇 伦敦金</div>
         <div class="gold-price" id="g-spot-price">--</div>
         <div class="gold-chg" id="g-spot-chg">--</div>
         <div class="gold-spark" id="g-spot-spark"></div>
