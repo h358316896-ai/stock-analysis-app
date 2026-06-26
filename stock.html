@@ -1802,7 +1802,8 @@ async function auto搜索() {
       list.innerHTML = '<div style="padding:4px 14px;font-size:10px;color:var(--text-tertiary);border-bottom:1px solid rgba(255,255,255,0.04)">📋 ' + d.results.length + ' 个结果</div>';
       renderSuggestList(list, d.results.slice(0, 15), true);
     } else {
-      list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:12px">😕 未找到 "' + q + '"<br><span style="font-size:10px">试试输入代码如 600519 或名称</span></div>';
+      var escQ = q.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      list.innerHTML = '<div style="padding:14px;color:var(--text-tertiary);text-align:center;font-size:12px">😕 未找到 "' + escQ + '"<br><span style="font-size:10px">试试输入代码如 600519 或名称</span></div>';
     }
   } catch(e) {
     list.innerHTML = '<div style="padding:12px;color:#ef4444;text-align:center;font-size:12px">搜索出错</div>';
