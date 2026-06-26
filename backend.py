@@ -3624,9 +3624,11 @@ def limit_up_down():
 
 
 # ---- 3. 板块资金净流入排行 ----
+_SECTOR_PERSIST_FILE = os.path.join(_PERSIST_DIR, "sector_flow_snapshot.json")
+_SECTOR_SEED_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sector_flow_snapshot.json")
 @app.route("/api/market/sector-flow-ranking")
 def sector_flow_ranking():
-    """获取行业板块资金净流入排行"""
+    """获取行业板块资金净流入排行 (带持久化兜底)"""
     url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f2,f3,f4,f12,f14,f62,f184,f66"
     data = _cached_eastmoney("sector_flow", url, ttl=600)
     sectors = []
@@ -3634,12 +3636,31 @@ def sector_flow_ranking():
         for item in data["data"]["diff"]:
             sectors.append({
                 "code": item.get("f12",""), "name": item.get("f14",""),
-                "change_pct": item.get("f3",0),
-                "main_net": item.get("f62",0),    # 主力净流入
-                "xl_net": item.get("f184",0),     # 超大单净流入
-                "lg_net": item.get("f66",0),      # 大单净流入
+                "change_pct": float(item.get("f3",0) or 0),
+                "main_net": float(item.get("f62",0) or 0),
+                "xl_net": float(item.get("f184",0) or 0),
+                "lg_net": float(item.get("f66",0) or 0),
             })
-    return jsonify({"sectors": sectors})
+
+    # Persist on success, load on empty
+    if sectors:
+        try:
+            with open(_SECTOR_PERSIST_FILE, "w") as f:
+                json.dump({"sectors": sectors, "ts": time.time()}, f)
+        except Exception:
+            pass
+        return jsonify({"sectors": sectors})
+    else:
+        for fpath in [_SECTOR_PERSIST_FILE, _SECTOR_SEED_FILE]:
+            try:
+                if os.path.exists(fpath):
+                    with open(fpath) as f:
+                        snap = json.load(f)
+                    if snap.get("sectors"):
+                        return jsonify({"sectors": snap["sectors"]})
+            except Exception:
+                continue
+        return jsonify({"sectors": []})
 
 
 # ---- 4. 股东人数变化 ----
