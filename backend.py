@@ -424,8 +424,58 @@ def health():
         }
     }, 200
 
-# -----------------------------------------------------------
-# Unified dashboard endpoint - combines indices + sectors + movers in ONE call
+@app.route("/api/health/data-sources")
+def health_data_sources():
+    """检查所有数据源状态: 实时/缓存/离线"""
+    sources = {}
+    now = time.time()
+
+    # 1. 腾讯 API (全球指数/黄金/港股)
+    try:
+        tc = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,hf_GC", timeout=5)
+        sources["tencent"] = "live" if tc and "sh000001" in tc else "stale"
+    except Exception:
+        sources["tencent"] = "down"
+
+    # 2. ECS 代理 (东方财富 push2)
+    try:
+        em = fetch_eastmoney("https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=1&fid=f3&fs=m:0+t:6&fields=f2,f12", timeout=5)
+        sources["eastmoney"] = "live" if em and em.get("data") else "stale"
+    except Exception:
+        sources["eastmoney"] = "down"
+
+    # 3. 缓存文件年龄
+    cache_file = os.path.join(_PERSIST_DIR, "market_cache.json") if os.path.exists(_PERSIST_DIR) else None
+    cache_age = 999
+    if cache_file and os.path.exists(cache_file):
+        cache_age = (now - os.path.getmtime(cache_file)) / 60
+    sources["cache_age_min"] = round(cache_age, 1)
+
+    # 4. 持久化数据
+    persist_files = {
+        "margin": _MARGIN_PERSIST_FILE if "_MARGIN_PERSIST_FILE" in dir() else None,
+        "sector": _SECTOR_PERSIST_FILE,
+    }
+    for name, fpath in persist_files.items():
+        if fpath and os.path.exists(fpath):
+            age = (now - os.path.getmtime(fpath)) / 3600
+            sources[f"persist_{name}"] = f"{age:.0f}h"
+        else:
+            sources[f"persist_{name}"] = "missing"
+
+    # 综合判定
+    live_count = sum(1 for v in sources.values() if v == "live")
+    if sources.get("eastmoney") == "live" and sources.get("tencent") == "live":
+        sources["status"] = "green"
+        sources["status_text"] = "数据实时"
+    elif sources.get("tencent") == "live" or live_count >= 1:
+        sources["status"] = "yellow"
+        sources["status_text"] = "部分缓存"
+    else:
+        sources["status"] = "red"
+        sources["status_text"] = "数据离线"
+
+    return jsonify(sources) - combines indices + sectors + movers in ONE call
 # -----------------------------------------------------------
 @app.route("/api/dashboard")
 def api_dashboard():

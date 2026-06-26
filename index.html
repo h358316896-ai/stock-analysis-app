@@ -1569,8 +1569,34 @@ body::after {
     <a href="/media">自媒体</a>
     <a href="/services">定制服务</a>
   </nav>
+  <span style="display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text-tertiary);margin-right:10px" title="数据源状态">
+    <span id="data-status-dot" style="width:7px;height:7px;border-radius:50%;background:var(--gold);display:inline-block" title="检测中..."></span>
+    <span id="data-status-text" style="font-size:9px">检测中</span>
+  </span>
   <a href="/stock" class="btn-sign">免费使用 →</a>
 </header>
+
+<script>
+// 数据源状态灯
+(function(){
+  function updateStatus() {
+    var dot = document.getElementById('data-status-dot');
+    var txt = document.getElementById('data-status-text');
+    if (!dot || !txt) return;
+    fetch((window.API_BASE||'') + '/api/health/data-sources')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var colors = { green: 'var(--green)', yellow: 'var(--gold)', red: 'var(--red)' };
+        dot.style.background = colors[d.status] || 'var(--gold)';
+        dot.style.boxShadow = '0 0 6px ' + (colors[d.status] || 'var(--gold)');
+        txt.textContent = d.status_text || '--';
+      })
+      .catch(function(){ dot.style.background = 'var(--red)'; txt.textContent = '离线'; });
+  }
+  updateStatus();
+  setInterval(updateStatus, 60000); // 每分钟检测
+})();
+</script>
 
 <!-- ============================================================
      HERO
