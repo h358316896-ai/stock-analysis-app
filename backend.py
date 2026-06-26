@@ -4131,13 +4131,12 @@ def market_thermometer():
                     tc_score = max(0, min(100, tc_score))
                     score = tc_score
 
-                    # 用指数涨跌展示（替代涨跌比）
-                    idx_parts = []
-                    for k in ["sh000001", "sz399001", "sz399006"]:
-                        if k in indices:
-                            i = indices[k]
-                            idx_parts.append(f"{i['name']} {i['chg_pct']:+.1f}%")
-                    details["up_down"] = " · ".join(idx_parts)
+                    # 涨跌比估算 (基于指数加权涨跌)
+                    total_stocks = 5200
+                    up_ratio = max(0.05, min(0.95, 0.5 + weighted / 100 * 15))
+                    up_est = int(total_stocks * up_ratio)
+                    down_est = total_stocks - up_est
+                    details["up_down"] = f"≈{up_est}涨/{down_est}跌"
 
                     # 总成交额
                     total_amt = sum(indices[k]["amount"] for k in indices if indices[k]["amount"] > 0)
