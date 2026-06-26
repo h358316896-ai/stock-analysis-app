@@ -3539,9 +3539,10 @@ def cap_ranking():
 # ==========================================================
 
 # ---- 1. 融资融券 ----
+_MARGIN_PERSIST_FILE = os.path.join(_PERSIST_DIR, "margin_snapshot.json")
 @app.route("/api/market/margin-trading")
 def margin_trading():
-    """获取融资融券余额数据"""
+    """获取融资融券余额数据 (带持久化兜底)"""
     url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5000&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f12,f14,f20,f124,f125,f126,f127,f128"
     data = _cached_eastmoney("margin_total", url, ttl=3600)
     total_rz = total_rq = 0
@@ -3560,6 +3561,29 @@ def margin_trading():
                 "rq_balance": item.get("f125", 0),  # 融券余额
                 "rz_rq_ratio": item.get("f128", 0), # 融资融券余额比
             })
+
+    # 持久化兜底：代理挂了也不丢数据
+    if total_rz > 0 and stocks:
+        try:
+            snapshot = {"total_rz": round(total_rz,2), "total_rq": round(total_rq,2),
+                        "stocks": stocks, "ts": time.time()}
+            with open(_MARGIN_PERSIST_FILE, "w") as f:
+                json.dump(snapshot, f)
+        except Exception:
+            pass
+    elif total_rz == 0:
+        try:
+            if os.path.exists(_MARGIN_PERSIST_FILE):
+                with open(_MARGIN_PERSIST_FILE) as f:
+                    snap = json.load(f)
+                # 24小时内有效
+                if time.time() - snap.get("ts", 0) < 86400:
+                    total_rz = snap["total_rz"]
+                    total_rq = snap["total_rq"]
+                    stocks = snap["stocks"]
+        except Exception:
+            pass
+
     return jsonify({"total_rz": round(total_rz,2), "total_rq": round(total_rq,2), "stocks": stocks})
 
 
