@@ -4102,41 +4102,59 @@ def market_thermometer():
     except Exception as e:
         details["error"] = str(e)
 
-    # Fallback: push2数据为空时用腾讯指数估算
+    # Fallback: push2数据为空时用腾讯实时指数
     if score == 50 or (details.get("up_down","0涨/0跌") == "0涨/0跌"):
         try:
-            tc_text = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,sz399001,sz399006")
+            tc_text = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,sz399001,sz399006,sh000688")
             if tc_text:
-                indices = []
+                indices = {}
                 for m in re.finditer(r'v_(\w+)="([^"]*)"', tc_text):
                     f = m.group(2).split("~")
-                    if len(f) >= 5 and f[3]:
+                    if len(f) >= 37 and f[3]:
                         try:
                             price = float(f[3])
                             prev = float(f[4]) if f[4] else price
-                            chg = (price - prev) / prev * 100 if prev else 0
-                            indices.append({"name": f[1], "chg": chg})
-                        except ValueError:
+                            chg_pct = (price - prev) / prev * 100 if prev else 0
+                            vol = float(f[6]) if len(f) > 6 and f[6] else 0  # 成交量(手)
+                            amt = float(f[37]) if len(f) > 37 and f[37] else 0  # 成交额(万)
+                            indices[m.group(1)] = {
+                                "name": f[1], "price": price, "chg_pct": chg_pct,
+                                "volume": vol, "amount": amt / 1e8,  # 转亿
+                            }
+                        except (ValueError, IndexError):
                             continue
                 if indices:
-                    avg_chg = sum(i["chg"] for i in indices) / len(indices)
-                    # 映射涨跌幅→温度: -3%→10分, 0%→50分, +3%→90分
-                    tc_score = int(50 + avg_chg * 13)
+                    # 用三大指数计算加权平均涨跌
+                    weights = {"sh000001": 0.5, "sz399001": 0.3, "sz399006": 0.2}
+                    weighted = sum(indices[k]["chg_pct"] * weights.get(k, 0) for k in indices)
+                    tc_score = int(50 + weighted * 15)
                     tc_score = max(0, min(100, tc_score))
-                    # 估算涨跌比
-                    if avg_chg > 0.5:
-                        up_est = int(1500 + avg_chg * 500)
-                        down_est = int(1000 - avg_chg * 300)
-                    elif avg_chg < -0.5:
-                        up_est = int(1500 + avg_chg * 300)
-                        down_est = int(1000 - avg_chg * 500)
-                    else:
-                        up_est = 1500; down_est = 1000
                     score = tc_score
-                    details["up_down"] = f"≈{up_est}涨/{down_est}跌(估)"
-                    details["limit_up"] = "估算中"
-                    details["volume"] = "估算中"
-                    details["north_5d"] = "估算中"
+
+                    # 用指数涨跌展示（替代涨跌比）
+                    idx_parts = []
+                    for k in ["sh000001", "sz399001", "sz399006"]:
+                        if k in indices:
+                            i = indices[k]
+                            idx_parts.append(f"{i['name']} {i['chg_pct']:+.1f}%")
+                    details["up_down"] = " · ".join(idx_parts)
+
+                    # 总成交额
+                    total_amt = sum(indices[k]["amount"] for k in indices if indices[k]["amount"] > 0)
+                    if total_amt > 0:
+                        details["volume"] = f"成交 {total_amt:.0f}亿"
+                    else:
+                        details["volume"] = "—"
+
+                    # 涨停数无法从腾讯获取，显示北向估算
+                    if "sh000688" in indices:
+                        kcb = indices["sh000688"]
+                        details["limit_up"] = f"科创50 {kcb['chg_pct']:+.1f}%"
+                    else:
+                        details["limit_up"] = "—"
+
+                    details["north_5d"] = "腾讯实时"
+
                     if tc_score >= 70: level = "warm"
                     elif tc_score >= 40: level = "neutral"
                     else: level = "cold"
