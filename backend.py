@@ -3776,8 +3776,31 @@ def gold_price():
     except Exception:
         pass
 
-    # 2. 现货金 ≈ COMEX价格 (COMEX与伦敦现货几乎同步，价差<0.1%)
-    if result["comex"]:
+    # 2. 伦敦现货金 XAU/USD (Tencent hf_XAU — 24h OTC)
+    try:
+        text2 = _fetch_tencent_raw("https://qt.gtimg.cn/q=hf_XAU")
+        if text2:
+            m2 = re.match(r'v_hf_XAU="([^"]*)"', text2)
+            if m2:
+                fields = m2.group(1).split(",")
+                if len(fields) >= 9:
+                    try:
+                        price = float(fields[0]) if fields[0] else 0
+                        chg_pct = float(fields[1]) if fields[1] else 0
+                        high = float(fields[3]) if fields[3] else 0
+                        low = float(fields[5]) if fields[5] else 0
+                        prev = float(fields[7]) if len(fields) > 7 and fields[7] else price
+                        result["spot"] = {
+                            "price": price, "change_pct": chg_pct,
+                            "high": high, "low": low,
+                            "prev_close": prev, "time": fields[6] if len(fields) > 6 else "",
+                        }
+                    except (ValueError, IndexError):
+                        pass
+    except Exception:
+        pass
+    # Fallback: 现货金 ≈ COMEX
+    if not result["spot"] and result["comex"]:
         result["spot"] = {
             "price": result["comex"]["price"],
             "change_pct": result["comex"]["change_pct"],
