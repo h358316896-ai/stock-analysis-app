@@ -475,7 +475,10 @@ def health_data_sources():
         sources["status"] = "red"
         sources["status_text"] = "数据离线"
 
-    return jsonify(sources) - combines indices + sectors + movers in ONE call
+    return jsonify(sources)
+
+# -----------------------------------------------------------
+# Unified dashboard endpoint - combines indices + sectors + movers in ONE call
 # -----------------------------------------------------------
 @app.route("/api/dashboard")
 def api_dashboard():
