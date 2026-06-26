@@ -3915,6 +3915,96 @@ def gold_price():
 
     return jsonify(result)
 
+# ---- 市场温度计 ----
+@app.route("/api/market/thermometer")
+def market_thermometer():
+    """智能市场温度：综合涨跌比、北向、成交量、涨停数 → 0-100分"""
+    score = 50  # 默认中性
+    details = {}
+    level = "neutral"  # warm / neutral / cold
+
+    try:
+        # 1. 涨跌比 (30分) — 从 push2 全市场数据算
+        url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14"
+        data = fetch_eastmoney(url, timeout=10)
+        up_count = down_count = 0
+        if data and data.get("data") and data["data"].get("diff"):
+            for item in data["data"]["diff"]:
+                pct = float(item.get("f3", 0) or 0)
+                if pct > 0: up_count += 1
+                elif pct < 0: down_count += 1
+        ratio = up_count / max(down_count, 1)
+        up_score = min(30, int(ratio * 15))  # ratio=2 → 30分
+        details["up_down"] = f"{up_count}涨/{down_count}跌"
+        details["up_score"] = up_score
+        score += up_score - 15  # 偏离50
+
+        # 2. 北向资金 (25分) — 近5日累计
+        nb = _cached_eastmoney("north_bound", "https://push2his.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=5", ttl=600)
+        nb_sum = 0
+        if nb and nb.get("data"):
+            for key in ("hk2sh", "hk2sz"):
+                for line in nb["data"].get(key, [])[-5:]:
+                    parts = line.split(",")
+                    if len(parts) >= 4:
+                        nb_sum += float(parts[3]) if parts[3] != "-" else 0
+        nb_net = round(nb_sum / 1e8, 1)  # 转亿
+        nb_score = min(25, max(0, int(12.5 + nb_net / 10 * 5)))  # 0→12.5, 25亿→25
+        details["north_5d"] = f"{nb_net:+.1f}亿"
+        details["nb_score"] = nb_score
+        score += nb_score - 12.5
+
+        # 3. 涨停家数 (25分)
+        limit_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3"
+        limit_data = fetch_eastmoney(limit_url, timeout=10)
+        limit_up = 0
+        if limit_data and limit_data.get("data") and limit_data["data"].get("diff"):
+            limit_up = sum(1 for i in limit_data["data"]["diff"] if float(i.get("f3", 0) or 0) >= 9.5)
+        limit_score = min(25, limit_up * 1)  # 25只涨停 → 25分
+        details["limit_up"] = f"{limit_up}只涨停"
+        details["limit_score"] = limit_score
+        score += limit_score - 10  # 偏离50 (默认10只)
+
+        # 4. 成交量 (20分) — 相对前5日均量
+        vol_score = 10  # 默认正常
+        details["volume"] = "正常"
+        try:
+            vol_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&fid=f5&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f5,f12"
+            vol_data = fetch_eastmoney(vol_url, timeout=5)
+            if vol_data and vol_data.get("data") and vol_data["data"].get("diff"):
+                top_vol = float(vol_data["data"]["diff"][0].get("f5", 0) or 0)
+                if top_vol > 5e9:  # 50亿+
+                    vol_score = 18; details["volume"] = "放量🔥"
+                elif top_vol > 2e9:
+                    vol_score = 14; details["volume"] = "温和"
+                elif top_vol < 5e8:
+                    vol_score = 6; details["volume"] = "缩量💤"
+        except Exception:
+            pass
+        details["vol_score"] = vol_score
+        score += vol_score - 10
+
+        # Clamp
+        score = max(0, min(100, int(score)))
+
+        if score >= 70: level = "warm"
+        elif score >= 40: level = "neutral"
+        else: level = "cold"
+
+    except Exception as e:
+        details["error"] = str(e)
+
+    return jsonify({
+        "score": score, "level": level,
+        "details": details,
+        "summary": {
+            "warm": "🔥 市场偏暖，适合操作",
+            "neutral": "⏸️ 市场中性，精选个股",
+            "cold": "❄️ 市场偏冷，控制仓位",
+        }.get(level, ""),
+        "updated": datetime.now().strftime("%H:%M:%S"),
+    })
+
 # ---- 业绩报 ----
 @app.route("/api/market/earnings")
 def earnings_report():
