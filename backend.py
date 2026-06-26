@@ -432,7 +432,7 @@ def health_data_sources():
 
     # 1. 腾讯 API (全球指数/黄金/港股)
     try:
-        tc = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,hf_GC", timeout=5)
+        tc = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,hf_GC")
         sources["tencent"] = "live" if tc and "sh000001" in tc else "stale"
     except Exception:
         sources["tencent"] = "down"
