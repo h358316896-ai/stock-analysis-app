@@ -4102,6 +4102,47 @@ def market_thermometer():
     except Exception as e:
         details["error"] = str(e)
 
+    # Fallback: push2数据为空时用腾讯指数估算
+    if score == 50 or (details.get("up_down","0涨/0跌") == "0涨/0跌"):
+        try:
+            tc_text = _fetch_tencent_raw("https://qt.gtimg.cn/q=sh000001,sz399001,sz399006")
+            if tc_text:
+                indices = []
+                for m in re.finditer(r'v_(\w+)="([^"]*)"', tc_text):
+                    f = m.group(2).split("~")
+                    if len(f) >= 5 and f[3]:
+                        try:
+                            price = float(f[3])
+                            prev = float(f[4]) if f[4] else price
+                            chg = (price - prev) / prev * 100 if prev else 0
+                            indices.append({"name": f[1], "chg": chg})
+                        except ValueError:
+                            continue
+                if indices:
+                    avg_chg = sum(i["chg"] for i in indices) / len(indices)
+                    # 映射涨跌幅→温度: -3%→10分, 0%→50分, +3%→90分
+                    tc_score = int(50 + avg_chg * 13)
+                    tc_score = max(0, min(100, tc_score))
+                    # 估算涨跌比
+                    if avg_chg > 0.5:
+                        up_est = int(1500 + avg_chg * 500)
+                        down_est = int(1000 - avg_chg * 300)
+                    elif avg_chg < -0.5:
+                        up_est = int(1500 + avg_chg * 300)
+                        down_est = int(1000 - avg_chg * 500)
+                    else:
+                        up_est = 1500; down_est = 1000
+                    score = tc_score
+                    details["up_down"] = f"≈{up_est}涨/{down_est}跌(估)"
+                    details["limit_up"] = "估算中"
+                    details["volume"] = "估算中"
+                    details["north_5d"] = "估算中"
+                    if tc_score >= 70: level = "warm"
+                    elif tc_score >= 40: level = "neutral"
+                    else: level = "cold"
+        except Exception:
+            pass
+
     return jsonify({
         "score": score, "level": level,
         "details": details,
