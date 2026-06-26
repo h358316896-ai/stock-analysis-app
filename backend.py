@@ -3983,24 +3983,38 @@ def market_anomalies():
     if not alerts:
         try:
             global_alerts = []
-            g_data = _fetch_yf_indices_parallel([
-                ("^GSPC", "标普500"), ("^IXIC", "纳斯达克"), ("^DJI", "道琼斯"),
-                ("GC=F", "黄金期货"), ("CL=F", "WTI原油"), ("SI=F", "白银期货"),
-                ("BTC-USD", "比特币"), ("ETH-USD", "以太坊"),
-                ("^VIX", "VIX恐慌指数"), ("DX-Y.NYB", "美元指数"),
-            ])
-            if g_data:
-                for g in g_data:
-                    pct = g.get("change_pct", 0) or 0
-                    name = g.get("name", "")
-                    if abs(pct) >= 0.5:
-                        icon = {"标普500":"📊","纳斯达克":"💻","道琼斯":"🏛️","黄金期货":"🥇","WTI原油":"🛢️","白银期货":"🥈","比特币":"₿","以太坊":"💎","VIX恐慌指数":"😱","美元指数":"💵"}.get(name, "🌍")
+            # 腾讯API: 全球指数+商品 (快速、不需要ECS代理)
+            tc_codes = {
+                "us.INX": ("标普500", "📊"), "us.IXIC": ("纳斯达克", "💻"), "us.DJI": ("道琼斯", "🏛️"),
+                "hf_GC": ("黄金期货", "🥇"), "hf_CL": ("WTI原油", "🛢️"), "hf_SI": ("白银期货", "🥈"),
+                "us.VIX": ("VIX恐慌指数", "😱"), "us.DXY": ("美元指数", "💵"),
+                "hkHSI": ("恒生指数", "🇭🇰"), "jpN225": ("日经225", "🇯🇵"),
+            }
+            codes_str = ",".join(tc_codes.keys())
+            text = _fetch_tencent_raw(f"https://qt.gtimg.cn/q={codes_str}")
+            if text:
+                for line in text.strip().split("\n"):
+                    m = re.match(r'v_(\w+)="([^"]*)"', line)
+                    if not m: continue
+                    code = m.group(1)
+                    name, icon = tc_codes.get(code, (code, "🌍"))
+                    fields = m.group(2).split("~") if "us." in code or "hk" in code or "jp" in code else m.group(2).split(",")
+                    try:
+                        # Tencent stock format: name~price~change~change_pct~...
+                        if len(fields) >= 4:
+                            price = float(fields[3]) if fields[3] and fields[3] != "-" else 0
+                            prev = float(fields[4]) if len(fields) > 4 and fields[4] and fields[4] != "-" else price
+                            chg_pct = (price - prev) / prev * 100 if prev and price else 0
+                        else:
+                            continue
+                    except (ValueError, IndexError):
+                        continue
+                    if price > 0 and abs(chg_pct) >= 0.3:
                         global_alerts.append({
-                            "type": "global",
-                            "code": g.get("code",""), "name": name,
-                            "price": g.get("price",0), "change_pct": round(pct,2),
+                            "type": "global", "code": code, "name": name,
+                            "price": round(price, 2), "change_pct": round(chg_pct, 2),
                             "volume_ratio": 0, "turnover": 0, "main_net": 0,
-                            "message": f"{icon} 全球异动 · 涨跌幅{pct:+.2f}%",
+                            "message": f"{icon} {name} · {'涨' if chg_pct>=0 else '跌'}{abs(chg_pct):.2f}%",
                         })
                 global_alerts.sort(key=lambda x: abs(x["change_pct"]), reverse=True)
                 alerts = global_alerts[:6]
