@@ -246,8 +246,8 @@ async function runBottleneck() {
       }
       var html = d.report_html;
       // Highlight tier 4 (ultimate picks section)
-      html = html.replace(/<h3[^>]*>第四层[^<]*<\/h3>/g, '<h3 style=\"color:var(--gold);font-size:18px\">$&</h3>');
-      html = html.replace(/(<h3[^>]*>第四层[^<]*<\/h3>[\s\S]*?)(?=<h3|$)/, function(m){ return '<div class=\"tier4\">'+m+'</div>'; });
+      html = html.replace(/<h3([^>]*)>第四层([^<]*)<\/h3>/g, '<h3$1 style=\"color:var(--gold);font-size:18px;border-bottom:2px solid var(--gold)\">第四层$2</h3>');
+      html = html.replace(/(<h3[^>]*style=\"[^\"]*gold[^\"]*\"[^>]*>第四层[^<]*<\/h3>[\s\S]*?)(?=<h[23]|$)/, function(m){ return '<div class=\"tier4\">'+m+'</div>'; });
       document.getElementById('bnResult').innerHTML = html;
       document.getElementById('bnResult').style.display = 'block';
       document.getElementById('bnShare').style.display = 'block';
