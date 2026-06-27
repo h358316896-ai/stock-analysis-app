@@ -1843,6 +1843,57 @@ def bottleneck_scan():
     # Format HTML
     html_clean = report_clean
     html_clean = html_clean.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    # Convert markdown tables before line breaks
+    def _convert_md_tables(text):
+        import re as re3
+        lines = text.split("\n")
+        result = []
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if "|" in line and i + 2 < len(lines) and set(lines[i+1].strip()) <= set("|-: "):
+                # Found a markdown table
+                header_cells = [c.strip() for c in line.split("|") if c.strip()]
+                i += 2  # skip separator line
+                rows = []
+                while i < len(lines) and "|" in lines[i]:
+                    rows.append([c.strip() for c in lines[i].split("|") if c.strip()])
+                    i += 1
+                # Build HTML table
+                tbl = '<table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0"><thead><tr>'
+                for h in header_cells:
+                    tbl += f'<th style="padding:8px 10px;text-align:left;border-bottom:2px solid rgba(240,185,11,0.3);color:var(--gold);font-size:11px;text-transform:uppercase">{h}</th>'
+                tbl += '</tr></thead><tbody>'
+                for row in rows:
+                    tbl += '<tr>'
+                    for j, cell in enumerate(row):
+                        style = 'padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.05)'
+                        if j == 0:  # stock name column
+                            # Bold the name, color the code
+                            code_m = re3.search(r'(\d{6})', cell)
+                            if code_m:
+                                cell = cell.replace(code_m.group(1), f' <span style="color:var(--text-tertiary);font-size:10px">{code_m.group(1)}</span>')
+                            style += ';font-weight:600;color:var(--text-primary)'
+                        elif j == len(row) - 1:  # last column (score)
+                            try:
+                                v = float(cell)
+                                color = '#07c160' if v >= 7.5 else ('var(--gold)' if v >= 6 else '#c0392b')
+                                cell = f'<span style="color:{color};font-weight:700">{v:.1f}</span>' if v == v else cell
+                            except: pass
+                            style += ';text-align:center;font-weight:700'
+                        elif cell.replace('.','').replace('-','').isdigit():
+                            style += ';text-align:center'
+                        tbl += f'<td style="{style}">{cell}</td>'
+                    tbl += '</tr>'
+                tbl += '</tbody></table>'
+                result.append(tbl)
+            else:
+                result.append(line)
+                i += 1
+        return "\n".join(result)
+
+    html_clean = _convert_md_tables(html_clean)
     html_clean = html_clean.replace("\n\n", "</p><p>")
     html_clean = html_clean.replace("\n", "<br>")
     html_clean = "<p>" + html_clean + "</p>"
