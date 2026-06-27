@@ -330,7 +330,7 @@ auth_db.init_token_secret(app.secret_key)
 # ==========================================================
 # HELPER: HTTP JSON fetcher
 # ==========================================================
-def fetch_json(url, timeout=10):
+def fetch_json(url, timeout=3):
     """Fetch JSON from URL using Python requests"""
     try:
         headers = {
@@ -348,7 +348,7 @@ EM_HEADERS = {
     "Referer": "https://data.eastmoney.com/",
 }
 
-def fetch_eastmoney(url, timeout=5):
+def fetch_eastmoney(url, timeout=2):
     """Fetch JSON from Eastmoney API via ECS proxy (bypasses geo-blocking from US).
     Returns parsed JSON or None."""
     from urllib.parse import quote
@@ -378,7 +378,7 @@ def _patched_get(url, **kwargs):
 requests.get = _patched_get
 
 
-def fetch_text_gbk(url, timeout=10):
+def fetch_text_gbk(url, timeout=3):
     """Fetch raw text as GBK from URL"""
     try:
         headers = {
@@ -715,7 +715,7 @@ def refresh_hk_stocks():
 def _fetch_tencent_raw(url):
     """Fetch raw GBK text from Tencent Finance API using Python requests (no curl dependency)"""
     try:
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Referer": "https://data.eastmoney.com/"}, timeout=10)
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36", "Referer": "https://data.eastmoney.com/"}, timeout=3)
         resp.encoding = "gb18030"
         return resp.text
     except Exception as e:
@@ -2392,7 +2392,7 @@ def smart_money():
         # North-bound flow: snapshot-based 5-day tracking
         # KAMT API only returns today's data reliably; accumulate history locally
         nb_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=1"
-        nb_data = fetch_eastmoney(nb_url, timeout=8)
+        nb_data = fetch_eastmoney(nb_url, timeout=3)
         today_flow = 0.0
         today_str = datetime.now().strftime("%Y-%m-%d")
         if nb_data and nb_data.get("data"):
@@ -2419,7 +2419,7 @@ def smart_money():
 
         # Sector fund flow top 5
         sf_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=5&po=1&np=1&fltt=2&invt=2&fid=f62&fs=m:90+t:2&fields=f12,f14,f62"
-        sf_data = fetch_eastmoney(sf_url, timeout=8)
+        sf_data = fetch_eastmoney(sf_url, timeout=3)
         if sf_data and sf_data.get("data") and sf_data["data"].get("diff"):
             for item in sf_data["data"]["diff"]:
                 result["hot_sectors"].append({
@@ -2462,7 +2462,7 @@ def risk_radar():
     try:
         # Risk 1: Stocks near limit-down (approaching -8%+)
         ld_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f9,f12,f14,f20"
-        ld_data = fetch_eastmoney(ld_url, timeout=8)
+        ld_data = fetch_eastmoney(ld_url, timeout=3)
         if ld_data and ld_data.get("data") and ld_data["data"].get("diff"):
             for item in ld_data["data"]["diff"]:
                 chg = item.get("f3", 0) or 0
@@ -2478,7 +2478,7 @@ def risk_radar():
 
         # Risk 2: High PE + declining
         pe_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=20&po=1&np=1&fltt=2&invt=2&fid=f9&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f9,f12,f14,f20"
-        pe_data = fetch_eastmoney(pe_url, timeout=8)
+        pe_data = fetch_eastmoney(pe_url, timeout=3)
         if pe_data and pe_data.get("data") and pe_data["data"].get("diff"):
             for item in pe_data["data"]["diff"]:
                 pe = item.get("f9", 0) or 0
@@ -3565,7 +3565,7 @@ def cap_ranking():
         try:
             with ThreadPoolExecutor(max_workers=10) as executor:
                 futures = {executor.submit(fetch_cn_quote, c): c for c in top30_codes}
-                for f in as_completed(futures, timeout=8):
+                for f in as_completed(futures, timeout=3):
                     try:
                         q = f.result()
                         if q and "error" not in q:
@@ -3649,9 +3649,9 @@ def limit_up_down():
     """获取涨跌停统计 — 拉取全市场排序后客户端过滤"""
     # 全市场按涨跌幅排序，涨幅榜和跌幅榜分别取
     url_up = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
-    up_data = fetch_eastmoney(url_up, timeout=10)
+    up_data = fetch_eastmoney(url_up, timeout=3)
     url_down = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14,f20,f8,f10"
-    down_data = fetch_eastmoney(url_down, timeout=10)
+    down_data = fetch_eastmoney(url_down, timeout=3)
 
     def parse_limit(item):
         return {"code":item.get("f12",""),"name":item.get("f14",""),"price":item.get("f2",0),"change_pct":float(item.get("f3",0) or 0),"turnover_rate":float(item.get("f8",0) or 0)}
@@ -3787,7 +3787,7 @@ def limit_up_review():
     """涨停板复盘：连板统计 + 涨停原因"""
     # Try push2 (no cache — must be live for daily limit review)
     url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f8,f9,f10,f12,f14,f20,f62,f184"
-    data = fetch_eastmoney(url, timeout=15)
+    data = fetch_eastmoney(url, timeout=3)
     stocks = []
     if data and data.get("data") and data["data"].get("diff"):
         for item in data["data"]["diff"]:
@@ -4025,7 +4025,7 @@ def market_anomalies():
     try:
         # 扫描全市场：涨跌幅最大 + 量比异常
         url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f4,f5,f8,f10,f12,f14,f20,f62"
-        data = fetch_eastmoney(url, timeout=10)
+        data = fetch_eastmoney(url, timeout=3)
         if data and data.get("data") and data["data"].get("diff"):
             for item in data["data"]["diff"]:
                 pct = float(item.get("f3", 0) or 0)
@@ -4135,7 +4135,7 @@ def market_thermometer():
     try:
         # 1. 涨跌比 (30分) — 从 push2 全市场数据算
         url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f12,f14"
-        data = fetch_eastmoney(url, timeout=10)
+        data = fetch_eastmoney(url, timeout=3)
         up_count = down_count = 0
         if data and data.get("data") and data["data"].get("diff"):
             for item in data["data"]["diff"]:
@@ -4165,7 +4165,7 @@ def market_thermometer():
 
         # 3. 涨停家数 (25分)
         limit_url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=200&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f3"
-        limit_data = fetch_eastmoney(limit_url, timeout=10)
+        limit_data = fetch_eastmoney(limit_url, timeout=3)
         limit_up = 0
         if limit_data and limit_data.get("data") and limit_data["data"].get("diff"):
             limit_up = sum(1 for i in limit_data["data"]["diff"] if float(i.get("f3", 0) or 0) >= 9.5)
@@ -4410,7 +4410,7 @@ def finance_news():
     try:
         # Source 1: Eastmoney news
         eastmoney_url = "https://push2.eastmoney.com/api/qt/ulist.np/get?fltt=2&secids=&fields=f3,f4,f12,f14,f17,f18&np=1&pz=20&ut=bd1d9ddb04089700cf9c27f6f7426281"
-        em_resp = requests.get(eastmoney_url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://data.eastmoney.com/"}, timeout=8)
+        em_resp = requests.get(eastmoney_url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://data.eastmoney.com/"}, timeout=3)
         if em_resp.status_code == 200:
             try:
                 em_data = em_resp.json()
@@ -4429,7 +4429,7 @@ def finance_news():
         cls_url = "https://www.cls.cn/api/sw?app=CailianpressWeb&os=web&sv=7.7.5"
         cls_headers = {"User-Agent": "Mozilla/5.0", "Referer": "https://www.cls.cn/telegraph", "Content-Type": "application/json"}
         cls_data = {"type": "telegram", "page": 1, "rn": 15, "os": "web", "sv": "7.7.5"}
-        cls_resp = requests.post(cls_url, json=cls_data, headers=cls_headers, timeout=8)
+        cls_resp = requests.post(cls_url, json=cls_data, headers=cls_headers, timeout=3)
         if cls_resp.status_code == 200:
             try:
                 cls_json = cls_resp.json()
@@ -4608,7 +4608,7 @@ def trending_stocks():
     """热门关注 — 全市场最受关注的股票。休市时回落快照/缓存数据。"""
     try:
         url = "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fid=f5&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=f2,f3,f5,f12,f14,f20"
-        data = fetch_eastmoney(url, timeout=8)
+        data = fetch_eastmoney(url, timeout=3)
         stocks = []
         if data and data.get("data") and data["data"].get("diff"):
             for item in data["data"]["diff"]:
@@ -4791,7 +4791,7 @@ def stock_money_flow():
 
         data = None
         for url in em_urls:
-            data = fetch_eastmoney(url, timeout=15)
+            data = fetch_eastmoney(url, timeout=3)
             if data and data.get("data") and data["data"].get("klines"):
                 break
 
@@ -5603,7 +5603,7 @@ def _send_alert_notification(wx_uid, email, alerts):
                 "content": title + "\n\n" + body,
                 "uid": wx_uid,
                 "contentType": 1,  # text
-            }, timeout=10)
+            }, timeout=3)
             if r.status_code == 200:
                 logger.info(f"[WxPusher] Sent to uid={wx_uid[:8]}...")
         except Exception as e:
@@ -5628,7 +5628,7 @@ def _send_email_alert(to_email, subject, body_text):
         msg["Subject"] = subject
         msg["From"] = smtp_user
         msg["To"] = to_email
-        server = smtplib.SMTP_SSL(smtp_host, 465, timeout=10)
+        server = smtplib.SMTP_SSL(smtp_host, 465, timeout=3)
         server.login(smtp_user, smtp_pass)
         server.sendmail(smtp_user, [to_email], msg.as_string())
         server.quit()
