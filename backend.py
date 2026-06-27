@@ -2458,14 +2458,36 @@ def smart_money():
                             today_flow += net / 100000000
                         except ValueError:
                             pass
-        # Persist today's flow if non-zero (market is open)
+        # Persist today's flow (save inflow AND outflow, skip only true zero)
         nb_history = _load_northbound_history()
-        if today_flow > 0.01:
+        if abs(today_flow) > 0.001:
             nb_history[today_str] = round(today_flow, 2)
             _save_northbound_history(nb_history)
-        # Compute 5-day total from history
+        # Compute 5-day total from history; backfill from KAMT if sparse
         all_days = sorted(nb_history.keys())
         recent_5 = all_days[-5:]
+        if len(recent_5) < 5:
+            # Backfill from north-bound API (30-day history)
+            try:
+                nb_full_url = "https://push2.eastmoney.com/api/qt/kamt.kline/get?fields1=f1,f2,f3,f4&fields2=f51,f52,f53,f54&klt=101&lmt=30"
+                nb_full = fetch_eastmoney(nb_full_url, timeout=3)
+                if nb_full and nb_full.get("data"):
+                    for key in ("hk2sh", "hk2sz"):
+                        for line in nb_full["data"].get(key, []):
+                            parts = line.split(",")
+                            if len(parts) >= 4:
+                                try:
+                                    d = parts[0]
+                                    net = float(parts[3]) / 1e8 if parts[3] != "-" else 0.0
+                                    if d not in nb_history and abs(net) > 0.001:
+                                        nb_history[d] = round(net, 2)
+                                except ValueError:
+                                    continue
+                _save_northbound_history(nb_history)
+                all_days = sorted(nb_history.keys())
+                recent_5 = all_days[-5:]
+            except Exception:
+                pass
         result["north_flow_5d"] = round(sum(nb_history[d] for d in recent_5), 1)
 
         # Sector fund flow top 5
