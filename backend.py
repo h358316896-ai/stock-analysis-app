@@ -5,10 +5,7 @@ import os
 import re
 import json
 import time
-import hashlib
-import hmac
 import base64
-import zipfile
 import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -408,65 +405,6 @@ def home():
 # and the frontend warm-up ping to keep the dyno awake. Returns a
 # tiny payload so it is cheap to hit every few minutes.
 # -----------------------------------------------------------
-@app.route("/api/admin/backup")
-def admin_backup():
-    """下载完整数据备份：数据库 + 持久化文件 + 环境变量快照"""
-    import zipfile, io
-
-    # Token-based auth via header (avoids query param in access logs)
-    token = request.headers.get("X-Backup-Token", "")
-    secret = os.getenv("FLASK_SECRET_KEY", "")
-    expected = hashlib.sha256((secret + "backup").encode()).hexdigest()[:32]
-    if not token or not hmac.compare_digest(token, expected):
-        return jsonify({"error": "unauthorized"}), 403
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        # 1. 数据库
-        db_path = auth_db.DB_PATH if hasattr(auth_db, "DB_PATH") else os.path.join(_PERSIST_DIR, "app.db")
-        if os.path.exists(db_path):
-            zf.write(db_path, "app.db")
-
-        # 2. 持久化文件
-        for fname in ["market_cache.json", "margin_snapshot.json", "sector_flow_snapshot.json",
-                       "northbound_daily.json", "backups"]:
-            fpath = os.path.join(_PERSIST_DIR, fname)
-            if os.path.exists(fpath):
-                if os.path.isdir(fpath):
-                    for root, dirs, files in os.walk(fpath):
-                        for fn in files:
-                            fp = os.path.join(root, fn)
-                            arcname = os.path.join("backups", os.path.relpath(fp, fpath))
-                            zf.write(fp, arcname)
-                else:
-                    zf.write(fpath, fname)
-
-        # 3. 环境变量快照（白名单制，key名脱敏）
-        SAFE_ENV_KEYS = {
-            'PUBLIC_URL', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT',
-            'EASTMONEY_PROXY', 'XORPAY_AID', 'XORPAY_API',
-            'FLASK_SECRET_KEY', 'XORPAY_SECRET', 'DEEPSEEK_API_KEY',
-            'WXPUSHER_APP_TOKEN', 'DASHSCOPE_API_KEY',
-            'RAILWAY_SERVICE_ID', 'RAILWAY_VOLUME_NAME',
-            'PYTHON_VERSION', 'TZ', 'LANG',
-        }
-        REDACT_KEYS = {'DATABASE_URL', 'REDIS_URL', 'RAILWAY_API_TOKEN', 'GITHUB_TOKEN'}
-        env_safe = {}
-        for k, v in sorted(os.environ.items()):
-            k_upper = k.upper()
-            if k in REDACT_KEYS:
-                env_safe[k] = '***REDACTED***'
-            elif k in SAFE_ENV_KEYS or any(pattern in k_upper for pattern in ['RAILWAY_', 'FLASK_', 'XORPAY_', 'EASTMONEY_']):
-                env_safe[k] = v[:6] + '***' if any(s in k_upper for s in ['SECRET', 'KEY', 'TOKEN', 'PASS']) and len(v) > 8 else v
-            else:
-                env_safe[k] = '***REDACTED***'  # 未知变量不暴露
-        zf.writestr("env_snapshot.json", json.dumps(env_safe, indent=2, ensure_ascii=False))
-
-    buf.seek(0)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return send_file(buf, mimetype="application/zip", as_attachment=True,
-                     download_name=f"stockai_backup_{timestamp}.zip")
-
 @app.route("/health")
 def health():
     info = auth_db.get_persistence_info()
