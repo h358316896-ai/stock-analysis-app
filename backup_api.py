@@ -7,7 +7,7 @@ backup_bp = Blueprint('backup', __name__)
 
 _PERSIST_DIR = os.getenv("PERSIST_DIR", "/data")
 
-@backup_bp.route("/api/admin/backup")
+@backup_bp.route("/api/backup/download", methods=["GET"])
 def admin_backup():
     token = request.headers.get("X-Backup-Token", "")
     secret = os.getenv("FLASK_SECRET_KEY", "")

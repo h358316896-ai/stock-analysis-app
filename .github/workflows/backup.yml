@@ -30,7 +30,7 @@ jobs:
         run: |
           curl -s -o backup.zip --connect-timeout 30 --max-time 120 \
             -H "X-Backup-Token: ${{ steps.token.outputs.token }}" \
-            "https://stock-analysis-app-production-da60.up.railway.app/api/admin/backup"
+            "https://stock-analysis-app-production-da60.up.railway.app/api/backup/download"
           if [ -s backup.zip ] && file backup.zip | grep -q "Zip archive"; then
             echo "Backup OK ($(wc -c < backup.zip) bytes)"
             unzip -o backup.zip -d backup_data/
