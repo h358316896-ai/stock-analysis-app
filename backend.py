@@ -5,7 +5,9 @@ import os
 import re
 import json
 import time
+import hashlib
 import base64
+import zipfile
 import requests
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -405,6 +407,54 @@ def home():
 # and the frontend warm-up ping to keep the dyno awake. Returns a
 # tiny payload so it is cheap to hit every few minutes.
 # -----------------------------------------------------------
+@app.route("/api/admin/backup")
+def admin_backup():
+    """下载完整数据备份：数据库 + 持久化文件 + 环境变量快照"""
+    import zipfile, io
+
+    # 简单 token 保护
+    token = request.args.get("token", "")
+    expected = hashlib.sha256((os.getenv("FLASK_SECRET_KEY", "stockai") + "backup").encode()).hexdigest()[:16]
+    if token != expected:
+        return jsonify({"error": "unauthorized"}), 403
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # 1. 数据库
+        db_path = auth_db.DB_PATH if hasattr(auth_db, "DB_PATH") else os.path.join(_PERSIST_DIR, "app.db")
+        if os.path.exists(db_path):
+            zf.write(db_path, "app.db")
+
+        # 2. 持久化文件
+        for fname in ["market_cache.json", "margin_snapshot.json", "sector_flow_snapshot.json",
+                       "northbound_daily.json", "backups"]:
+            fpath = os.path.join(_PERSIST_DIR, fname)
+            if os.path.exists(fpath):
+                if os.path.isdir(fpath):
+                    for root, dirs, files in os.walk(fpath):
+                        for fn in files:
+                            fp = os.path.join(root, fn)
+                            arcname = os.path.join("backups", os.path.relpath(fp, fpath))
+                            zf.write(fp, arcname)
+                else:
+                    zf.write(fpath, fname)
+
+        # 3. 环境变量快照（脱敏）
+        env_safe = {}
+        for k, v in sorted(os.environ.items()):
+            if any(s in k.upper() for s in ["SECRET", "KEY", "TOKEN", "PASS"]):
+                env_safe[k] = v[:4] + "***" if len(v) > 4 else "***"
+            elif any(s in k.upper() for s in ["RAILWAY", "FLASK", "XORPAY", "EASTMONEY", "DEEPSEEK", "WXPUSHER"]):
+                env_safe[k] = v[:6] + "***" if len(v) > 8 else v
+            else:
+                env_safe[k] = v
+        zf.writestr("env_snapshot.json", json.dumps(env_safe, indent=2, ensure_ascii=False))
+
+    buf.seek(0)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return send_file(buf, mimetype="application/zip", as_attachment=True,
+                     download_name=f"stockai_backup_{timestamp}.zip")
+
 @app.route("/health")
 def health():
     info = auth_db.get_persistence_info()

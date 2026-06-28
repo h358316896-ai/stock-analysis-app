@@ -1,0 +1,67 @@
+name: Daily Backup
+
+# 每天北京时间凌晨3点 + 可手动触发
+on:
+  schedule:
+    - cron: '0 19 * * *'  # UTC 19:00 = 北京时间 03:00
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout backup branch
+        uses: actions/checkout@v4
+        with:
+          ref: backups
+          fetch-depth: 0
+
+      - name: Set backup token
+        id: token
+        run: |
+          # 用 FLASK_SECRET_KEY 生成备份 token（与服务端一致）
+          TOKEN=$(echo -n "e952c2f78001fface69190715bb15ed15bbf3f4066d86a4b398c4b2827c50d22backup" | sha256sum | cut -c1-16)
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+          echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
+
+      - name: Download backup
+        run: |
+          curl -s -o backup.zip --connect-timeout 30 --max-time 120 \
+            "https://stock-analysis-app-production-da60.up.railway.app/api/admin/backup?token=${{ steps.token.outputs.token }}"
+          if [ -s backup.zip ] && file backup.zip | grep -q "Zip archive"; then
+            echo "Backup downloaded successfully"
+            unzip -o backup.zip -d backup_data/
+            ls -la backup_data/
+          else
+            echo "Backup download failed or returned non-zip content"
+            cat backup.zip | head -5
+            exit 1
+          fi
+
+      - name: Commit to backups branch
+        run: |
+          rm -rf backup_data/backups  # Don't re-archive old backups
+          mkdir -p archive
+          cp backup_data/app.db archive/app_${{ steps.token.outputs.date }}.db 2>/dev/null || true
+          cp backup_data/*.json archive/ 2>/dev/null || true
+          cp backup_data/env_snapshot.json archive/env_${{ steps.token.outputs.date }}.json 2>/dev/null || true
+
+          # Keep only last 30 days
+          ls -t archive/app_*.db 2>/dev/null | tail -n +31 | xargs rm -f 2>/dev/null || true
+          ls -t archive/env_*.json 2>/dev/null | tail -n +31 | xargs rm -f 2>/dev/null || true
+
+          git config user.name "Backup Bot"
+          git config user.email "backup@stockai.local"
+          git add archive/ backup_data/
+          git commit -m "Backup ${{ steps.token.outputs.date }}" || echo "No changes"
+          git push origin backups || echo "Push failed (may need force on first run)"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Alert on failure
+        if: failure()
+        run: |
+          echo "Backup failed! Check Railway health and API endpoint."
+          # Future: send WeChat alert via WxPusher
