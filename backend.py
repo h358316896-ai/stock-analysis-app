@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 # (moved below BASE_DIR definition)
 
 from flask import Flask, request, jsonify, send_file, render_template_string, session
+from backup_api import backup_bp
 from functools import wraps
 
 # Quant engine imports
@@ -55,6 +56,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Secure flag: True in production (behind Railway/Render HTTPS proxy), False for local dev
 # No runtime modification of app.config to avoid race conditions
 app.config['SESSION_COOKIE_SECURE'] = os.getenv("FLASK_SECURE_COOKIE", "true").lower() == "true"
+app.register_blueprint(backup_bp)
 # Auth helper: supports both session cookie AND token (Authorization header)
 def current_user_id():
     # Priority 1: Session cookie
