@@ -5,8 +5,8 @@ import os
 import re
 import json
 import time
-import secrets
 import hashlib
+import hmac
 import base64
 import zipfile
 import requests
@@ -417,7 +417,7 @@ def admin_backup():
     token = request.headers.get("X-Backup-Token", "")
     secret = os.getenv("FLASK_SECRET_KEY", "")
     expected = hashlib.sha256((secret + "backup").encode()).hexdigest()[:32]
-    if not token or not secrets.compare_digest(token, expected):
+    if not token or not hmac.compare_digest(token, expected):
         return jsonify({"error": "unauthorized"}), 403
 
     buf = io.BytesIO()
