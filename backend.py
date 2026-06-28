@@ -5,6 +5,7 @@ import os
 import re
 import json
 import time
+import secrets
 import hashlib
 import base64
 import zipfile
@@ -412,10 +413,11 @@ def admin_backup():
     """下载完整数据备份：数据库 + 持久化文件 + 环境变量快照"""
     import zipfile, io
 
-    # 简单 token 保护
-    token = request.args.get("token", "")
-    expected = hashlib.sha256((os.getenv("FLASK_SECRET_KEY", "stockai") + "backup").encode()).hexdigest()[:16]
-    if token != expected:
+    # Token-based auth via header (avoids query param in access logs)
+    token = request.headers.get("X-Backup-Token", "")
+    secret = os.getenv("FLASK_SECRET_KEY", "")
+    expected = hashlib.sha256((secret + "backup").encode()).hexdigest()[:32]
+    if not token or not secrets.compare_digest(token, expected):
         return jsonify({"error": "unauthorized"}), 403
 
     buf = io.BytesIO()
@@ -439,15 +441,25 @@ def admin_backup():
                 else:
                     zf.write(fpath, fname)
 
-        # 3. 环境变量快照（脱敏）
+        # 3. 环境变量快照（白名单制，key名脱敏）
+        SAFE_ENV_KEYS = {
+            'PUBLIC_URL', 'RAILWAY_PROJECT_ID', 'RAILWAY_ENVIRONMENT',
+            'EASTMONEY_PROXY', 'XORPAY_AID', 'XORPAY_API',
+            'FLASK_SECRET_KEY', 'XORPAY_SECRET', 'DEEPSEEK_API_KEY',
+            'WXPUSHER_APP_TOKEN', 'DASHSCOPE_API_KEY',
+            'RAILWAY_SERVICE_ID', 'RAILWAY_VOLUME_NAME',
+            'PYTHON_VERSION', 'TZ', 'LANG',
+        }
+        REDACT_KEYS = {'DATABASE_URL', 'REDIS_URL', 'RAILWAY_API_TOKEN', 'GITHUB_TOKEN'}
         env_safe = {}
         for k, v in sorted(os.environ.items()):
-            if any(s in k.upper() for s in ["SECRET", "KEY", "TOKEN", "PASS"]):
-                env_safe[k] = v[:4] + "***" if len(v) > 4 else "***"
-            elif any(s in k.upper() for s in ["RAILWAY", "FLASK", "XORPAY", "EASTMONEY", "DEEPSEEK", "WXPUSHER"]):
-                env_safe[k] = v[:6] + "***" if len(v) > 8 else v
+            k_upper = k.upper()
+            if k in REDACT_KEYS:
+                env_safe[k] = '***REDACTED***'
+            elif k in SAFE_ENV_KEYS or any(pattern in k_upper for pattern in ['RAILWAY_', 'FLASK_', 'XORPAY_', 'EASTMONEY_']):
+                env_safe[k] = v[:6] + '***' if any(s in k_upper for s in ['SECRET', 'KEY', 'TOKEN', 'PASS']) and len(v) > 8 else v
             else:
-                env_safe[k] = v
+                env_safe[k] = '***REDACTED***'  # 未知变量不暴露
         zf.writestr("env_snapshot.json", json.dumps(env_safe, indent=2, ensure_ascii=False))
 
     buf.seek(0)
