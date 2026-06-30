@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>StockAI Demo Video</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#06080e;color:#edecf1;font-family:'PingFang SC','Microsoft YaHei',sans-serif;overflow:hidden;width:390px;height:844px;margin:0 auto;position:relative}
+.scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;opacity:0;transition:opacity .6s;pointer-events:none}
+.scene.active{opacity:1}
+.overlay-text{position:absolute;z-index:10;text-align:center;pointer-events:none}
+.big-num{font-size:80px;font-weight:900;background:linear-gradient(135deg,#f0b90b,#f97316);-webkit-background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.card{background:rgba(15,18,37,.9);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:24px;margin:12px 0;width:340px}
+.card-gold{border-color:rgba(240,185,11,.2)}
+.gold-price{font-size:28px;font-weight:800;color:#f0b90b;font-family:monospace}
+.green{color:#22c55e}.red{color:#ef4444}.gold{color:#f0b90b}
+.spark-row{display:flex;gap:4px;margin-top:6px}
+.spark-dot{width:3px;height:12px;border-radius:1px;background:#f0b90b;animation:blink 1.5s ease-in-out infinite}
+.spark-dot:nth-child(2n){animation-delay:.3s}.spark-dot:nth-child(3n){animation-delay:.6s}
+@keyframes blink{0%,100%{opacity:.3}50%{opacity:1}}
+.score-ring{width:120px;height:120px;border-radius:50%;border:4px solid rgba(240,185,11,.3);display:flex;align-items:center;justify-content:center;animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 20px rgba(240,185,11,.1)}50%{box-shadow:0 0 40px rgba(240,185,11,.2)}}
+.split{display:flex;gap:20px;width:340px}
+.split>div{flex:1;border-radius:12px;padding:16px;text-align:center}
+.split .left{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05)}
+.split .right{background:rgba(240,185,11,.06);border:1px solid rgba(240,185,11,.2)}
+.subtitle{position:absolute;bottom:80px;left:0;right:0;text-align:center;font-size:14px;color:#9493a8;z-index:10}
+.logo{font-size:24px;font-weight:900}
+.logo span{background:linear-gradient(135deg,#4f8cff,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+</style>
+</head>
+<body>
+
+<!-- Scene 1: Chaos -->
+<div class="scene active" id="s1">
+  <div class="overlay-text" style="top:200px">
+    <div style="font-size:11px;color:#5c5b72;letter-spacing:4px;margin-bottom:16px">A 股 实 录</div>
+    <div style="font-size:28px;font-weight:900;line-height:1.4">
+      <span class="red">5000</span> 多只票<br>你看得<span class="gold">过来</span>吗？
+    </div>
+  </div>
+  <div class="subtitle">每天盯盘4小时 · 信息过载 · 决策疲劳</div>
+  <!-- Simulated chaos bars -->
+  <div style="position:absolute;bottom:120px;display:flex;gap:2px;opacity:.3">
+    <div style="width:8px;height:30px;background:#ef4444"></div>
+    <div style="width:8px;height:50px;background:#22c55e"></div>
+    <div style="width:8px;height:20px;background:#ef4444"></div>
+    <div style="width:8px;height:60px;background:#22c55e"></div>
+    <div style="width:8px;height:35px;background:#ef4444"></div>
+    <div style="width:8px;height:45px;background:#22c55e"></div>
+    <div style="width:8px;height:25px;background:#ef4444"></div>
+    <div style="width:8px;height:55px;background:#22c55e"></div>
+  </div>
+</div>
+
+<!-- Scene 2: Thermometer -->
+<div class="scene" id="s2">
+  <div class="overlay-text" style="top:120px">
+    <div style="font-size:11px;color:#5c5b72;letter-spacing:4px;margin-bottom:12px">市 场 温 度 计</div>
+    <div class="score-ring" style="margin:0 auto 16px">
+      <div style="text-align:center">
+        <div class="big-num" style="font-size:48px">78</div>
+        <div style="font-size:11px;color:#9493a8">市场温度</div>
+      </div>
+    </div>
+    <div style="font-size:18px;font-weight:800;color:#f0b90b">🔥 市场偏暖，适合操作</div>
+    <div style="font-size:11px;color:#5c5b72;margin-top:8px">2432涨 / 983跌 · 北向+15亿 · 32只涨停</div>
+  </div>
+  <div class="subtitle">一个数字 · 看懂全市场</div>
+</div>
+
+<!-- Scene 3: AI Decision -->
+<div class="scene" id="s3">
+  <div class="overlay-text" style="top:100px;width:340px">
+    <div style="font-size:11px;color:#5c5b72;letter-spacing:4px;margin-bottom:12px">AI 今 日 判 断</div>
+    <div class="card card-gold" style="text-align:left">
+      <div style="font-size:10px;color:#9493a8;margin-bottom:8px">🤖 AI 今日综合判断</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="background:rgba(34,197,94,.15);color:#22c55e;border:1px solid rgba(34,197,94,.3);padding:6px 16px;border-radius:20px;font-size:18px;font-weight:900">短线偏多</span>
+        <span style="font-size:13px;color:#9493a8">置信度 <strong style="color:#fff;font-size:18px">78%</strong></span>
+      </div>
+      <div style="font-size:11px;color:#5c5b72;margin-bottom:12px">上证支撑 3,280 · 压力 3,420</div>
+      <div style="border-top:1px solid rgba(255,255,255,.05);padding-top:10px">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>📌 贵州茅台 <span style="color:#5c5b72">600519</span></span><span class="red">+2.1%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>📌 宁德时代 <span style="color:#5c5b72">300750</span></span><span class="red">+3.5%</span></div>
+        <div style="display:flex;justify-content:space-between;font-size:12px"><span>💡 操作建议</span><span style="color:#4f8cff">回调加仓</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="subtitle">不盯盘 · AI替你分析</div>
+</div>
+
+<!-- Scene 4: Gold -->
+<div class="scene" id="s4">
+  <div class="overlay-text" style="top:80px;width:340px">
+    <div style="font-size:11px;color:#5c5b72;letter-spacing:4px;margin-bottom:12px">黄 金 24h 全 球 同 屏</div>
+    <div class="card card-gold">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:14px">
+        <span>🥇</span><span style="font-weight:800;color:#f0b90b">黄金 24h 实时</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="text-align:center;padding:10px 6px;background:rgba(240,185,11,.06);border:1px solid rgba(240,185,11,.15);border-radius:8px">
+          <div style="font-size:9px;color:#9493a8">🥇 伦敦金</div>
+          <div class="gold-price">$4,068</div>
+          <div class="red" style="font-size:12px">+0.51%</div>
+        </div>
+        <div style="text-align:center;padding:10px 6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px">
+          <div style="font-size:9px;color:#9493a8">🏗 COMEX</div>
+          <div class="gold-price">$4,068</div>
+          <div class="red" style="font-size:12px">+0.51%</div>
+        </div>
+        <div style="text-align:center;padding:10px 6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px">
+          <div style="font-size:9px;color:#9493a8">🇨🇳 沪金</div>
+          <div class="gold-price">¥878.5</div>
+          <div class="green" style="font-size:12px">-0.24%</div>
+        </div>
+        <div style="text-align:center;padding:10px 6px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px">
+          <div style="font-size:9px;color:#9493a8">🥈 沪银</div>
+          <div class="gold-price">¥14,091</div>
+          <div class="red" style="font-size:12px">+0.51%</div>
+        </div>
+      </div>
+      <!-- Sparkline -->
+      <div class="spark-row" style="margin-top:10px">
+        <div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div>
+        <div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div>
+        <div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div>
+        <div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div><div class="spark-dot"></div>
+        <div style="width:6px;height:6px;border-radius:50%;background:#f0b90b;animation:blink .8s ease-in-out infinite"></div>
+      </div>
+    </div>
+  </div>
+  <div class="subtitle">伦敦 · 纽约 · 上海 · 三大定价中心</div>
+</div>
+
+<!-- Scene 5: Split screen -->
+<div class="scene" id="s5">
+  <div class="overlay-text" style="top:80px;width:340px">
+    <div style="font-size:28px;font-weight:900;margin-bottom:24px">4小时 <span style="color:#5c5b72">vs</span> <span class="gold">3分钟</span></div>
+    <div class="split">
+      <div class="left">
+        <div style="font-size:40px;margin-bottom:8px">😫</div>
+        <div style="font-size:11px;color:#9493a8">盯盘 4 小时</div>
+        <div style="font-size:9px;color:#5c5b72;margin-top:4px">6块屏幕<br>信息过载<br>决策疲劳</div>
+      </div>
+      <div class="right">
+        <div style="font-size:40px;margin-bottom:8px">☕</div>
+        <div style="font-size:11px;color:#f0b90b">AI 看 3 分钟</div>
+        <div style="font-size:9px;color:#5c5b72;margin-top:4px">一个手机<br>结论直达<br>淡定喝茶</div>
+      </div>
+    </div>
+  </div>
+  <div class="subtitle">你不是分析师 · 你是决策者</div>
+</div>
+
+<!-- Scene 6: Final -->
+<div class="scene" id="s6">
+  <div class="overlay-text" style="top:250px">
+    <div class="logo" style="margin-bottom:8px">Stock<span>AI</span></div>
+    <div style="font-size:16px;color:#9493a8;margin-bottom:24px">kunhuang.top</div>
+    <div style="font-size:20px;font-weight:900;line-height:1.6">
+      同花顺给你<span style="color:#5c5b72">数据</span><br>
+      StockAI 给你<span class="gold">结论</span>
+    </div>
+  </div>
+  <div style="position:absolute;bottom:160px;font-size:12px;color:#22c55e;font-weight:700">
+    🆓 免费使用 · AI驱动
+  </div>
+  <div class="subtitle">扫码或访问 kunhuang.top</div>
+</div>
+
+<!-- Progress bar -->
+<div style="position:absolute;bottom:40px;left:20px;right:20px;height:2px;background:rgba(255,255,255,.05);z-index:20">
+  <div id="progress" style="height:100%;background:linear-gradient(90deg,#f0b90b,#4f8cff);transition:width .3s;width:0"></div>
+</div>
+
+<script>
+const scenes = ['s1','s2','s3','s4','s5','s6'];
+const durations = [4000, 5000, 6000, 5000, 4500, 5000]; // ms per scene
+let current = 0;
+
+function showScene(i) {
+  scenes.forEach((id,idx) => {
+    document.getElementById(id).classList.toggle('active', idx === i);
+  });
+  document.getElementById('progress').style.width = ((i+1)/scenes.length*100)+'%';
+}
+
+function next() {
+  if (current < scenes.length - 1) {
+    current++;
+    showScene(current);
+    setTimeout(next, durations[current]);
+  } else {
+    // Loop back after a pause
+    setTimeout(() => { current = 0; showScene(0); setTimeout(next, durations[0]); }, 3000);
+  }
+}
+
+// Start
+showScene(0);
+setTimeout(next, durations[0]);
+
+// Click to advance
+document.body.addEventListener('click', () => {
+  if (current < scenes.length - 1) {
+    current++;
+    showScene(current);
+  }
+});
+</script>
+</body>
+</html>
