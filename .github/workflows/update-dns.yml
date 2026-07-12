@@ -2,6 +2,9 @@ name: Update DNS to ECS
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/update-dns.yml'
 
 jobs:
   update-dns:
