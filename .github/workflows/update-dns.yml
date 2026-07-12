@@ -12,34 +12,62 @@ jobs:
     steps:
       - name: Update DNS A record for kunhuang.top
         run: |
-          ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=kunhuang.top" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+          set -e
+          TOKEN="${{ secrets.CLOUDFLARE_API_TOKEN }}"
 
-          echo "Zone ID: $ZONE_ID"
-
-          RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=kunhuang.top&type=A" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+          # Step 1: Verify token works
+          echo "=== Testing Cloudflare API token ==="
+          VERIFY=$(curl -s "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+            -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json")
-
-          RECORD_ID=$(echo "$RECORD" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
-          OLD_IP=$(echo "$RECORD" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['content'])")
-
-          echo "Record ID: $RECORD_ID"
-          echo "Old IP: $OLD_IP"
-          echo "New IP: 47.97.66.164"
-
-          RESULT=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
-            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            --data '{"type":"A","name":"kunhuang.top","content":"47.97.66.164","ttl":1,"proxied":false}')
-
-          echo "Result: $RESULT"
-          SUCCESS=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['success'])")
-
-          if [ "$SUCCESS" != "True" ]; then
-            echo "DNS update failed!"
+          echo "Token verify: $VERIFY"
+          TOKEN_OK=$(echo "$VERIFY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('success','False'))")
+          if [ "$TOKEN_OK" != "True" ]; then
+            echo "TOKEN VERIFICATION FAILED - token may be expired or invalid"
             exit 1
           fi
 
-          echo "DNS updated successfully! kunhuang.top → 47.97.66.164"
+          # Step 2: Get Zone ID
+          echo "=== Getting Zone ID ==="
+          ZONES=$(curl -s "https://api.cloudflare.com/client/v4/zones?name=kunhuang.top" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json")
+          echo "Zones response: $ZONES"
+          ZONE_COUNT=$(echo "$ZONES" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('result',[])))")
+          if [ "$ZONE_COUNT" = "0" ]; then
+            echo "ZONE NOT FOUND - token may not have access to kunhuang.top"
+            exit 1
+          fi
+          ZONE_ID=$(echo "$ZONES" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+          echo "Zone ID: $ZONE_ID"
+
+          # Step 3: Get DNS Record
+          echo "=== Getting DNS A Record ==="
+          RECORDS=$(curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=kunhuang.top&type=A" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json")
+          echo "Records response: $RECORDS"
+          RECORD_COUNT=$(echo "$RECORDS" | python3 -c "import sys,json; print(len(json.load(sys.stdin).get('result',[])))")
+          if [ "$RECORD_COUNT" = "0" ]; then
+            echo "A RECORD NOT FOUND for kunhuang.top"
+            exit 1
+          fi
+          RECORD_ID=$(echo "$RECORDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+          OLD_IP=$(echo "$RECORDS" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['content'])")
+          echo "Record ID: $RECORD_ID, Old IP: $OLD_IP"
+
+          # Step 4: Update DNS
+          echo "=== Updating DNS to 47.97.66.164 ==="
+          UPDATE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            --data '{"type":"A","name":"kunhuang.top","content":"47.97.66.164","ttl":1,"proxied":false}')
+          echo "Update response: $UPDATE"
+          SUCCESS=$(echo "$UPDATE" | python3 -c "import sys,json; print(json.load(sys.stdin)['success'])")
+          if [ "$SUCCESS" != "True" ]; then
+            echo "DNS UPDATE FAILED"
+            exit 1
+          fi
+
+          echo "=== DNS UPDATED SUCCESSFULLY ==="
+          echo "kunhuang.top -> 47.97.66.164"
