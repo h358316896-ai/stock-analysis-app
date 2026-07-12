@@ -1,0 +1,42 @@
+name: Update DNS to ECS
+
+on:
+  workflow_dispatch:
+
+jobs:
+  update-dns:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update DNS A record for kunhuang.top
+        run: |
+          ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=kunhuang.top" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+
+          echo "Zone ID: $ZONE_ID"
+
+          RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=kunhuang.top&type=A" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+
+          RECORD_ID=$(echo "$RECORD" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['id'])")
+          OLD_IP=$(echo "$RECORD" | python3 -c "import sys,json; print(json.load(sys.stdin)['result'][0]['content'])")
+
+          echo "Record ID: $RECORD_ID"
+          echo "Old IP: $OLD_IP"
+          echo "New IP: 47.97.66.164"
+
+          RESULT=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{"type":"A","name":"kunhuang.top","content":"47.97.66.164","ttl":1,"proxied":false}')
+
+          echo "Result: $RESULT"
+          SUCCESS=$(echo "$RESULT" | python3 -c "import sys,json; print(json.load(sys.stdin)['success'])")
+
+          if [ "$SUCCESS" != "True" ]; then
+            echo "DNS update failed!"
+            exit 1
+          fi
+
+          echo "DNS updated successfully! kunhuang.top → 47.97.66.164"
