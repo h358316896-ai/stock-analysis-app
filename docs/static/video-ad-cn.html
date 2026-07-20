@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>StockAI — 专业市场智能</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0c14; color:#c8c8d4; font-family:'PingFang SC','Noto Sans SC','Microsoft YaHei','Helvetica Neue',sans-serif; overflow:hidden; height:100vh; -webkit-font-smoothing:antialiased; }
+
+/* Top nav */
+.ad-nav { position:fixed; top:0; left:0; right:0; z-index:100; display:flex; align-items:center; justify-content:space-between; padding:16px 24px; pointer-events:none; }
+.ad-nav a { color:rgba(255,255,255,0.35); text-decoration:none; font-size:13px; font-weight:500; letter-spacing:0.04em; transition:color .2s; pointer-events:auto; }
+.ad-nav a:hover { color:rgba(255,255,255,0.85); }
+.ad-logo { display:flex; align-items:center; gap:8px; }
+.ad-logo .dot { width:7px; height:7px; border-radius:50%; background:#d4a853; }
+
+.scene { display:none; width:100%; height:100vh; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:48px 32px; position:absolute; top:0; left:0; }
+.scene.active { display:flex; }
+
+h1 { font-size:clamp(30px,6vw,50px); font-weight:300; letter-spacing:0.02em; color:#ffffff; line-height:1.3; margin-bottom:12px; }
+h1 strong { font-weight:700; }
+h2 { font-size:clamp(15px,3vw,22px); font-weight:300; color:#6b6b80; letter-spacing:0.06em; margin-bottom:32px; }
+.accent { color:#d4a853; }
+.danger { color:#c0392b; }
+.success { color:#27ae60; }
+.muted { color:#5a5a72; }
+
+.divider { width:60px; height:1px; background:rgba(255,255,255,0.1); margin:24px auto; }
+
+.verdict { font-size:clamp(44px,10vw,72px); font-weight:100; letter-spacing:0.04em; margin:8px 0; }
+.verdict-sub { font-size:16px; font-weight:400; color:#6b6b80; letter-spacing:0.06em; }
+
+.score-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; max-width:340px; width:100%; }
+.score-label { font-size:13px; font-weight:500; color:#8a8a9e; letter-spacing:0.04em; }
+.score-value { font-size:14px; font-weight:600; }
+.score-bar-wrap { width:140px; height:2px; background:rgba(255,255,255,0.04); border-radius:1px; overflow:hidden; }
+.score-bar-fill { height:100%; border-radius:1px; }
+
+.stock-row { display:flex; align-items:center; gap:16px; padding:14px 20px; background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.04); border-radius:8px; margin:6px 0; width:100%; max-width:420px; text-align:left; }
+.tag { display:inline-block; padding:4px 10px; border-radius:4px; font-size:11px; font-weight:600; letter-spacing:0.06em; min-width:44px; text-align:center; }
+.tag-buy { background:rgba(39,174,96,0.1); color:#27ae60; border:1px solid rgba(39,174,96,0.2); }
+.tag-hold { background:rgba(212,168,83,0.1); color:#d4a853; border:1px solid rgba(212,168,83,0.2); }
+.tag-sell { background:rgba(192,57,43,0.1); color:#c0392b; border:1px solid rgba(192,57,43,0.2); }
+.stock-row .info { flex:1; }
+.stock-row .symbol { font-size:15px; font-weight:600; color:#fff; }
+.stock-row .reason { font-size:12px; color:#5a5a72; margin-top:2px; }
+
+.vs-row { display:flex; gap:12px; width:100%; max-width:520px; }
+.vs-card { flex:1; padding:24px; border-radius:10px; text-align:center; }
+.vs-left { background:rgba(255,255,255,0.015); border:1px solid rgba(255,255,255,0.05); }
+.vs-right { background:rgba(212,168,83,0.04); border:1px solid rgba(212,168,83,0.15); }
+.vs-label { font-size:11px; font-weight:600; letter-spacing:0.08em; margin-bottom:12px; }
+.vs-data { font-size:11px; color:#5a5a72; line-height:2.2; text-align:left; font-family:'SF Mono','JetBrains Mono',monospace; }
+
+.counter { font-size:72px; font-weight:100; letter-spacing:-0.02em; }
+.pnl-pos { color:#27ae60; }
+
+.url-foot { position:absolute; bottom:36px; font-size:13px; font-weight:400; color:#4a4a60; letter-spacing:0.06em; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+.scene.active > * { animation:fadeUp .6s ease-out both; }
+.scene.active > *:nth-child(2) { animation-delay:.1s; }
+.scene.active > *:nth-child(3) { animation-delay:.2s; }
+.scene.active > *:nth-child(4) { animation-delay:.3s; }
+</style>
+</head>
+<body>
+<div class="ad-nav">
+  <a href="/" class="ad-logo"><span class="dot"></span>StockAI</a>
+  <a href="/stock">行情终端 →</a>
+</div>
+
+<!-- 1: 该买该卖 -->
+<div class="scene active" id="s1">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">市场智能分析</div>
+  <h1>买入，持有，<strong>还是卖出？</strong></h1>
+  <div class="divider"></div>
+  <div class="verdict" style="color:#d4a853">观望</div>
+  <div class="verdict-sub">综合评分 43 · 技术面偏弱 · 估值合理</div>
+  <div class="divider"></div>
+  <div style="max-width:340px;width:100%">
+    <div class="score-row"><span class="score-label">技术面</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:20%;background:#c0392b"></div></div><span class="score-value danger">20</span></div>
+    <div class="score-row"><span class="score-label">基本面</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:75%;background:#27ae60"></div></div><span class="score-value success">75</span></div>
+    <div class="score-row"><span class="score-label">资金面</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:30%;background:#c0392b"></div></div><span class="score-value danger">30</span></div>
+    <div class="score-row"><span class="score-label">情绪面</span><div class="score-bar-wrap"><div class="score-bar-fill" style="width:50%;background:#d4a853"></div></div><span class="score-value accent">50</span></div>
+  </div>
+  <div class="url-foot">StockAI · 给你一个结论，而不是一百个指标</div>
+</div>
+
+<!-- 2: 操盘计划 -->
+<div class="scene" id="s2">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">我的自选股</div>
+  <h1>今日<strong>操盘计划</strong></h1>
+  <div class="divider"></div>
+  <div class="stock-row">
+    <span class="tag tag-buy">买入</span>
+    <div class="info"><div class="symbol">五粮液 000858</div><div class="reason">技术面偏强 · 资金持续流入</div></div>
+  </div>
+  <div class="stock-row">
+    <span class="tag tag-hold">持有</span>
+    <div class="info"><div class="symbol">贵州茅台 600519</div><div class="reason">估值合理 · 多空交织</div></div>
+  </div>
+  <div class="stock-row">
+    <span class="tag tag-sell">回避</span>
+    <div class="info"><div class="symbol">宁德时代 300750</div><div class="reason">主力连续三日净流出</div></div>
+  </div>
+  <div class="url-foot">登录加自选 · 每天早上打开就知道怎么操作</div>
+</div>
+
+<!-- 3: 模拟收益 -->
+<div class="scene" id="s3">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">模拟交易</div>
+  <h1>虚拟<strong>组合收益</strong></h1>
+  <div class="counter pnl-pos">+12.5%</div>
+  <div style="font-size:18px;color:#27ae60;font-weight:400;margin-bottom:32px">+12,500 元 · 初始资金 100,000</div>
+  <div class="stock-row">
+    <div class="info"><div class="symbol">五粮液 000858</div><div class="reason">成本 72.00 → 现价 80.50</div></div>
+    <span class="tag tag-buy">+11.8%</span>
+  </div>
+  <div class="stock-row">
+    <div class="info"><div class="symbol">贵州茅台 600519</div><div class="reason">成本 1,180 → 现价 1,215</div></div>
+    <span class="tag tag-buy">+2.9%</span>
+  </div>
+  <div class="url-foot"><a href="/stock" style="color:#4a4a60;text-decoration:none;transition:color .2s" onmouseover="this.style.color='#8a8a9e'" onmouseout="this.style.color='#4a4a60'">零风险练手 · 真实行情驱动</a></div>
+</div>
+
+<!-- 4: 避雷预警 -->
+<div class="scene" id="s4">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">三天前 · 风险雷达</div>
+  <h1><strong>盘前</strong>预警</h1>
+  <div class="divider"></div>
+  <div class="stock-row" style="border-left:2px solid #c0392b;">
+    <span class="tag tag-sell">风险</span>
+    <div class="info"><div class="symbol">XX股份 000XXX</div><div class="reason">技术面20分 · 主力持续流出</div></div>
+  </div>
+  <div style="font-size:48px;margin:28px 0;font-weight:100;color:#4a4a60">&#9650;</div>
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">今天</div>
+  <div style="font-size:28px;font-weight:600;color:#c0392b;">-10.02% 跌停</div>
+  <div class="url-foot">不是马后炮 · 是实时的风险检测</div>
+</div>
+
+<!-- 5: 对比 -->
+<div class="scene" id="s5">
+  <h1>数据 <strong>vs</strong> 结论</h1>
+  <div class="divider"></div>
+  <div class="vs-row">
+    <div class="vs-card vs-left">
+      <div class="vs-label" style="color:#5a5a72">传统工具</div>
+      <div class="vs-data">
+        MACD -0.32<br>RSI 42.15<br>KDJ K38 D41<br>布林 U1280 L1150<br>VOL 57,472<br>MA5 1218 MA10 1225<br>...
+      </div>
+      <div style="font-size:14px;color:#5a5a72;margin-top:12px">给你数据</div>
+    </div>
+    <div class="vs-card vs-right">
+      <div class="vs-label" style="color:#d4a853">StockAI</div>
+      <div class="verdict" style="font-size:56px;color:#d4a853">观望</div>
+      <div style="font-size:14px;color:#6b6b80;margin:4px 0">多空信号交织</div>
+      <div style="font-size:14px;color:#6b6b80">建议等待明确方向</div>
+      <div style="font-size:14px;color:#d4a853;margin-top:12px">给你结论</div>
+    </div>
+  </div>
+  <div class="url-foot">你不需要一百个指标 · 你只需要一个答案</div>
+</div>
+
+<!-- 6: 量化毒药 -->
+<div class="scene" id="s6">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em;margin-bottom:8px">真相</div>
+  <h1>量化交易 <strong style="color:#c0392b">是散户的毒药</strong></h1>
+  <div class="divider"></div>
+  <div style="max-width:400px;text-align:center">
+    <div style="font-size:15px;color:#6b6b80;line-height:2.6;margin-bottom:28px">
+      量化程序 <span style="color:#c0392b">每秒交易 1,000 次</span><br>
+      你手动下单 <span style="color:#c0392b">每次需要 30 秒</span><br>
+      你永远不可能比机器更快
+    </div>
+    <div style="background:rgba(212,168,83,0.04);border:1px solid rgba(212,168,83,0.12);border-radius:10px;padding:20px 28px">
+      <div style="font-size:12px;font-weight:600;letter-spacing:.1em;color:#d4a853;margin-bottom:12px">但你可以</div>
+      <div style="font-size:15px;color:#c8c8d4;line-height:2.6;text-align:left">
+        &#9654; 看到主力资金在流动<br>
+        &#9654; 收到盘前风险预警<br>
+        &#9654; 比机器更懂市场
+      </div>
+    </div>
+  </div>
+  <div class="url-foot">StockAI · 散户的防身武器，不是收割镰刀</div>
+</div>
+
+<script>
+var scenes = document.querySelectorAll('.scene');
+var current = 0;
+var total = scenes.length;
+function show(i) { scenes.forEach(function(s){ s.classList.remove('active'); }); scenes[i].classList.add('active'); }
+setInterval(function() { current = (current + 1) % total; show(current); }, 7000);
+document.body.addEventListener('click', function() { current = (current + 1) % total; show(current); });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { current = (current + 1) % total; show(current); }
+  if (e.key === 'ArrowLeft') { current = (current - 1 + total) % total; show(current); }
+});
+</script>
+</body>
+</html>

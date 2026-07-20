@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<title>StockAI — 短视频素材库</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0c14; color:#c8c8d4; font-family:'PingFang SC','Noto Sans SC','Microsoft YaHei',sans-serif; overflow:hidden; height:100vh; }
+
+.scene { display:none; width:100%; height:100vh; flex-direction:column; align-items:center; justify-content:center; text-align:center; padding:40px 28px; position:absolute; top:0; left:0; }
+.scene.active { display:flex; }
+
+h1 { font-size:clamp(28px,6vw,46px); font-weight:300; color:#fff; line-height:1.3; margin-bottom:14px; }
+h1 b { font-weight:700; }
+h2 { font-size:clamp(14px,2.5vw,18px); font-weight:300; color:#6b6b80; margin-bottom:28px; }
+.accent { color:#d4a853; }
+.danger { color:#c0392b; }
+.success { color:#27ae60; }
+.muted { color:#5a5a72; }
+
+.divider { width:40px; height:1px; background:rgba(255,255,255,0.1); margin:20px auto; }
+
+.big-num { font-size:clamp(48px,12vw,80px); font-weight:100; letter-spacing:-0.02em; }
+.big-text { font-size:clamp(18px,4vw,28px); font-weight:400; color:#fff; line-height:1.6; }
+
+.tag { display:inline-block; padding:6px 14px; border-radius:4px; font-size:12px; font-weight:600; margin:4px; }
+.tag-up { background:rgba(39,174,96,0.1); color:#27ae60; border:1px solid rgba(39,174,96,0.2); }
+.tag-down { background:rgba(192,57,43,0.1); color:#c0392b; border:1px solid rgba(192,57,43,0.2); }
+
+.url-foot { position:absolute; bottom:32px; font-size:13px; color:#4a4a60; letter-spacing:0.06em; }
+.url-foot b { color:#6b6b80; }
+
+.qr-box { background:#fff; padding:14px; border-radius:12px; margin:20px 0; }
+.qr-box .txt { font-size:12px; color:#0a0c14; font-weight:600; margin-top:6px; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+.scene.active > * { animation:fadeUp .5s ease-out both; }
+.scene.active > *:nth-child(2) { animation-delay:.08s; }
+.scene.active > *:nth-child(3) { animation-delay:.16s; }
+</style>
+</head>
+<body>
+
+<!-- 1: 开盘定方向 -->
+<div class="scene active">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">09:25 集合竞价结束</div>
+  <h1>今天大盘<b>往哪走？</b></h1>
+  <div class="divider"></div>
+  <div class="big-num success">+0.8%</div>
+  <div style="font-size:18px;color:#27ae60">AI预判：偏多</div>
+  <div class="url-foot">每天开盘前看一眼 · <b>StockAI</b></div>
+</div>
+
+<!-- 2: 涨停密码 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">10:15 盘中</div>
+  <h1>这只股票<b>为什么涨停？</b></h1>
+  <div class="divider"></div>
+  <div style="font-size:22px;color:#fff;margin:8px 0">金博股份 +20%</div>
+  <div class="big-text" style="color:#6b6b80;font-size:16px">AI分析：光伏政策利好<br>机构大单持续买入</div>
+  <div class="url-foot">涨停原因 · AI一句话告诉你 · <b>StockAI</b></div>
+</div>
+
+<!-- 3: 资金出逃 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">14:30 尾盘</div>
+  <h1>注意！<b style="color:#c0392b">主力在跑</b></h1>
+  <div class="divider"></div>
+  <div class="big-num danger">-5.2亿</div>
+  <div style="font-size:16px;color:#6b6b80">某白酒龙头 · 连续3日净流出</div>
+  <div class="url-foot">第一时间看到主力动向 · <b>StockAI</b></div>
+</div>
+
+<!-- 4: 散户情绪 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">市场温度计</div>
+  <h1>散户今天<b>怕不怕？</b></h1>
+  <div class="divider"></div>
+  <div style="display:flex;gap:24px;margin:16px 0">
+    <div><div class="big-num" style="font-size:40px;color:#c0392b">68%</div><div style="font-size:13px;color:#5a5a72">恐慌</div></div>
+    <div><div class="big-num" style="font-size:40px;color:#27ae60">32%</div><div style="font-size:13px;color:#5a5a72">贪婪</div></div>
+  </div>
+  <div style="font-size:15px;color:#d4a853">市场恐慌时，往往是机会</div>
+  <div class="url-foot">恐惧贪婪指数 · 每日更新 · <b>StockAI</b></div>
+</div>
+
+<!-- 5: 北向资金 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">聪明钱追踪</div>
+  <h1>北向资金<b>今天买了什么？</b></h1>
+  <div class="divider"></div>
+  <div class="big-num success">+23亿</div>
+  <div style="font-size:15px;color:#6b6b80">白酒 · 新能源 · 半导体</div>
+  <div class="url-foot">跟着聪明钱走 · <b>StockAI</b></div>
+</div>
+
+<!-- 6: 仓位建议 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">风险控制</div>
+  <h1>现在<b>几成仓位</b>合适？</h1>
+  <div class="divider"></div>
+  <div class="big-num accent">5成</div>
+  <div style="font-size:15px;color:#6b6b80">市场偏多但不稳定 · 建议半仓操作</div>
+  <div class="url-foot">AI仓位建议 · 风控不靠感觉 · <b>StockAI</b></div>
+</div>
+
+<!-- 7: 热力图 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">板块扫描</div>
+  <h1>今天<b>谁在涨</b>谁在跌？</h1>
+  <div class="divider"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:340px;margin:12px 0">
+    <span class="tag tag-up">白酒 +2.1%</span><span class="tag tag-up">新能源 +1.8%</span>
+    <span class="tag tag-down">证券 -1.2%</span><span class="tag tag-up">半导体 +1.5%</span>
+    <span class="tag tag-down">银行 -0.8%</span><span class="tag tag-up">AI +3.2%</span>
+  </div>
+  <div class="url-foot">板块热力图 · 30秒看懂全市场 · <b>StockAI</b></div>
+</div>
+
+<!-- 8: 模拟盘 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">零成本练手</div>
+  <h1>不花一分钱<b>学会炒股</b></h1>
+  <div class="divider"></div>
+  <div class="big-num" style="font-size:56px">100,000</div>
+  <div style="font-size:16px;color:#6b6b80">虚拟本金 · 真实行情 · 盈亏实时算</div>
+  <div class="url-foot">模拟交易 · 练好了再实盘 · <b>StockAI</b></div>
+</div>
+
+<!-- 9: 微信通知 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">智能提醒</div>
+  <h1>价格到了<b>微信弹通知</b></h1>
+  <div class="divider"></div>
+  <div style="font-size:20px;color:#fff;margin:12px 0">设一个提醒</div>
+  <div style="font-size:16px;color:#6b6b80">"茅台跌破1200通知我"</div>
+  <div style="font-size:16px;color:#27ae60;margin:8px 0">触发后微信马上收到</div>
+  <div class="url-foot">不用盯盘 · 价格到了自动告诉你 · <b>StockAI</b></div>
+</div>
+
+<!-- 10: 收盘复盘 -->
+<div class="scene">
+  <div class="muted" style="font-size:11px;letter-spacing:.1em">15:00 收盘</div>
+  <h1>今天<b>赚了还是赔了？</b></h1>
+  <div class="divider"></div>
+  <div class="big-num success">+2.3%</div>
+  <div style="font-size:15px;color:#6b6b80">你的真实持仓 · 今日盈亏一目了然</div>
+  <div class="url-foot">收盘自动算盈亏 · 明天操作建议 · <b>StockAI</b></div>
+</div>
+
+<!-- LAST: QR code -->
+<div class="scene">
+  <h1 style="font-size:clamp(24px,5vw,36px)">免费使用</h1>
+  <div style="font-size:18px;color:#6b6b80;margin-bottom:24px">每天3分钟 · AI帮你搞定A股</div>
+  <div class="qr-box">
+    <div style="width:160px;height:160px;background:#0a0c14;margin:0 auto;display:flex;align-items:center;justify-content:center;font-size:12px;color:#5a5a72;border-radius:8px">
+      [ 扫码打开 ]<br>StockAI
+    </div>
+    <div class="txt">kunhuang.top</div>
+  </div>
+  <div class="url-foot">微信扫码 · 即刻使用</div>
+</div>
+
+<script>
+var scenes = document.querySelectorAll('.scene');
+var cur = 0;
+function show(i) { scenes.forEach(function(s){ s.classList.remove('active'); }); scenes[i].classList.add('active'); }
+setInterval(function() { cur = (cur + 1) % scenes.length; show(cur); }, 5000);
+document.body.addEventListener('click', function() { cur = (cur + 1) % scenes.length; show(cur); });
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'ArrowRight') { cur = (cur + 1) % scenes.length; show(cur); }
+  if (e.key === 'ArrowLeft') { cur = (cur - 1 + scenes.length) % scenes.length; show(cur); }
+});
+</script>
+</body>
+</html>

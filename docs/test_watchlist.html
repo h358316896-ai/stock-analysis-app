@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head><meta charset="UTF-8"><title>StockAI 自选股测试</title>
+<style>
+body{font-family:sans-serif;background:#0c0c14;color:#f0f0f5;padding:40px;max-width:600px;margin:0 auto}
+input,button{padding:8px 12px;margin:4px;border-radius:6px;border:1px solid rgba(255,255,255,0.2);background:#1a1a28;color:#f0f0f5;font-size:14px}
+button{cursor:pointer;background:#3b82f6;border:none;color:white}
+.msg{padding:10px;margin:10px 0;border-radius:6px}
+.ok{background:rgba(34,197,94,0.2);color:#22c55e}
+.err{background:rgba(239,68,68,0.2);color:#ef4444}
+.info{background:rgba(59,130,246,0.15);color:#3b82f6}
+pre{background:#1a1a28;padding:12px;border-radius:6px;font-size:12px;overflow-x:auto}
+</style></head>
+<body>
+<h2>🧪 StockAI 自选股测试</h2>
+
+<div id="step1">
+  <h4>步骤1: 登录</h4>
+  用户名 <input id="user" value="test"><br>
+  密码 <input id="pass" type="password" value="123456"><br>
+  <button onclick="doLogin()">登录</button>
+  <button onclick="doRegister()">注册新号</button>
+  <div id="msg1"></div>
+</div>
+
+<div id="step2" style="display:none">
+  <h4>步骤2: 搜索股票</h4>
+  代码 <input id="code" value="600519"><br>
+  <button onclick="doSearch()">搜索</button>
+  <div id="msg2"></div>
+</div>
+
+<div id="step3" style="display:none">
+  <h4>步骤3: 加入自选股</h4>
+  <button onclick="doAddWatchlist()">+ 加入自选股</button>
+  <div id="msg3"></div>
+</div>
+
+<div id="step4" style="display:none">
+  <h4>步骤4: 查看自选股列表</h4>
+  <button onclick="doGetWatchlist()">刷新列表</button>
+  <button onclick="doRemoveAll()">清空全部自选</button>
+  <div id="msg4"></div>
+</div>
+
+<pre id="log" style="max-height:300px;overflow-y:auto"></pre>
+
+<script>
+let stockState = null;
+let watchlistInList = false;
+
+function log(msg, cls) {
+  var l = document.getElementById('log');
+  l.innerHTML += '<div class="'+(cls||'')+'">[' + new Date().toLocaleTimeString() + '] ' + msg + '</div>';
+  l.scrollTop = l.scrollHeight;
+}
+
+async function doLogin() {
+  var u = document.getElementById('user').value.trim();
+  var p = document.getElementById('pass').value.trim();
+  if (!u || !p) return log('请输入用户名和密码', 'err');
+  log('登录中...', 'info');
+  try {
+    var r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p})
+    });
+    var d = await r.json();
+    log('登录响应: ' + JSON.stringify(d), r.ok ? 'ok' : 'err');
+    if (d.success) {
+      document.getElementById('step1').style.display = 'none';
+      document.getElementById('step2').style.display = 'block';
+      // Verify session
+      var r2 = await fetch('/api/auth/me');
+      var d2 = await r2.json();
+      log('Session验证: ' + JSON.stringify(d2), d2.logged_in ? 'ok' : 'err');
+    }
+  } catch(e) { log('登录失败: ' + e.message, 'err'); }
+}
+
+async function doRegister() {
+  var u = document.getElementById('user').value.trim();
+  var p = document.getElementById('pass').value.trim();
+  if (!u || !p) return log('请输入用户名和密码', 'err');
+  var uniqueUser = u + '_' + Date.now().toString(36);
+  log('注册中... ' + uniqueUser, 'info');
+  try {
+    var r = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: uniqueUser, email: uniqueUser + '@test.com', password: p})
+    });
+    var d = await r.json();
+    log('注册响应: ' + JSON.stringify(d), r.ok ? 'ok' : 'err');
+  } catch(e) { log('注册失败: ' + e.message, 'err'); }
+}
+
+async function doSearch() {
+  var code = document.getElementById('code').value.trim();
+  if (!code) return log('请输入代码', 'err');
+  log('搜索: ' + code, 'info');
+  try {
+    var r = await fetch('/api/stock/quote?code=' + code + '&market=cn');
+    var d = await r.json();
+    log('搜索结果: ' + JSON.stringify(d), d.price ? 'ok' : 'err');
+    if (d.name) {
+      stockState = {code: d.code, name: d.name, market: 'cn'};
+      document.getElementById('step2').style.display = 'none';
+      document.getElementById('step3').style.display = 'block';
+      document.getElementById('step4').style.display = 'block';
+      // Check if already in watchlist
+      try {
+        var r2 = await fetch('/api/watchlist/check/' + code + '?market=cn');
+        var d2 = await r2.json();
+        watchlistInList = d2.in_watchlist;
+        log('自选状态: ' + (d2.in_watchlist ? '已在自选' : '未加入'), 'info');
+      } catch(e) {}
+    }
+  } catch(e) { log('搜索失败: ' + e.message, 'err'); }
+}
+
+async function doAddWatchlist() {
+  if (!stockState) return log('请先搜索股票', 'err');
+  log('添加自选: ' + JSON.stringify(stockState), 'info');
+  try {
+    var r = await fetch('/api/watchlist', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(stockState)
+    });
+    var d = await r.json();
+    log('添加结果: ' + JSON.stringify(d), d.success ? 'ok' : 'err');
+    if (d.success) watchlistInList = true;
+    if (d.error && d.error.includes('已在自选')) { watchlistInList = true; log('(已存在)', 'info'); }
+  } catch(e) { log('添加失败: ' + e.message, 'err'); }
+}
+
+async function doGetWatchlist() {
+  log('获取自选股列表...', 'info');
+  try {
+    var r = await fetch('/api/watchlist');
+    if (r.status === 401) { log('需要登录！Session丢失！', 'err'); return; }
+    var d = await r.json();
+    log('自选股 (' + (d.items ? d.items.length : 0) + '):', 'ok');
+    if (d.items) d.items.forEach(function(i) {
+      log('  ' + i.code + ' ' + i.name, 'info');
+    });
+  } catch(e) { log('获取失败: ' + e.message, 'err'); }
+}
+
+async function doRemoveAll() {
+  log('清空自选股...', 'info');
+  try {
+    var r = await fetch('/api/watchlist');
+    if (r.status === 401) { log('需要登录！', 'err'); return; }
+    var d = await r.json();
+    if (d.items) {
+      for (var i = 0; i < d.items.length; i++) {
+        var item = d.items[i];
+        await fetch('/api/watchlist/' + item.code + '?market=' + (item.market||'cn'), {method:'DELETE'});
+      }
+      log('全部清空完毕', 'ok');
+    }
+  } catch(e) { log('清空失败: ' + e.message, 'err'); }
+}
+
+// Auto-check session on load
+(async function() {
+  try {
+    var r = await fetch('/api/auth/me');
+    var d = await r.json();
+    log('初始Session: ' + JSON.stringify(d), d.logged_in ? 'ok' : 'info');
+  } catch(e) { log('Session检查失败: ' + e.message, 'err'); }
+})();
+</script>
+</body>
+</html>
