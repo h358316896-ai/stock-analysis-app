@@ -1,7 +1,10 @@
-// StockAI PWA Service Worker — 离线支持 + 智能缓存
-const CACHE_STATIC = 'stockai-static-v4';
-const CACHE_API = 'stockai-api-v4';
-const CACHE_PAGES = 'stockai-pages-v4';
+// StockAI PWA Service Worker — 离线支持 + API代理
+const CACHE_STATIC = 'stockai-static-v5';
+const CACHE_API = 'stockai-api-v5';
+const CACHE_PAGES = 'stockai-pages-v5';
+
+// ECS backend IP for API proxying
+const API_ORIGIN = 'http://47.97.66.164';
 
 // 安装时预缓存核心资源
 const PRECACHE = [
@@ -32,16 +35,58 @@ self.addEventListener('activate', (e) => {
   );
 });
 
+// API请求代理到ECS后端（绕过GFW域名阻断）
+async function apiProxy(request) {
+  const url = new URL(request.url);
+  const apiUrl = API_ORIGIN + url.pathname + url.search;
+
+  console.log('[SW] Proxying API:', apiUrl);
+
+  try {
+    // 构造新的请求，保留原始headers和body
+    const proxyRequest = new Request(apiUrl, {
+      method: request.method,
+      headers: request.headers,
+      body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.clone().blob() : undefined,
+      mode: 'cors',
+      credentials: 'include',
+    });
+
+    const response = await fetch(proxyRequest);
+    if (response.ok) {
+      // 缓存成功的响应
+      const cache = await caches.open(CACHE_API);
+      cache.put(request, response.clone());
+    }
+    return response;
+  } catch (err) {
+    console.warn('[SW] API proxy failed, trying cache:', err);
+    const cached = await caches.match(request);
+    if (cached) return cached;
+    return new Response(JSON.stringify({ error: '网络不可用' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
 // 请求拦截：分级缓存策略
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // 跳过非 GET 请求
-  if (e.request.method !== 'GET') return;
+  // 跳过非 GET 请求（POST/PUT等API由页面直接调用）
+  if (e.request.method !== 'GET') {
+    // 对于 API 的 POST/PUT 请求，也代理到 ECS
+    if (url.pathname.startsWith('/api/')) {
+      e.respondWith(apiProxy(e.request));
+      return;
+    }
+    return;
+  }
 
-  // API 请求：网络优先 → 缓存回退（5分钟新鲜度）
+  // API 请求：代理到 ECS 后端
   if (url.pathname.startsWith('/api/')) {
-    e.respondWith(networkFirst(e.request, CACHE_API, 300));
+    e.respondWith(apiProxy(e.request));
     return;
   }
 
@@ -74,42 +119,6 @@ self.addEventListener('fetch', (e) => {
     })
   );
 });
-
-// 网络优先策略
-async function networkFirst(request, cacheName, maxAge) {
-  try {
-    const response = await fetch(request);
-    if (response.ok) {
-      const clone = response.clone();
-      const cache = await caches.open(cacheName);
-      // 存储时记录时间戳
-      await cache.put(request, clone);
-      // 将时间戳存储到单独的条目
-      const meta = await cache.put(
-        new Request(request.url + '::meta'),
-        new Response(JSON.stringify({ cachedAt: Date.now() }))
-      );
-    }
-    return response;
-  } catch (err) {
-    // 网络失败 → 检查缓存是否在有效期内
-    const cached = await caches.match(request);
-    if (cached) {
-      const metaReq = new Request(request.url + '::meta');
-      const metaRes = await caches.match(metaReq);
-      if (metaRes) {
-        try {
-          const meta = await metaRes.json();
-          if (Date.now() - meta.cachedAt < maxAge * 1000) {
-            return cached;
-          }
-        } catch (e) {}
-      }
-      return cached; // 即使过期也返回，比什么都没有好
-    }
-    throw err;
-  }
-}
 
 // 推送通知
 self.addEventListener('push', (e) => {
