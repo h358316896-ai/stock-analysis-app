@@ -2,7 +2,7 @@
 <h2>API Test</h2>
 <div id="out">Testing...</div>
 <script>
-var API='https://stock-analysis-app-production-da60.up.railway.app';
+var API='';
 fetch(API+'/api/dashboard').then(r=>r.json()).then(d=>{
 document.getElementById('out').innerHTML='OK! indices:'+d.indices.length+' sectors:'+d.sectors.length+' gainers:'+d.gainers.length+'<br><small>'+JSON.stringify(d.indices[0])+'</small>';
 }).catch(e=>{document.getElementById('out').innerHTML='ERROR: '+e.message;});

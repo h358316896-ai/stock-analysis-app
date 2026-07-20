@@ -46,7 +46,7 @@ function pwaDismiss() {
   var host = window.location.hostname;
   var isLocalBackend = (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0');
   if (!isLocalBackend) {
-    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    window.API_BASE = '';
     var orig = window.fetch;
     window.fetch = function(url, opts) {
       if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;

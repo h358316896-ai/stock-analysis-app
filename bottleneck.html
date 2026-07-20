@@ -274,7 +274,7 @@ function shareBottleneck() {
 (function(){
   var host = location.hostname;
   if (host !== 'localhost' && host !== '127.0.0.1') {
-    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    window.API_BASE = '';
     var orig = window.fetch;
     window.fetch = function(url, opts) {
       opts = opts || {};

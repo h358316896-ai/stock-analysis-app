@@ -736,7 +736,7 @@ console.log('[v20260617-2] SW & cache cleared');
   var isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1' || location.hostname.startsWith('172.16.');
   window.API_BASE = '';
   if (!isLocal) {
-    window.API_BASE = 'https://stock-analysis-app-production-da60.up.railway.app';
+    window.API_BASE = '';
   }
   var orig = window.fetch;
   window.fetch = function(url, opts) {
@@ -1094,7 +1094,7 @@ function generateWxQr() {
       var uid = d.user.id;
       // WxPusher subscribe URL with callback
       var appToken = 'AT_mnTgmCSIdkc8sSXaEEQHSOVsMj0uYFij';
-      var cbUrl = 'https://stock-analysis-app-production-da60.up.railway.app/api/wxpusher/callback';
+      var cbUrl = '/api/wxpusher/callback';
       // Generate WxPusher QR code — they have a subscribe API
       var qrUrl = 'https://wxpusher.zjiecode.com/api/qrcode/create';
       fetch(qrUrl, {
