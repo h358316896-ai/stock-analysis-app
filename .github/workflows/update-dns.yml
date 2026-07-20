@@ -62,7 +62,7 @@ jobs:
           UPDATE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
-            --data '{"type":"A","name":"kunhuang.top","content":"47.97.66.164","ttl":1,"proxied":false}')
+            --data '{"type":"A","name":"kunhuang.top","content":"47.97.66.164","ttl":1,"proxied":true}')
           echo "Update response: $UPDATE"
           SUCCESS=$(echo "$UPDATE" | python3 -c "import sys,json; print(json.load(sys.stdin)['success'])")
           if [ "$SUCCESS" != "True" ]; then
