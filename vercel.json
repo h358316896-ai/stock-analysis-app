@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "http://47.97.66.164/api/:path*"
+      "destination": "https://47.97.66.164/api/:path*"
     },
     {
       "source": "/health",
