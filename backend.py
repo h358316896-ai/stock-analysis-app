@@ -5234,7 +5234,8 @@ def admin_quick_upgrade():
 def admin_cache_refresh():
     """接收来自 GitHub Actions 的 Eastmoney 缓存数据"""
     token = request.headers.get("X-Cache-Token", "")
-    if token != os.getenv("CACHE_REFRESH_TOKEN", "stockai-cache-2026"):
+    expected = os.getenv("CACHE_REFRESH_TOKEN", "")
+    if not expected or token != expected:
         return jsonify({"error": "unauthorized"}), 401
     try:
         data = request.get_json(force=True)
@@ -5247,8 +5248,9 @@ def admin_cache_refresh():
         with open(cache_path, "w") as f:
             json.dump(existing, f, ensure_ascii=False)
         return jsonify({"status": "ok", "keys": list(data.keys())})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        logger.exception("Cache refresh failed")
+        return jsonify({"error": "internal error"}), 500
 
 @app.route("/api/admin/persistence")
 @admin_required
