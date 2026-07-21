@@ -3275,36 +3275,39 @@ def stock_financials():
 
     try:
         if market == "cn":
-            # Eastmoney financial data (with Tencent API fallback)
-            prefix = "1" if code.startswith("6") else "0"
-            secid = f"{prefix}.{code}"
-            url = f"https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f9,f20,f23,f37,f38,f39,f40,f41,f43,f44,f45,f46,f55,f57,f58,f115,f162,f167,f170,f173"
-            data = fetch_eastmoney(url)
-            if data and data.get("data"):
-                d = data["data"]
-                result = {
-                    "pe": d.get("f9"),           # 市盈率(动态)
-                    "pb": d.get("f23"),          # 市净率
-                    "roe": d.get("f173"),        # ROE
-                    "revenue": d.get("f44"),     # 营业总收入
-                    "net_profit": d.get("f46"),  # 净利润
-                    "total_mv": d.get("f20"),    # 总市值
-                    "eps": d.get("f43"),         # 每股收益
-                    "bps": d.get("f41"),         # 每股净资产
-                    "debt_ratio": d.get("f55"),  # 资产负债率
-                    "gross_margin": d.get("f38"), # 毛利率
-                    "net_margin": d.get("f39"),  # 净利率
-                }
-            # Fallback: use Tencent quote data for PE, PB, market_cap
-            if result.get("pe") is None or result.get("total_mv") is None:
+            # Tencent jiankuang API for comprehensive financial data
+            prefix = "sh" if code.startswith(("6", "5", "1")) else "sz"
+            fin_url = f"https://ifzq.gtimg.cn/appstock/stockinfo/jiankuang?code={prefix}{code}"
+            try:
+                fin_data = requests.get(fin_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5).json()
+                zyzb = fin_data.get("data", {}).get("zyzb", {}).get("detail", {})
+                if zyzb:
+                    def parse_fin(val):
+                        if not val or val == "--": return None
+                        v = str(val).replace(",", "").replace("元", "").replace("%", "").replace("亿元", "").replace("万元", "").replace("亿", "")
+                        try: return float(v)
+                        except: return None
+                    result = {
+                        "eps": parse_fin(zyzb.get("mgsy")),         # 每股收益
+                        "roe": parse_fin(zyzb.get("jzcsyl")),       # ROE
+                        "revenue": parse_fin(zyzb.get("yyzsr")),     # 营业总收入(亿元)
+                        "net_profit": parse_fin(zyzb.get("jlr")),    # 净利润(亿元)
+                        "bps": parse_fin(zyzb.get("mgjzc")),         # 每股净资产
+                        "debt_ratio": parse_fin(zyzb.get("zcfzl")),  # 资产负债率
+                        "pe": parse_fin(zyzb.get("syl")),            # 市盈率
+                        "pb": parse_fin(zyzb.get("sjl")),            # 市净率
+                    }
+            except: pass
+            # Fallback: use Tencent quote for PE, PB, market_cap
+            if result.get("pe") is None or result.get("pb") is None:
                 q = fetch_cn_quote(code)
                 if q and "error" not in q:
                     if result.get("pe") is None and q.get("pe"):
                         result["pe"] = q["pe"]
-                    if result.get("total_mv") is None and q.get("market_cap"):
-                        result["total_mv"] = q["market_cap"]  # already in 亿元
                     if result.get("pb") is None and q.get("pb"):
                         result["pb"] = q["pb"]
+                    if result.get("total_mv") is None and q.get("market_cap"):
+                        result["total_mv"] = q["market_cap"]
         elif market == "us":
             try:
                 import yfinance as yf
