@@ -530,7 +530,8 @@ def api_dashboard():
         # Last resort: stale cache (even if empty — better than nothing)
         if entry:
             return entry["data"]
-        return None
+        # Return empty structure so callers don't crash on None
+        return {"data": {"diff": []}}
 
     sectors_data = _cached_or_live("sectors", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:2&fields=f2,f3,f4,f12,f14")
     concepts_data = _cached_or_live("concepts", "https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=60&po=1&np=1&fltt=2&invt=2&fid=f3&fs=m:90+t:3&fields=f2,f3,f4,f12,f14")
