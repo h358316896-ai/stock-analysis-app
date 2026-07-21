@@ -3277,7 +3277,7 @@ def stock_financials():
         if market == "cn":
             # Tencent jiankuang API for comprehensive financial data
             prefix = "sh" if code.startswith(("6", "5", "1")) else "sz"
-            fin_url = f"https://ifzq.gtimg.cn/appstock/stockinfo/jiankuang?code={prefix}{code}"
+            fin_url = f"https://ifzq.gtimg.cn/appstock/app/stockinfo/jiankuang?code={prefix}{code}"
             try:
                 fin_data = requests.get(fin_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=5).json()
                 zyzb = fin_data.get("data", {}).get("zyzb", {}).get("detail", {})
