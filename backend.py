@@ -5230,6 +5230,26 @@ def admin_quick_upgrade():
 
 
 # ---- 数据持久化管理（管理员） ----
+@app.route("/api/admin/cache-refresh", methods=["POST"])
+def admin_cache_refresh():
+    """接收来自 GitHub Actions 的 Eastmoney 缓存数据"""
+    token = request.headers.get("X-Cache-Token", "")
+    if token != os.getenv("CACHE_REFRESH_TOKEN", "stockai-cache-2026"):
+        return jsonify({"error": "unauthorized"}), 401
+    try:
+        data = request.get_json(force=True)
+        cache_path = os.path.join(BASE_DIR, "market_cache.json")
+        existing = {}
+        if os.path.exists(cache_path):
+            with open(cache_path, "r") as f:
+                existing = json.load(f)
+        existing.update(data)
+        with open(cache_path, "w") as f:
+            json.dump(existing, f, ensure_ascii=False)
+        return jsonify({"status": "ok", "keys": list(data.keys())})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route("/api/admin/persistence")
 @admin_required
 def admin_persistence():

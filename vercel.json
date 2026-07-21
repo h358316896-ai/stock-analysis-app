@@ -6,6 +6,10 @@
     { "source": "/stock", "destination": "/stock.html" },
     { "source": "/media", "destination": "/media.html" },
     { "source": "/services", "destination": "/services.html" },
+    { "source": "/bottleneck", "destination": "/bottleneck.html" },
+    { "source": "/tools", "destination": "/tools.html" },
+    { "source": "/video-ad", "destination": "/video-ad.html" },
+    { "source": "/video-ad-cn", "destination": "/video-ad-cn.html" },
     { "source": "/((?!api/|static/|css/)[^.]+$)", "destination": "/index.html" }
   ],
   "headers": [
