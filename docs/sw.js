@@ -1,6 +1,6 @@
 // StockAI Service Worker — API proxy to ECS + offline cache
 const ECS = "http://47.97.66.164";
-const CACHE_STATIC = "stockai-v7";
+const CACHE_STATIC = "stockai-v8";
 const RETRY_MAX = 2;
 
 // --- Install & Activate ---
