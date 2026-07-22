@@ -18,6 +18,12 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('/sw.js').catch(function() {});
   });
+  // Auto-reload once when SW first takes control (first visit only)
+  if (!navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      window.location.reload();
+    });
+  }
 }
 var _pwaDeferredPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e) {
@@ -47,12 +53,8 @@ function pwaDismiss() {
   var isLocalBackend = (host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0');
   if (!isLocalBackend) {
     window.API_BASE = '';
-    var orig = window.fetch;
-    window.fetch = function(url, opts) {
-      if (typeof url === 'string' && url.indexOf('/api/') === 0) url = window.API_BASE + url;
-      return orig.call(this, url, opts);
-    };
-    try { orig.call(window, window.API_BASE + '/health', { mode: 'no-cors', cache: 'no-store' }).catch(function(){}); } catch(e){}
+    // SW will intercept /api/* and proxy to ECS with retry.
+    // Keep the fetch wrapper minimal; SW handles all /api/ routing.
   } else { window.API_BASE = ''; }
 })();
 </script>
