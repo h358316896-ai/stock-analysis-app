@@ -4045,6 +4045,20 @@ def gold_price():
     except Exception:
         pass
 
+    # 3.5 Cache fallback for Shanghai gold/silver (Sina blocked from ECS)
+    if not result["shanghai_gold"] or not result["shanghai_silver"]:
+        try:
+            cache_path = os.path.join(BASE_DIR, "gold_cache.json")
+            if os.path.exists(cache_path):
+                with open(cache_path, "r") as f:
+                    gc = json.load(f)
+                if not result["shanghai_gold"] and gc.get("shanghai_gold"):
+                    result["shanghai_gold"] = gc["shanghai_gold"]
+                if not result["shanghai_silver"] and gc.get("shanghai_silver"):
+                    result["shanghai_silver"] = gc["shanghai_silver"]
+        except Exception:
+            pass
+
     # 4. Fallback: 沪银用COMEX白银, COMEX用Yahoo
     if not result["shanghai_silver"] and comex_silver:
         result["shanghai_silver"] = comex_silver
