@@ -3987,8 +3987,21 @@ def gold_price():
             "prev_close": result["comex"]["prev_close"],
         }
 
-    # 3. 沪金 + 沪银 (Sina 期货 API)
+    # 3. 沪金 + 沪银 — load cache first (Sina blocked from ECS IP)
     try:
+        cache_path = os.path.join(BASE_DIR, "gold_cache.json")
+        if os.path.exists(cache_path):
+            with open(cache_path, "r") as f:
+                gc = json.load(f)
+            if gc.get("shanghai_gold"):
+                result["shanghai_gold"] = gc["shanghai_gold"]
+            if gc.get("shanghai_silver"):
+                result["shanghai_silver"] = gc["shanghai_silver"]
+    except Exception:
+        pass
+    # If cache loaded data, skip Sina API calls
+    if not result["shanghai_gold"] or not result["shanghai_silver"]:
+     try:
         # 尝试常见主力合约: 偶数月份，当前2026年主力可能是au2608或au2612
         # 沪金主力: try common contract months (nf_AU prefix for CFFEX-style)
         for au_code in ["nf_AU0", "nf_AU2608", "nf_AU2612", "nf_AU2610"]:
@@ -4042,19 +4055,6 @@ def gold_price():
                         }
             except Exception:
                 continue
-    except Exception:
-        pass
-
-    # 3.5 Cache: load cached Shanghai gold/silver first (Sina blocked from ECS)
-    try:
-        cache_path = os.path.join(BASE_DIR, "gold_cache.json")
-        if os.path.exists(cache_path):
-            with open(cache_path, "r") as f:
-                gc = json.load(f)
-            if gc.get("shanghai_gold"):
-                result["shanghai_gold"] = gc["shanghai_gold"]
-            if gc.get("shanghai_silver"):
-                result["shanghai_silver"] = gc["shanghai_silver"]
     except Exception:
         pass
 
