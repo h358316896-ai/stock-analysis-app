@@ -3991,7 +3991,7 @@ def gold_price():
     try:
         # 尝试常见主力合约: 偶数月份，当前2026年主力可能是au2608或au2612
         # 沪金主力: try common contract months (nf_AU prefix for CFFEX-style)
-        for au_code in ["nf_AU2608", "nf_AU2612", "nf_AU2610", "nf_AU2606"]:
+        for au_code in ["nf_AU0", "nf_AU2608", "nf_AU2612", "nf_AU2610"]:
             if result["shanghai_gold"]: break
             try:
                 sina_url = f"https://hq.sinajs.cn/list={au_code}"
@@ -4002,16 +4002,17 @@ def gold_price():
                 m = re.search(r'var hq_str_(\w+)="([^"]*)"', text)
                 if m and m.group(2) and m.group(2) != "":
                     f = m.group(2).split(",")
-                    if len(f) >= 10 and f[2] and float(f[2]) > 0:
+                    if len(f) >= 3 and f[2] and float(f[2]) > 0:
                         price = float(f[2])      # 现价 (元/克)
-                        prev = float(f[9]) if f[9] and float(f[9]) > 0 else price  # 昨结算
+                        prev_raw = f[9] if len(f) > 9 and f[9] else "0"
+                        prev = float(prev_raw) if prev_raw and float(prev_raw) > 0 else price
                         chg = (price - prev) / prev * 100 if prev else 0
                         result["shanghai_gold"] = {
                             "code": m.group(1), "name": "沪金主力",
                             "price": price, "change_pct": round(chg, 2),
-                            "high": float(f[3]) if f[3] else 0,
-                            "low": float(f[4]) if f[4] else 0,
-                            "volume": int(f[12]) if len(f) > 12 and f[12] else 0,  # 成交量
+                            "high": float(f[3]) if len(f) > 3 and f[3] else 0,
+                            "low": float(f[4]) if len(f) > 4 and f[4] else 0,
+                            "volume": int(f[12]) if len(f) > 12 and f[12] else 0,
                         }
             except Exception:
                 continue
