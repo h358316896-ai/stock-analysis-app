@@ -15,15 +15,27 @@
 <!-- PWA Install + Service Worker -->
 <script>
 if ('serviceWorker' in navigator) {
+  // Force-clear all old SWs, then register fresh
   window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
-  });
-  // Auto-reload once when SW first takes control (first visit only)
-  if (!navigator.serviceWorker.controller) {
-    navigator.serviceWorker.addEventListener('controllerchange', function() {
-      window.location.reload();
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      var count = regs.length;
+      regs.forEach(function(r) { r.unregister(); });
+      if (count > 0) {
+        // Old SWs cleared — reload then register fresh
+        setTimeout(function(){ window.location.reload(); }, 500);
+        return;
+      }
+      // No old SWs — register new one
+      navigator.serviceWorker.register('/sw.js').then(function() {
+        // Reload once when the new SW takes control
+        if (!navigator.serviceWorker.controller) {
+          navigator.serviceWorker.addEventListener('controllerchange', function() {
+            window.location.reload();
+          });
+        }
+      }).catch(function(){});
     });
-  }
+  });
 }
 var _pwaDeferredPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e) {
