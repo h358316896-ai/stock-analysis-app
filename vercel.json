@@ -1,8 +1,6 @@
 {
   "rewrites": [
     { "source": "/css/:path*", "destination": "/static/css/:path*" },
-    { "source": "/api/:path*", "destination": "http://47.97.66.164/api/:path*" },
-    { "source": "/health", "destination": "http://47.97.66.164/health" },
     { "source": "/stock", "destination": "/stock.html" },
     { "source": "/media", "destination": "/media.html" },
     { "source": "/services", "destination": "/services.html" },
@@ -11,17 +9,5 @@
     { "source": "/video-ad", "destination": "/video-ad.html" },
     { "source": "/video-ad-cn", "destination": "/video-ad-cn.html" },
     { "source": "/((?!api/|static/|css/)[^.]+$)", "destination": "/index.html" }
-  ],
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "https://kunhuang.top" },
-        { "key": "Access-Control-Allow-Credentials", "value": "true" },
-        { "key": "Vary", "value": "Origin" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, Cookie" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" }
-      ]
-    }
   ]
 }
