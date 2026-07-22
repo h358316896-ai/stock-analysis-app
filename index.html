@@ -15,26 +15,22 @@
 <!-- PWA Install + Service Worker -->
 <script>
 if ('serviceWorker' in navigator) {
-  // Force-clear all old SWs, then register fresh
   window.addEventListener('load', function() {
-    navigator.serviceWorker.getRegistrations().then(function(regs) {
-      var count = regs.length;
-      regs.forEach(function(r) { r.unregister(); });
-      if (count > 0) {
-        // Old SWs cleared — reload then register fresh
-        setTimeout(function(){ window.location.reload(); }, 500);
-        return;
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      // If there's an waiting SW, or no controller yet, reload when it activates
+      if (reg.waiting) { reg.waiting.postMessage({type:'skip-waiting'}); window.location.reload(); return; }
+      if (!navigator.serviceWorker.controller) {
+        navigator.serviceWorker.addEventListener('controllerchange', function() {
+          window.location.reload();
+        });
       }
-      // No old SWs — register new one
-      navigator.serviceWorker.register('/sw.js').then(function() {
-        // Reload once when the new SW takes control
-        if (!navigator.serviceWorker.controller) {
-          navigator.serviceWorker.addEventListener('controllerchange', function() {
-            window.location.reload();
-          });
-        }
-      }).catch(function(){});
-    });
+      // If there's an installing worker, wait for it
+      if (reg.installing) {
+        reg.installing.addEventListener('statechange', function() {
+          if (this.state === 'activated') { window.location.reload(); }
+        });
+      }
+    }).catch(function(){});
   });
 }
 var _pwaDeferredPrompt = null;
