@@ -18,6 +18,7 @@ app.db
 output/
 *.pdf
 backend.log
+stock-sync.log
 
 # === 系统 ===
 .DS_Store
