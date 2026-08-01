@@ -22,6 +22,10 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent
 API_URL = "https://push2.eastmoney.com/api/qt/clist/get"
 EASTMONEY_PROXY = os.getenv("EASTMONEY_PROXY", "http://47.97.66.164:8444/").rstrip("/")
+GITHUB_STOCK_INDEX = (
+    "https://raw.githubusercontent.com/ZhuLinsen/daily_stock_analysis/"
+    "main/apps/dsa-web/public/stocks.index.json"
+)
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -246,6 +250,34 @@ def fetch_cn_exchanges() -> dict[str, str]:
     return dict(sorted(stocks.items()))
 
 
+def fetch_cn_github_mirror() -> dict[str, str]:
+    """Fetch the maintained public stock autocomplete index from GitHub."""
+    import json
+
+    rows = json.loads(
+        _read_url(GITHUB_STOCK_INDEX, "https://github.com/", timeout=90).decode("utf-8")
+    )
+    stocks: dict[str, str] = {}
+    for row in rows:
+        if not isinstance(row, list) or len(row) < 9:
+            continue
+        qualified, code, name = str(row[0]), str(row[1]), str(row[2]).strip()
+        market, asset_type, active = row[6], row[7], row[8]
+        if (
+            market == "CN"
+            and asset_type == "stock"
+            and active is True
+            and qualified.endswith((".SH", ".SZ"))
+            and len(code) == 6
+            and code.isdigit()
+            and name
+        ):
+            stocks[code] = name
+    if len(stocks) < 4_000:
+        raise RuntimeError(f"GitHub mirror returned an incomplete list ({len(stocks)} rows)")
+    return dict(sorted(stocks.items()))
+
+
 def write_module(config: dict, stocks: dict[str, str]) -> None:
     if len(stocks) < int(config["min_count"]):
         raise RuntimeError(
@@ -285,17 +317,22 @@ def main() -> int:
         print(f"Synchronizing {market} stock names...")
         if market == "cn":
             try:
-                stocks = fetch_cn_exchanges()
-                source = "SSE/SZSE"
-            except Exception as exchange_exc:
-                print(f"Official exchanges unavailable ({exchange_exc}); switching to Eastmoney")
+                stocks = fetch_cn_github_mirror()
+                source = "GitHub public stock index"
+            except Exception as mirror_exc:
+                print(f"GitHub mirror unavailable ({mirror_exc}); switching to official exchanges")
                 try:
-                    stocks = fetch_market(str(config["filters"]), int(config["code_width"]))
-                    source = "Eastmoney"
-                except Exception as eastmoney_exc:
-                    print(f"Eastmoney unavailable ({eastmoney_exc}); switching to BaoStock")
-                    stocks = fetch_cn_baostock()
-                    source = "BaoStock"
+                    stocks = fetch_cn_exchanges()
+                    source = "SSE/SZSE"
+                except Exception as exchange_exc:
+                    print(f"Official exchanges unavailable ({exchange_exc}); switching to Eastmoney")
+                    try:
+                        stocks = fetch_market(str(config["filters"]), int(config["code_width"]))
+                        source = "Eastmoney"
+                    except Exception as eastmoney_exc:
+                        print(f"Eastmoney unavailable ({eastmoney_exc}); switching to BaoStock")
+                        stocks = fetch_cn_baostock()
+                        source = "BaoStock"
         else:
             stocks = fetch_market(str(config["filters"]), int(config["code_width"]))
             source = "Eastmoney"

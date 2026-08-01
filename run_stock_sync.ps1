@@ -7,10 +7,14 @@ Set-Location -LiteralPath $repo
 "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Stock sync started" | Add-Content -LiteralPath $log -Encoding UTF8
 
 try {
-    & $python -u sync_stock_names.py --market cn 2>&1 |
-        Tee-Object -FilePath $log -Append
-    if ($LASTEXITCODE -ne 0) {
-        throw "Stock sync exited with code $LASTEXITCODE"
+    $syncOutput = & $python -u sync_stock_names.py --market cn 2>&1
+    $syncExitCode = $LASTEXITCODE
+    $syncOutput | ForEach-Object {
+        $_ | Out-File -LiteralPath $log -Append -Encoding utf8
+        Write-Output $_
+    }
+    if ($syncExitCode -ne 0) {
+        throw "Stock sync exited with code $syncExitCode"
     }
 
     & $python -m py_compile stock_names.py sync_stock_names.py
