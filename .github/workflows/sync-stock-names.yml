@@ -1,6 +1,11 @@
 name: Sync stock names
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "sync_stock_names.py"
+      - ".github/workflows/sync-stock-names.yml"
   schedule:
     # 18:20 UTC = 02:20 Beijing time. Daily sync covers IPOs, delistings,
     # renames and ST status changes before the next trading session.
