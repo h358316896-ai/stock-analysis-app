@@ -7,8 +7,10 @@ has an instant-search fallback even when the upstream quote API is unavailable.
 from __future__ import annotations
 
 import argparse
+import html
 import os
 import random
+import re
 import tempfile
 import time
 import urllib.parse
@@ -157,6 +159,93 @@ def fetch_cn_baostock() -> dict[str, str]:
     return dict(sorted(stocks.items()))
 
 
+def _read_url(url: str, referer: str, timeout: int = 60, retries: int = 4) -> bytes:
+    last_error: Exception | None = None
+    for attempt in range(retries):
+        try:
+            request = urllib.request.Request(url, headers={**HEADERS, "Referer": referer})
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                return response.read()
+        except Exception as exc:
+            last_error = exc
+            if attempt + 1 < retries:
+                time.sleep(min(8, 2**attempt) + random.random())
+    raise RuntimeError(f"Official exchange request failed: {last_error}")
+
+
+def fetch_cn_exchanges() -> dict[str, str]:
+    """Fetch currently listed A shares from the SSE and SZSE official sites."""
+    import json
+
+    stocks: dict[str, str] = {}
+    sse_endpoint = "https://query.sse.com.cn/sseQuery/commonQuery.do"
+    for stock_type in ("1", "8"):  # Main Board and STAR Market
+        params = {
+            "sqlId": "COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L",
+            "STOCK_TYPE": stock_type,
+            "COMPANY_STATUS": "2,4,5,7,8",
+            "type": "inParams",
+            "isPagination": "true",
+            "pageHelp.pageSize": 5000,
+            "pageHelp.pageNo": 1,
+            "pageHelp.beginPage": 1,
+            "pageHelp.cacheSize": 1,
+        }
+        raw = _read_url(
+            f"{sse_endpoint}?{urllib.parse.urlencode(params)}",
+            "https://www.sse.com.cn/assortment/stock/list/share/",
+        )
+        payload = json.loads(raw.decode("utf-8"))
+        rows = payload.get("result") or []
+        if len(rows) < (500 if stock_type == "8" else 1_500):
+            raise RuntimeError(f"SSE returned an incomplete type={stock_type} list")
+        for row in rows:
+            code = str(row.get("A_STOCK_CODE") or "").strip()
+            name = str(row.get("SEC_NAME_CN") or "").strip()
+            if len(code) == 6 and code.isdigit() and name:
+                stocks[code] = name
+
+    szse_endpoint = "https://www.szse.cn/api/report/ShowReport/data"
+    szse_referer = "https://www.szse.cn/market/product/stock/list/index.html"
+
+    def fetch_szse_page(page: int) -> tuple[list[dict], int]:
+        params = {
+            "SHOWTYPE": "JSON",
+            "CATALOGID": "1110",
+            "TABKEY": "tab1",
+            "PAGENO": page,
+        }
+        payload = json.loads(
+            _read_url(
+                f"{szse_endpoint}?{urllib.parse.urlencode(params)}", szse_referer
+            ).decode("utf-8")
+        )
+        report = payload[0]
+        return report.get("data") or [], int(report["metadata"]["pagecount"])
+
+    first_rows, page_count = fetch_szse_page(1)
+    all_szse_rows = list(first_rows)
+    # The official report fixes pages at 20 rows. Fetch sequentially and pace
+    # requests to stay well below the exchange site's anti-burst threshold.
+    for page in range(2, page_count + 1):
+        rows, _ = fetch_szse_page(page)
+        all_szse_rows.extend(rows)
+        time.sleep(0.4 + random.random() * 0.2)
+
+    szse_count = 0
+    for row in all_szse_rows:
+        code = str(row.get("agdm") or "").strip()
+        raw_name = str(row.get("agjc") or "")
+        name = html.unescape(re.sub(r"<[^>]+>", "", raw_name)).strip()
+        if len(code) == 6 and code.isdigit() and name:
+            stocks[code] = name
+            szse_count += 1
+    if szse_count < 2_500:
+        raise RuntimeError(f"SZSE returned an incomplete list ({szse_count} rows)")
+
+    return dict(sorted(stocks.items()))
+
+
 def write_module(config: dict, stocks: dict[str, str]) -> None:
     if len(stocks) < int(config["min_count"]):
         raise RuntimeError(
@@ -194,15 +283,22 @@ def main() -> int:
 
     for market, config in selected.items():
         print(f"Synchronizing {market} stock names...")
-        try:
+        if market == "cn":
+            try:
+                stocks = fetch_cn_exchanges()
+                source = "SSE/SZSE"
+            except Exception as exchange_exc:
+                print(f"Official exchanges unavailable ({exchange_exc}); switching to Eastmoney")
+                try:
+                    stocks = fetch_market(str(config["filters"]), int(config["code_width"]))
+                    source = "Eastmoney"
+                except Exception as eastmoney_exc:
+                    print(f"Eastmoney unavailable ({eastmoney_exc}); switching to BaoStock")
+                    stocks = fetch_cn_baostock()
+                    source = "BaoStock"
+        else:
             stocks = fetch_market(str(config["filters"]), int(config["code_width"]))
             source = "Eastmoney"
-        except Exception as exc:
-            if market != "cn":
-                raise
-            print(f"Eastmoney unavailable ({exc}); switching to BaoStock")
-            stocks = fetch_cn_baostock()
-            source = "BaoStock"
         write_module(config, stocks)
         print(f"Updated {config['output']} with {len(stocks)} entries from {source}")
     return 0
